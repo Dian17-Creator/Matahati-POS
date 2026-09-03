@@ -54,6 +54,11 @@ class muser extends Authenticatable
     {
         return $this->cpassword;
     }
+
+    public function getAuthPasswordName()
+    {
+        return 'cpassword';
+    }
     public function isSuperAdmin()
     {
         return $this->fsuper == 1;
