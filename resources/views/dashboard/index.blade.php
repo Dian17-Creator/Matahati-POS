@@ -136,7 +136,7 @@
     <div class="col-md-12">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-clock-history me-2"></i>5 Produk Terakhir Ditambahkan</h6>
+                <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-clock-history me-2"></i>Produk Terakhir Ditambahkan</h6>
                 <a href="{{ route('products.index') }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
             </div>
             <div class="card-body p-0">

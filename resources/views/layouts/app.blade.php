@@ -113,8 +113,14 @@
                 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4">
                     <div class="container-fluid">
                         <span class="navbar-brand mb-0 h1">@yield('title')</span>
-                        <div class="d-flex align-items-center">
-                            <span class="text-muted">Sistem Admin</span>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-muted"><i class="bi bi-person-circle me-1"></i> {{ Auth::user()->cname ?? 'Sistem Admin' }}</span>
+                            <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
+                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </nav>
