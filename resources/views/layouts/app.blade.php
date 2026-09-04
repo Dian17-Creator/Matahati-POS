@@ -76,7 +76,7 @@
                         <i class="bi bi-tags me-2"></i> Kategori Produk
                     </a>
                     <a href="{{ route('products.index') }}" class="{{ request()->routeIs('products.*') ? 'active' : '' }}">
-                        <i class="bi bi-box me-2"></i> Produk
+                        <i class="bi bi-cup-hot me-2"></i> Produk
                     </a>
                     <a href="{{ route('ingredients.index') }}" class="{{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
                         <i class="bi bi-basket me-2"></i> Bahan Baku
