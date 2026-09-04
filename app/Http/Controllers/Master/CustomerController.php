@@ -29,7 +29,7 @@ class CustomerController extends Controller
             ->with('success', 'Pelanggan berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'cname' => 'required|string|max:255',
@@ -45,7 +45,7 @@ class CustomerController extends Controller
             ->with('success', 'Pelanggan berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $customer = MposCust::findOrFail($id);
         $customer->delete();

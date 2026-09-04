@@ -78,7 +78,7 @@ class ComboController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'nid_combo_product' => 'required|exists:mpos_product,nid',
@@ -121,7 +121,7 @@ class ComboController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         DB::beginTransaction();
         try {

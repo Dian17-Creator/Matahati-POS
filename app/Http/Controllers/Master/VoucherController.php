@@ -30,7 +30,7 @@ class VoucherController extends Controller
             ->with('success', 'Voucher berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $this->validateVoucher($request);
 
@@ -41,7 +41,7 @@ class VoucherController extends Controller
             ->with('success', 'Voucher berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $voucher = MposVoucher::findOrFail($id);
         $voucher->delete();

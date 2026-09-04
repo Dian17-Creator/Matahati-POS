@@ -30,7 +30,7 @@ class OutletController extends Controller
             ->with('success', 'Outlet berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'cname' => 'required|string|max:255',
@@ -44,7 +44,7 @@ class OutletController extends Controller
             ->with('success', 'Outlet berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $outlet = MposOutlet::findOrFail($id);
         $outlet->delete();
