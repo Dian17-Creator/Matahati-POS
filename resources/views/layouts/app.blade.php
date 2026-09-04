@@ -81,9 +81,7 @@
                     <a href="{{ route('ingredients.index') }}" class="{{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
                         <i class="bi bi-basket me-2"></i> Bahan Baku
                     </a>
-                    <a href="{{ route('recipes.index') }}" class="{{ request()->routeIs('recipes.*') ? 'active' : '' }}">
-                        <i class="bi bi-journal-text me-2"></i> Resep
-                    </a>
+
                     <a href="{{ route('combos.index') }}" class="{{ request()->routeIs('combos.*') ? 'active' : '' }}">
                         <i class="bi bi-boxes me-2"></i> Produk Kombo
                     </a>
