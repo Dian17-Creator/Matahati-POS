@@ -41,7 +41,7 @@
                         <td>{{ $product->category->cname ?? '-' }}</td>
                         <td>Rp {{ number_format($product->nprice, 0, ',', '.') }}</td>
                         <td>
-                            @if($product->cstatus == 'Active' || $product->cstatus == '1' || strtolower($product->cstatus) == 'aktif')
+                            @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
                                 <span class="badge bg-success">{{ $product->cstatus }}</span>
                             @else
                                 <span class="badge bg-secondary">{{ $product->cstatus }}</span>
