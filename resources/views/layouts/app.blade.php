@@ -68,7 +68,7 @@
                     <h4 class="text-center text-white mb-4">MATAHATI POS</h4>
                     
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                        <i class="bi bi-house me-2"></i> Dashboard
                     </a>
 
                     <div class="nav-category">Master Data</div>
