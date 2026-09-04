@@ -5,7 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\CategoryController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\IngredientController;
-use App\Http\Controllers\Master\RecipeController;
+
 use App\Http\Controllers\Master\ComboController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\OutletController;
@@ -31,7 +31,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('categories', CategoryController::class);
     Route::resource('products', ProductController::class);
     Route::resource('ingredients', IngredientController::class);
-    Route::resource('recipes', RecipeController::class);
+
     Route::resource('combos', ComboController::class);
 
     // POS Management Routes
