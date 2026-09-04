@@ -5,13 +5,23 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\MposIngredients;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class IngredientController extends Controller
 {
     public function index()
     {
         $ingredients = MposIngredients::paginate(10);
-        return view('ingredients.index', compact('ingredients'));
+        $type = DB::select('SHOW COLUMNS FROM mpos_ingredients WHERE Field = "csatuan"')[0]->Type;
+        preg_match('/^enum\((.*)\)$/', $type, $matches);
+        $satuans = [];
+        if (isset($matches[1])) {
+            foreach(explode(',', $matches[1]) as $value){
+                $satuans[] = trim($value, "'");
+            }
+        }
+
+        return view('ingredients.index', compact('ingredients', 'satuans'));
     }
 
     public function store(Request $request)

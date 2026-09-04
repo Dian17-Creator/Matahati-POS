@@ -18,7 +18,7 @@
                         <th width="10%">ID</th>
                         <th>Nama Bahan</th>
                         <th>Satuan</th>
-                        <th>Stok</th>
+                        <th>Stok Minimal</th>
                         <th width="20%" class="text-center">Aksi</th>
                     </tr>
                 </thead>
@@ -59,7 +59,13 @@
                                         </div>
                                         <div class="mb-3">
                                             <label for="csatuan_{{ $ingredient->nid }}" class="form-label">Satuan</label>
-                                            <input type="text" class="form-control @if(old('modal_id') == $ingredient->nid) @error('csatuan') is-invalid @enderror @endif" id="csatuan_{{ $ingredient->nid }}" name="csatuan" value="{{ old('modal_id') == $ingredient->nid ? old('csatuan') : $ingredient->csatuan }}" required>
+                                            @php $currentSatuan = old('modal_id') == $ingredient->nid ? old('csatuan') : $ingredient->csatuan; @endphp
+                                            <select class="form-select @if(old('modal_id') == $ingredient->nid) @error('csatuan') is-invalid @enderror @endif" id="csatuan_{{ $ingredient->nid }}" name="csatuan" required>
+                                                <option value="">Pilih Satuan</option>
+                                                @foreach($satuans as $satuan)
+                                                    <option value="{{ $satuan }}" {{ $currentSatuan == $satuan ? 'selected' : '' }}>{{ $satuan }}</option>
+                                                @endforeach
+                                            </select>
                                             @if(old('modal_id') == $ingredient->nid) @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
                                         <div class="mb-3">
@@ -134,7 +140,13 @@
                     </div>
                     <div class="mb-3">
                         <label for="csatuan" class="form-label">Satuan</label>
-                        <input type="text" class="form-control @if(old('modal_id') == 'create') @error('csatuan') is-invalid @enderror @endif" id="csatuan" name="csatuan" value="{{ old('modal_id') == 'create' ? old('csatuan') : '' }}" required>
+                        @php $createSatuan = old('modal_id') == 'create' ? old('csatuan') : ''; @endphp
+                        <select class="form-select @if(old('modal_id') == 'create') @error('csatuan') is-invalid @enderror @endif" id="csatuan" name="csatuan" required>
+                            <option value="">Pilih Satuan</option>
+                            @foreach($satuans as $satuan)
+                                <option value="{{ $satuan }}" {{ $createSatuan == $satuan ? 'selected' : '' }}>{{ $satuan }}</option>
+                            @endforeach
+                        </select>
                         @if(old('modal_id') == 'create') @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
                     <div class="mb-3">
@@ -158,7 +170,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
         var modalId = "{{ old('modal_id') }}";
-        
+
         if (hasErrors && modalId) {
             if (modalId === 'create') {
                 var myModal = new bootstrap.Modal(document.getElementById('createModal'));
