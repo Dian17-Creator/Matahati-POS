@@ -85,7 +85,7 @@ class ProductController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $messages = [
             'nid_ingredient.required_with' => 'Anda mengaktifkan fitur Resep, mohon tambahkan minimal 1 Bahan Baku.',
@@ -155,7 +155,7 @@ class ProductController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         DB::beginTransaction();
         try {

@@ -31,13 +31,13 @@ class CategoryController extends Controller
             ->with('success', 'Kategori berhasil ditambahkan.');
     }
 
-    public function edit($id)
+    public function edit(string $id)
     {
         $category = MposGrpProduct::findOrFail($id);
         return view('categories.edit', compact('category'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'cname' => 'required|string|max:255'
@@ -50,7 +50,7 @@ class CategoryController extends Controller
             ->with('success', 'Kategori berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $category = MposGrpProduct::findOrFail($id);
         $category->delete();

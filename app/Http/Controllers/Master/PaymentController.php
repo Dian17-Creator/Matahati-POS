@@ -26,7 +26,7 @@ class PaymentController extends Controller
             ->with('success', 'Metode pembayaran berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'cname' => 'required|string|max:255',
@@ -39,7 +39,7 @@ class PaymentController extends Controller
             ->with('success', 'Metode pembayaran berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $payment = MposPayment::findOrFail($id);
         $payment->delete();

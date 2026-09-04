@@ -37,7 +37,7 @@ class PosUserController extends Controller
             ->with('success', 'Pengguna POS berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'nid_user' => 'required|exists:muser,nid',
@@ -57,7 +57,7 @@ class PosUserController extends Controller
             ->with('success', 'Pengguna POS berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $posUser = MposUser::findOrFail($id);
         $posUser->delete();

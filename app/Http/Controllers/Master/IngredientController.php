@@ -38,7 +38,7 @@ class IngredientController extends Controller
             ->with('success', 'Bahan baku berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $request->validate([
             'cname' => 'required|string|max:255',
@@ -53,7 +53,7 @@ class IngredientController extends Controller
             ->with('success', 'Bahan baku berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         $ingredient = MposIngredients::findOrFail($id);
         $ingredient->delete();
