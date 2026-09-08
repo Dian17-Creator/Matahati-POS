@@ -13,12 +13,21 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
+    public function apiIndex()
+    {
+        $products = MposProduct::with('category')->get();
+        return response()->json([
+            'success' => true,
+            'data' => $products
+        ]);
+    }
+
     public function index()
     {
         $products = MposProduct::with(['category', 'recipes.ingredient'])->paginate(10);
         $categories = MposGrpProduct::all();
         $ingredients = MposIngredients::all();
-        
+
         return view('products.index', compact('products', 'categories', 'ingredients'));
     }
 
@@ -160,11 +169,11 @@ class ProductController extends Controller
         DB::beginTransaction();
         try {
             $product = MposProduct::findOrFail($id);
-            
+
             if ($product->cphotos && file_exists(public_path($product->cphotos))) {
                 unlink(public_path($product->cphotos));
             }
-            
+
             MposRecipe::where('nid_product', $id)->delete();
             $product->delete();
 

@@ -8,6 +8,15 @@ use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+    public function apiIndex()
+    {
+        $categories = MposGrpProduct::all();
+        return response()->json([
+            'success' => true,
+            'data' => $categories
+        ]);
+    }
+
     public function index()
     {
         $categories = MposGrpProduct::paginate(10);
