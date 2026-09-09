@@ -8,6 +8,15 @@ use Illuminate\Http\Request;
 
 class CustomerController extends Controller
 {
+    public function apiIndex()
+    {
+        $customers = MposCust::all();
+        return response()->json([
+            'success' => true,
+            'data' => $customers
+        ]);
+    }
+
     public function index()
     {
         $customers = MposCust::paginate(10);
