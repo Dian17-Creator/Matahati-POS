@@ -8,6 +8,17 @@ use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
+    public function apiIndex()
+    {
+        $payments = MposPayment::orderBy('nid', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Daftar metode pembayaran berhasil diambil.',
+            'data' => $payments
+        ], 200);
+    }
+
     public function index()
     {
         $payments = MposPayment::paginate(10);
