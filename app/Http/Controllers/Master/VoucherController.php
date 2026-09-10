@@ -8,6 +8,31 @@ use Illuminate\Http\Request;
 
 class VoucherController extends Controller
 {
+    public function apiIndex(Request $request)
+    {
+        $today = now()->toDateString();
+
+        $query = MposVoucher::whereRaw('LOWER(cstatus) = ?', ['active'])
+            ->whereDate('dstart', '<=', $today)
+            ->whereDate('dend', '>=', $today)
+            ->where(function ($q) {
+                $q->whereNull('nqty')
+                  ->orWhereColumn('nredeem', '<', 'nqty');
+            });
+
+        if ($request->filled('code')) {
+            $query->where('ckode', $request->query('code'));
+        }
+
+        $vouchers = $query->orderBy('dend', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Daftar voucher tersedia berhasil diambil.',
+            'data' => $vouchers
+        ], 200);
+    }
+
     public function index()
     {
         $vouchers = MposVoucher::paginate(10);
