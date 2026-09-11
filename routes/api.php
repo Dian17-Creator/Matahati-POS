@@ -8,6 +8,7 @@ use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\Master\PaymentController;
+use App\Http\Controllers\TransactionController;
 use App\Models\MposSalesH;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -22,6 +23,9 @@ Route::get('/payment-methods', [PaymentController::class, 'apiIndex']);
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+//Api Transaction
+Route::post('/pos/transactions', [TransactionController::class, 'store']);
 
 //API ORDER-TYPE
 Route::get('/pos/order-types', function () {
