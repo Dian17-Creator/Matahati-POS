@@ -71,6 +71,7 @@ class MposSalesH extends Model
         'nitem',
 
         'cstatus',
+        'ccancel_note',
     ];
 
     protected function casts(): array
