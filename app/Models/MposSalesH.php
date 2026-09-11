@@ -9,6 +9,30 @@ class MposSalesH extends Model
 {
     use HasFactory;
 
+    // Order Types
+    public const ORDER_TYPE_DINE_IN = 'DINE_IN';
+    public const ORDER_TYPE_TAKE_AWAY = 'TAKE_AWAY';
+    public const ORDER_TYPE_ONLINE = 'ONLINE';
+
+    public const ORDER_TYPES = [
+        self::ORDER_TYPE_DINE_IN,
+        self::ORDER_TYPE_TAKE_AWAY,
+        self::ORDER_TYPE_ONLINE,
+    ];
+
+    // Statuses
+    public const STATUS_DRAFT = 'DRAFT';
+    public const STATUS_PENDING = 'PENDING';
+    public const STATUS_PAID = 'PAID';
+    public const STATUS_CANCELLED = 'CANCELLED';
+
+    public const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_PENDING,
+        self::STATUS_PAID,
+        self::STATUS_CANCELLED,
+    ];
+
     protected $table = 'mpos_sales_h';
 
     protected $primaryKey = 'nid';
