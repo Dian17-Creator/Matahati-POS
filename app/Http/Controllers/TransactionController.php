@@ -38,9 +38,9 @@ class TransactionController extends Controller
             'ntax' => 'nullable|numeric|min:0',
             'npaid' => 'nullable|numeric|min:0',
 
-            'details' => 'required|array|min:1',
-            'details.*.nid_product' => 'required|integer',
-            'details.*.nqty' => 'required|integer|min:1',
+            'details' => 'nullable|array',
+            'details.*.nid_product' => 'required_with:details|integer',
+            'details.*.nqty' => 'required_with:details|integer|min:1',
             'details.*.cnote' => 'nullable|string|max:500',
 
             'ccancel_note' => 'nullable|string|max:1000',
@@ -83,46 +83,48 @@ class TransactionController extends Controller
         $nidUser = $mposUser->nid;
 
         // 2. Fetch products and validate existence & ACTIVE status
-        $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
-        $products = MposProduct::whereIn('nid', $productIds)->get()->keyBy('nid');
-
         $detailsToInsert = [];
         $nsubtotal = 0;
         $nitem = 0;
 
-        foreach ($validated['details'] as $item) {
-            $productId = $item['nid_product'];
-            $product = $products->get($productId);
+        if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
+            $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
+            $products = MposProduct::whereIn('nid', $productIds)->get()->keyBy('nid');
 
-            if (!$product) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Produk dengan ID {$productId} tidak ditemukan.",
-                ], 422);
+            foreach ($validated['details'] as $item) {
+                $productId = $item['nid_product'];
+                $product = $products->get($productId);
+
+                if (!$product) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Produk dengan ID {$productId} tidak ditemukan.",
+                    ], 422);
+                }
+
+                if (strtoupper((string) $product->cstatus) !== 'ACTIVE') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Produk '{$product->cname}' sedang tidak aktif dan tidak dapat ditransaksikan.",
+                    ], 422);
+                }
+
+                $price = (float) $product->nprice;
+                $qty = (int) $item['nqty'];
+                $itemSubtotal = $price * $qty;
+
+                $detailsToInsert[] = [
+                    'nid_product' => $product->nid,
+                    'cname' => $product->cname,
+                    'nqty' => $qty,
+                    'nprice' => $price,
+                    'nsubtotal' => $itemSubtotal,
+                    'cnote' => $item['cnote'] ?? null,
+                ];
+
+                $nsubtotal += $itemSubtotal;
+                $nitem += $qty;
             }
-
-            if (strtoupper((string) $product->cstatus) !== 'ACTIVE') {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Produk '{$product->cname}' sedang tidak aktif dan tidak dapat ditransaksikan.",
-                ], 422);
-            }
-
-            $price = (float) $product->nprice;
-            $qty = (int) $item['nqty'];
-            $itemSubtotal = $price * $qty;
-
-            $detailsToInsert[] = [
-                'nid_product' => $product->nid,
-                'cname' => $product->cname,
-                'nqty' => $qty,
-                'nprice' => $price,
-                'nsubtotal' => $itemSubtotal,
-                'cnote' => $item['cnote'] ?? null,
-            ];
-
-            $nsubtotal += $itemSubtotal;
-            $nitem += $qty;
         }
 
         // 3. Calculate header totals
@@ -146,8 +148,13 @@ class TransactionController extends Controller
             }
         }
 
-        // 4. Generate unique transaction number
-        $cnotransaction = $this->generateTransactionNumber((int) $validated['nid_outlet']);
+        // 4. Generate nomor transaksi & nomor antrean sesuai format POS (#2C62{YYMMDD}{8-digit sequence})
+        $trxData = $this->generateTransactionNumber(
+            (int) $validated['nid_outlet'],
+            $validated['nqueue'] ?? null
+        );
+        $cnotransaction = $trxData['cnotransaction'];
+        $nqueue = $trxData['nqueue'];
 
         // 5. Atomic database transaction
         DB::beginTransaction();
@@ -161,7 +168,7 @@ class TransactionController extends Controller
                 'nid_voucher' => $validated['nid_voucher'] ?? null,
                 'nid_payment' => $validated['nid_payment'] ?? null,
                 'cname_customer' => $validated['cname_customer'] ?? null,
-                'nqueue' => $validated['nqueue'] ?? null,
+                'nqueue' => $nqueue,
                 'cordertype' => $validated['cordertype'],
                 'nvisitor' => (int) ($validated['nvisitor'] ?? 1),
                 'ctable' => $validated['ctable'] ?? null,
@@ -206,15 +213,32 @@ class TransactionController extends Controller
         }
     }
 
-    protected function generateTransactionNumber(int $outletId): string
+    protected function generateTransactionNumber(int $outletId, ?int $queue = null): array
     {
-        do {
-            $date = now()->format('Ymd');
-            $outletPadded = str_pad((string) $outletId, 3, '0', STR_PAD_LEFT);
-            $random = strtoupper(Str::random(6));
-            $cnotransaction = "TRX-{$date}-{$outletPadded}-{$random}";
-        } while (MposSalesH::where('cnotransaction', $cnotransaction)->exists());
+        $prefix = '#2C62';
+        $datePart = now()->format('ymd'); // 2-digit year, month, day (contoh: 260819)
 
-        return $cnotransaction;
+        if (!$queue) {
+            $today = now()->format('Y-m-d');
+            $maxQueue = MposSalesH::whereDate('dtransaction', $today)
+                ->where('nid_outlet', $outletId)
+                ->max('nqueue');
+            $queue = ($maxQueue ?? 0) + 1;
+        }
+
+        $seq = $queue;
+        do {
+            $seqPadded = str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
+            $cnotransaction = "{$prefix}{$datePart}{$seqPadded}";
+            if (!MposSalesH::where('cnotransaction', $cnotransaction)->exists()) {
+                break;
+            }
+            $seq++;
+        } while (true);
+
+        return [
+            'cnotransaction' => $cnotransaction,
+            'nqueue' => $seq,
+        ];
     }
 }
