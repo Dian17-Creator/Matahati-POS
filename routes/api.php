@@ -25,7 +25,14 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 //Api Transaction
+Route::get('/pos/transactions', [TransactionController::class, 'index']);
+Route::get('/pos/transactions/history', [TransactionController::class, 'index']);
+Route::get('/pos/transactions/{id}', [TransactionController::class, 'show']);
 Route::post('/pos/transactions', [TransactionController::class, 'store']);
+
+Route::get('/transactions', [TransactionController::class, 'index']);
+Route::get('/transactions/history', [TransactionController::class, 'index']);
+Route::get('/transactions/{id}', [TransactionController::class, 'show']);
 
 //API ORDER-TYPE
 Route::get('/pos/order-types', function () {
