@@ -7,10 +7,12 @@
     .hover-lift {
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+
     .hover-lift:hover {
         transform: translateY(-5px);
-        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
     }
+
     .icon-box {
         width: 48px;
         height: 48px;
@@ -29,11 +31,8 @@
         <div class="card shadow-sm border-0 text-white" style="background: linear-gradient(135deg, #b63352 0%, #e04a70 100%) !important;">
             <div class="card-body p-4 p-md-5 d-flex align-items-center justify-content-between">
                 <div>
-                    <h3 class="fw-bold mb-2">Selamat Datang di Admin Matahati POS ✨</h3>
+                    <h3 class="fw-bold mb-2">Selamat Datang di Backoffice Matahati POS ✨</h3>
                     <p class="mb-0 text-white" style="opacity: 0.85; font-size: 1.05rem;">Kelola master data, pelanggan, promo, dan menu kasir Anda dengan mudah dari satu tempat.</p>
-                </div>
-                <div class="d-none d-md-block opacity-50">
-                    <i class="bi bi-shop" style="font-size: 5rem;"></i>
                 </div>
             </div>
         </div>
@@ -157,16 +156,16 @@
                                 <td>Rp {{ number_format($rp->nprice, 0, ',', '.') }}</td>
                                 <td>
                                     @if($rp->cstatus == 'Active' || strtoupper($rp->cstatus) == 'ACTIVE' || $rp->cstatus == '1')
-                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Aktif</span>
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">Aktif</span>
                                     @else
-                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Non-Aktif</span>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2 py-1">Non-Aktif</span>
                                     @endif
                                 </td>
                                 <td class="pe-4 text-end">
                                     @if($rp->fcombo)
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-boxes me-1"></i>Kombo</span>
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-boxes me-1"></i>Kombo</span>
                                     @else
-                                        <span class="badge bg-light text-dark border"><i class="bi bi-box me-1"></i>Reguler</span>
+                                    <span class="badge bg-light text-dark border"><i class="bi bi-box me-1"></i>Reguler</span>
                                     @endif
                                 </td>
                             </tr>
