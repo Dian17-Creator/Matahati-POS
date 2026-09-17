@@ -29,6 +29,7 @@ Route::get('/pos/transactions', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/history', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/{id}', [TransactionController::class, 'show']);
 Route::post('/pos/transactions', [TransactionController::class, 'store']);
+Route::delete('/pos/transactions/{id}', [TransactionController::class, 'destroy']);
 
 Route::get('/transactions', [TransactionController::class, 'index']);
 Route::get('/transactions/history', [TransactionController::class, 'index']);
