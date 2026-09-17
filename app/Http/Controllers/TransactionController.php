@@ -298,6 +298,9 @@ class TransactionController extends Controller
         if ($reqStatus === MposSalesH::STATUS_CANCELLED) {
             $nchange = 0;
             $status = MposSalesH::STATUS_CANCELLED;
+        } elseif ($reqStatus === MposSalesH::STATUS_DRAFT) {
+            $nchange = 0;
+            $status = MposSalesH::STATUS_DRAFT;
         } else {
             if ($npaid >= $ngrandtotal) {
                 $nchange = $npaid - $ngrandtotal;
@@ -386,19 +389,45 @@ class TransactionController extends Controller
             $queue = ($maxQueue ?? 0) + 1;
         }
 
-        $seq = $queue;
-        do {
-            $seqPadded = str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
-            $cnotransaction = "{$prefix}{$datePart}{$seqPadded}";
-            if (!MposSalesH::where('cnotransaction', $cnotransaction)->exists()) {
-                break;
-            }
-            $seq++;
-        } while (true);
-
+        $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
         return [
-            'cnotransaction' => $cnotransaction,
-            'nqueue' => $seq,
+            'cnotransaction' => $prefix . $datePart . $queueStr,
+            'nqueue' => $queue,
         ];
+    }
+
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+        try {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            if (!$transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan',
+                ], 404);
+            }
+
+            MposSalesD::where('nid_transaction', $transaction->nid)->delete();
+            $transaction->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaksi berhasil dihapus',
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Gagal menghapus transaksi: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menghapus transaksi.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
     }
 }
