@@ -14,7 +14,7 @@ class PosUserController extends Controller
     {
         $posUsers = MposUser::with(['user', 'outlet'])->paginate(10);
         $outlets = MposOutlet::all();
-        $users = muser::all();
+        $users = muser::where('factive', 1)->get();
         
         return view('pos-users.index', compact('posUsers', 'outlets', 'users'));
     }
