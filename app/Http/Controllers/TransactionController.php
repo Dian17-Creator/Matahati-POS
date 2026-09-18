@@ -15,10 +15,6 @@ use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
-    /**
-     * Menampilkan riwayat transaksi (Transaction History)
-     * Dapat difilter berdasarkan outlet, status, tanggal/rentang tanggal, jenis order, atau kata kunci pencarian.
-     */
     public function index(Request $request)
     {
         try {
@@ -31,38 +27,31 @@ class TransactionController extends Controller
                 'outlet'
             ]);
 
-            // Filter Outlet
             if ($request->filled('nid_outlet')) {
                 $query->where('nid_outlet', $request->input('nid_outlet'));
             } elseif ($request->filled('outlet_id')) {
                 $query->where('nid_outlet', $request->input('outlet_id'));
             }
 
-            // Filter Status (PAID, PENDING, CANCELLED, dll)
             if ($request->filled('cstatus')) {
                 $query->where('cstatus', strtoupper($request->input('cstatus')));
             } elseif ($request->filled('status')) {
                 $query->where('cstatus', strtoupper($request->input('status')));
             }
 
-            // Filter Order Type (DINE_IN, TAKE_AWAY, ONLINE)
             if ($request->filled('cordertype')) {
                 $query->where('cordertype', strtoupper($request->input('cordertype')));
             } elseif ($request->filled('order_type')) {
                 $query->where('cordertype', strtoupper($request->input('order_type')));
             }
 
-            // Filter User / Kasir
             if ($request->filled('nid_user')) {
                 $query->where('nid_user', $request->input('nid_user'));
             }
-
-            // Filter Tanggal Spesifik (YYYY-MM-DD)
             if ($request->filled('date')) {
                 $query->whereDate('dtransaction', $request->input('date'));
             }
 
-            // Filter Rentang Tanggal (start_date & end_date)
             if ($request->filled('start_date')) {
                 $query->whereDate('dtransaction', '>=', $request->input('start_date'));
             }
@@ -70,20 +59,17 @@ class TransactionController extends Controller
                 $query->whereDate('dtransaction', '<=', $request->input('end_date'));
             }
 
-            // Pencarian berdasarkan nomor transaksi, nama customer, atau meja
             if ($request->filled('search')) {
                 $search = $request->input('search');
                 $query->where(function ($q) use ($search) {
                     $q->where('cnotransaction', 'like', "%{$search}%")
-                      ->orWhere('cname_customer', 'like', "%{$search}%")
-                      ->orWhere('ctable', 'like', "%{$search}%");
+                        ->orWhere('cname_customer', 'like', "%{$search}%")
+                        ->orWhere('ctable', 'like', "%{$search}%");
                 });
             }
 
-            // Urutkan transaksi terbaru terlebih dahulu
             $query->orderBy('dtransaction', 'desc')->orderBy('nid', 'desc');
 
-            // Dukungan pagination jika diminta secara eksplisit
             if ($request->boolean('paginate')) {
                 $perPage = (int) $request->input('per_page', 15);
                 $transactions = $query->paginate($perPage);
@@ -101,7 +87,6 @@ class TransactionController extends Controller
                 ], 200);
             }
 
-            // Default: ambil seluruh transaksi (atau dengan limit jika ditentukan)
             $limit = $request->filled('limit') ? (int) $request->input('limit') : null;
             if ($limit && $limit > 0) {
                 $transactions = $query->limit($limit)->get();
@@ -127,9 +112,6 @@ class TransactionController extends Controller
         }
     }
 
-    /**
-     * Menampilkan detail satu transaksi berdasarkan ID (nid) atau Nomor Transaksi (cnotransaction)
-     */
     public function show($id)
     {
         try {
@@ -141,14 +123,14 @@ class TransactionController extends Controller
                 'posUser.user',
                 'outlet'
             ])
-            ->where(function ($query) use ($id) {
-                if (is_numeric($id)) {
-                    $query->where('nid', (int) $id)->orWhere('cnotransaction', $id);
-                } else {
-                    $query->where('cnotransaction', $id);
-                }
-            })
-            ->first();
+                ->where(function ($query) use ($id) {
+                    if (is_numeric($id)) {
+                        $query->where('nid', (int) $id)->orWhere('cnotransaction', $id);
+                    } else {
+                        $query->where('cnotransaction', $id);
+                    }
+                })
+                ->first();
 
             if (!$transaction) {
                 return response()->json([
@@ -379,7 +361,7 @@ class TransactionController extends Controller
     protected function generateTransactionNumber(int $outletId, ?int $queue = null): array
     {
         $prefix = '#2C62';
-        $datePart = now()->format('ymd'); // 2-digit year, month, day (contoh: 260819)
+        $datePart = now()->format('ymd');
 
         if (!$queue) {
             $today = now()->format('Y-m-d');
