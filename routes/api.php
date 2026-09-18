@@ -8,6 +8,7 @@ use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\Master\PaymentController;
+use App\Http\Controllers\Master\PosUserController;
 use App\Http\Controllers\TransactionController;
 use App\Models\MposSalesH;
 
@@ -19,6 +20,7 @@ Route::get('/customers', [CustomerController::class, 'apiIndex']);
 Route::get('/vouchers', [VoucherController::class, 'apiIndex']);
 Route::get('/payments', [PaymentController::class, 'apiIndex']);
 Route::get('/payment-methods', [PaymentController::class, 'apiIndex']);
+Route::get('/pos-users', [PosUserController::class, 'apiIndex']);
 
 Route::get('/user', function (Request $request) {
     return $request->user();

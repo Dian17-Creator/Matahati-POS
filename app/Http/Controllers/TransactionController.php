@@ -162,6 +162,7 @@ class TransactionController extends Controller
         $validated = $request->validate([
             'nid_customer' => 'nullable|integer',
             'nid_outlet' => 'required|integer',
+            'nid_user' => 'nullable|integer',
             'nid_payment' => 'nullable|integer',
             'nid_voucher' => 'nullable|integer',
             'cname_customer' => 'nullable|string|max:255',
@@ -189,7 +190,7 @@ class TransactionController extends Controller
             'cstatus' => 'nullable|string|max:50',
         ]);
 
-        // 1. Resolve & Authenticate nid_user
+        // 1. Authenticate Logged-in User
         $authUser = $request->user() ?? Auth::user();
 
         if (!$authUser) {
@@ -200,29 +201,50 @@ class TransactionController extends Controller
             }
         }
 
-        $mposUser = null;
+        $loggedInMposUser = null;
         if ($authUser) {
-            $mposUser = MposUser::where('nid_user', $authUser->nid ?? $authUser->id)->first();
-        } elseif ($request->filled('nid_user')) {
-            $mposUser = MposUser::find($request->input('nid_user'))
-                ?? MposUser::where('nid_user', $request->input('nid_user'))->first();
+            $loggedInMposUser = MposUser::where('nid_user', $authUser->nid ?? $authUser->id)->first();
         }
 
-        if (!$mposUser) {
+        if (!$loggedInMposUser) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengguna tidak terautentikasi atau data user POS (mpos_user) tidak valid.',
             ], 401);
         }
 
-        if (!$mposUser->fowner && !$mposUser->fcashier && !$mposUser->fcaptain) {
+        if (!$loggedInMposUser->fowner && !$loggedInMposUser->fcashier && !$loggedInMposUser->fcaptain) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengguna tidak memiliki hak akses kasir/POS.',
             ], 403);
         }
 
-        $nidUser = $mposUser->nid;
+        $outletId = (int) $validated['nid_outlet'];
+
+        // 2. Resolve "Dilayani Oleh" (Served By) - nid_user from request if provided
+        $nidUser = $loggedInMposUser->nid; // default to logged-in user
+        if ($request->filled('nid_user')) {
+            $requestedNidUser = (int) $request->input('nid_user');
+            $servedByMposUser = MposUser::where('nid', $requestedNidUser)
+                ->where('nid_outlet', $outletId)
+                ->first();
+
+            if ($servedByMposUser) {
+                if (!$servedByMposUser->fowner && !$servedByMposUser->fcashier && !$servedByMposUser->fcaptain) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'User "Dilayani Oleh" tidak memiliki hak akses kasir/POS.',
+                    ], 403);
+                }
+                $nidUser = $servedByMposUser->nid;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User "Dilayani Oleh" tidak valid atau tidak bertugas di outlet ini.',
+                ], 422);
+            }
+        }
 
         // 2. Fetch products and validate existence & ACTIVE status
         $detailsToInsert = [];
@@ -383,22 +405,21 @@ class TransactionController extends Controller
         DB::beginTransaction();
         try {
             $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
-            if (!$transaction) {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            if (!empty($transaction)) {
+                MposSalesD::where('nid_transaction', $transaction->nid)->delete();
+                $transaction->delete();
+                DB::commit();
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Transaksi tidak ditemukan',
-                ], 404);
+                    'success' => $transaction,
+                    'message' => 'Transaksi berhasil dihapus',
+                ], 200);
             }
-
-            MposSalesD::where('nid_transaction', $transaction->nid)->delete();
-            $transaction->delete();
-
-            DB::commit();
-
             return response()->json([
-                'success' => true,
-                'message' => 'Transaksi berhasil dihapus',
-            ], 200);
+                'success' => false,
+                'message' => 'Transaksi tidak ditemukan',
+            ], 404);
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Gagal menghapus transaksi: ' . $e->getMessage(), [
@@ -407,7 +428,7 @@ class TransactionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat menghapus transaksi.',
+                'message' => 'Terjadi kesalahan saat mengambil riwayat transaksi.',
                 'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
