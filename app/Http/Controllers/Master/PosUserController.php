@@ -14,9 +14,34 @@ class PosUserController extends Controller
     {
         $posUsers = MposUser::with(['user', 'outlet'])->paginate(10);
         $outlets = MposOutlet::all();
-        $users = muser::where('factive', 1)->get();
-        
+        $users = muser::all();
+
         return view('pos-users.index', compact('posUsers', 'outlets', 'users'));
+    }
+
+    public function apiIndex(Request $request)
+    {
+        $outletId = $request->input('outlet_id') ?? $request->input('nid_outlet');
+        $query = MposUser::with('user');
+
+        if ($outletId) {
+            $query->where('nid_outlet', $outletId);
+        }
+
+        $posUsers = $query->get()->map(function ($posUser) {
+            return [
+                'id' => $posUser->nid,
+                'nid_user' => $posUser->nid_user,
+                'nid_outlet' => $posUser->nid_outlet,
+                'name' => $posUser->user->cname ?? $posUser->user->name ?? 'Unknown',
+                'username' => $posUser->user->cusername ?? $posUser->user->username ?? '',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $posUsers,
+        ], 200);
     }
 
     public function store(Request $request)
@@ -45,7 +70,7 @@ class PosUserController extends Controller
         ]);
 
         $posUser = MposUser::findOrFail($id);
-        
+
         $data = $request->all();
         $data['fowner'] = $request->has('fowner') ? 1 : 0;
         $data['fcashier'] = $request->has('fcashier') ? 1 : 0;
