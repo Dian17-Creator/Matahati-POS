@@ -354,6 +354,11 @@ class TransactionController extends Controller
                 MposSalesD::create($detail);
             }
 
+            // Update voucher redeem count if applicable
+            if ($salesH->nid_voucher && $salesH->cstatus === MposSalesH::STATUS_PAID) {
+                DB::table('mpos_voucher')->where('nid', $salesH->nid_voucher)->increment('nredeem');
+            }
+
             DB::commit();
 
             $salesH->load('details');
