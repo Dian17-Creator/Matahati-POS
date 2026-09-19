@@ -12,7 +12,6 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        // Kumpulkan data statistik mendetail
         $counts = [
             'categories' => MposGrpProduct::count(),
             'products_total' => MposProduct::count(),
@@ -22,8 +21,7 @@ class DashboardController extends Controller
             'vouchers_total' => MposVoucher::count(),
             'vouchers_active' => MposVoucher::where('cstatus', 'Active')->orWhere('cstatus', 'Aktif')->count(),
         ];
-        
-        // Ambil 5 produk terakhir yang ditambahkan untuk tabel ringkasan
+
         $recentProducts = MposProduct::orderBy('nid', 'desc')->take(5)->get();
 
         return view('dashboard.index', compact('counts', 'recentProducts'));
