@@ -112,7 +112,7 @@ class TransactionController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(string $id)
     {
         try {
             $transaction = MposSalesH::with([
@@ -399,7 +399,7 @@ class TransactionController extends Controller
         ];
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
         DB::beginTransaction();
         try {
