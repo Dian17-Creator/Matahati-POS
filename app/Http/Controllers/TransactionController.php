@@ -190,7 +190,6 @@ class TransactionController extends Controller
             'cstatus' => 'nullable|string|max:50',
         ]);
 
-        // 1. Authenticate Logged-in User
         $authUser = $request->user() ?? Auth::user();
 
         if (!$authUser) {
