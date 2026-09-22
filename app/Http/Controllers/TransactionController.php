@@ -48,6 +48,11 @@ class TransactionController extends Controller
             if ($request->filled('nid_user')) {
                 $query->where('nid_user', $request->input('nid_user'));
             }
+            if ($request->filled('nid_payment')) {
+                $query->where('nid_payment', $request->input('nid_payment'));
+            } elseif ($request->filled('payment_id')) {
+                $query->where('nid_payment', $request->input('payment_id'));
+            }
             if ($request->filled('date')) {
                 $query->whereDate('dtransaction', $request->input('date'));
             }
