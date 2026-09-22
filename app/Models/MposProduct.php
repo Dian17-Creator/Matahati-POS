@@ -18,6 +18,7 @@ class MposProduct extends Model
     protected $fillable = [
         'cname',
         'nid_category',
+        'nid_outlet',
         'nprice',
         'cphotos',
         'cstatus',
@@ -39,6 +40,15 @@ class MposProduct extends Model
         return $this->belongsTo(
             MposGrpProduct::class,
             'nid_category',
+            'nid'
+        );
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(
+            MposOutlet::class,
+            'nid_outlet',
             'nid'
         );
     }
