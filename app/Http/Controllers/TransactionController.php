@@ -391,20 +391,25 @@ class TransactionController extends Controller
 
     protected function generateTransactionNumber(int $outletId, ?int $queue = null): array
     {
-        $prefix = '#2C62';
+        $prefix = '#' . $outletId . 'C62';
         $datePart = now()->format('ymd');
 
         if (!$queue) {
-            $today = now()->format('Y-m-d');
-            $maxQueue = MposSalesH::whereDate('dtransaction', $today)
-                ->where('nid_outlet', $outletId)
-                ->max('nqueue');
-            $queue = ($maxQueue ?? 0) + 1;
+            $maxQueue = MposSalesH::where('cnotransaction', 'like', $prefix . $datePart . '%')->max('nqueue');
+            $queue = ((int) $maxQueue) + 1;
         }
 
-        $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
+        do {
+            $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
+            $cnotransaction = $prefix . $datePart . $queueStr;
+            $exists = MposSalesH::where('cnotransaction', $cnotransaction)->exists();
+            if ($exists) {
+                $queue++;
+            }
+        } while ($exists);
+
         return [
-            'cnotransaction' => $prefix . $datePart . $queueStr,
+            'cnotransaction' => $cnotransaction,
             'nqueue' => $queue,
         ];
     }
