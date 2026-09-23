@@ -35,6 +35,10 @@ class PosUserController extends Controller
                 'nid_outlet' => $posUser->nid_outlet,
                 'name' => $posUser->user->cname ?? $posUser->user->name ?? 'Unknown',
                 'username' => $posUser->user->cusername ?? $posUser->user->username ?? '',
+                'role_owner' => (bool) $posUser->fowner,
+                'role_cashier' => (bool) $posUser->fcashier,
+                'role_captain' => (bool) $posUser->fcaptain,
+                'role' => $posUser->fowner ? 'Owner' : ($posUser->fcaptain ? 'Captain' : ($posUser->fcashier ? 'Cashier' : 'Cashier')),
             ];
         });
 
