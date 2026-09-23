@@ -34,9 +34,10 @@ class AuthController extends Controller
                             'name' => $user->cname,
                             'email' => $user->cemail,
                             'nid_outlet' => $mposUser->nid_outlet,
+                            'outlet_name' => $mposUser->outlet->cname ?? null,
                             'role_owner' => $mposUser->fowner,
                             'role_cashier' => $mposUser->fcashier,
-                            'role_captain' => $mposUser->fcashier,
+                            'role_captain' => $mposUser->fcaptain ?? $mposUser->fcashier,
                         ]
                     ]
                 ], 200);

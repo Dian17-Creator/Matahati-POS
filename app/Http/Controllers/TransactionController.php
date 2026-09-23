@@ -366,7 +366,7 @@ class TransactionController extends Controller
 
             DB::commit();
 
-            $salesH->load('details');
+            $salesH->load(['details', 'outlet', 'posUser.user']);
 
             return response()->json([
                 'success' => true,
