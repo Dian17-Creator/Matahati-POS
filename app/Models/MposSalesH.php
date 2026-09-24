@@ -11,7 +11,9 @@ class MposSalesH extends Model
 
     // Order Types
     public const ORDER_TYPE_DINE_IN = 'DINE_IN';
+
     public const ORDER_TYPE_TAKE_AWAY = 'TAKE_AWAY';
+
     public const ORDER_TYPE_ONLINE = 'ONLINE';
 
     public const ORDER_TYPES = [
@@ -22,8 +24,11 @@ class MposSalesH extends Model
 
     // Statuses
     public const STATUS_DRAFT = 'DRAFT';
+
     public const STATUS_PENDING = 'PENDING';
+
     public const STATUS_PAID = 'PAID';
+
     public const STATUS_CANCELLED = 'CANCELLED';
 
     public const STATUSES = [
@@ -49,6 +54,7 @@ class MposSalesH extends Model
 
         'nid_customer',
         'nid_user',
+        'nid_shift',
         'nid_outlet',
         'nid_voucher',
         'nid_payment',
@@ -82,6 +88,7 @@ class MposSalesH extends Model
 
             'nid_customer' => 'integer',
             'nid_user' => 'integer',
+            'nid_shift' => 'integer',
             'nid_outlet' => 'integer',
             'nid_voucher' => 'integer',
             'nid_payment' => 'integer',
@@ -103,7 +110,6 @@ class MposSalesH extends Model
     /**
      * Prepare a date for array / JSON serialization.
      *
-     * @param  \DateTimeInterface  $date
      * @return string
      */
     protected function serializeDate(\DateTimeInterface $date)
@@ -161,6 +167,15 @@ class MposSalesH extends Model
         return $this->hasMany(
             MposSalesD::class,
             'nid_transaction',
+            'nid'
+        );
+    }
+
+    public function shift()
+    {
+        return $this->belongsTo(
+            MposShift::class,
+            'nid_shift',
             'nid'
         );
     }

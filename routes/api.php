@@ -1,16 +1,17 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Master\CategoryController;
-use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\CustomerController;
-use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\Master\PaymentController;
 use App\Http\Controllers\Master\PosUserController;
+use App\Http\Controllers\Master\ProductController;
+use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\TransactionController;
 use App\Models\MposSalesH;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -26,7 +27,15 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-//Api Transaction
+// Shift Endpoints (tanpa wajib token Sanctum)
+Route::get('/shifts/current', [ShiftController::class, 'current']);
+Route::post('/shifts/start', [ShiftController::class, 'start']);
+Route::post('/shifts/cash-movement', [ShiftController::class, 'cashMovement']);
+Route::post('/shifts/{id}/close', [ShiftController::class, 'close']);
+Route::get('/shifts/history', [ShiftController::class, 'history']);
+Route::get('/shifts/{id}', [ShiftController::class, 'show']);
+
+// Api Transaction
 Route::get('/pos/transactions', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/history', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/{id}', [TransactionController::class, 'show']);
@@ -37,7 +46,7 @@ Route::get('/transactions', [TransactionController::class, 'index']);
 Route::get('/transactions/history', [TransactionController::class, 'index']);
 Route::get('/transactions/{id}', [TransactionController::class, 'show']);
 
-//API ORDER-TYPE
+// API ORDER-TYPE
 Route::get('/pos/order-types', function () {
     return response()->json([
         'success' => true,
