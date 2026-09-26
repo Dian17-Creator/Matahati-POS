@@ -17,7 +17,6 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
 Route::get('/products', [ProductController::class, 'apiIndex']);
-Route::get('/customers', [CustomerController::class, 'apiIndex']);
 Route::get('/vouchers', [VoucherController::class, 'apiIndex']);
 Route::get('/payments', [PaymentController::class, 'apiIndex']);
 Route::get('/payment-methods', [PaymentController::class, 'apiIndex']);
@@ -40,6 +39,14 @@ Route::get('/shifts/{id}', [ShiftController::class, 'show']);
 Route::get('/pos/transactions', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/history', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/{id}', [TransactionController::class, 'show']);
+
+// Customer API
+Route::get('/customers', [CustomerController::class, 'apiIndex']);
+Route::get('/customers/{id}', [CustomerController::class, 'apiShow']);
+Route::post('/customers', [CustomerController::class, 'apiStore']);
+Route::put('/customers/{id}', [CustomerController::class, 'apiUpdate']);
+Route::delete('/customers/{id}', [CustomerController::class, 'apiDestroy']);
+Route::get('/customer-types', [CustomerController::class, 'apiTypes']);
 Route::post('/pos/transactions', [TransactionController::class, 'store']);
 Route::delete('/pos/transactions/{id}', [TransactionController::class, 'destroy']);
 
