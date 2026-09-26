@@ -92,28 +92,26 @@ class ShiftController extends Controller
             ], 200);
         }
 
-        // Hitung real-time cash_sales, cash_in, cash_out, expected_cash
+        // Hitung real-time total gross sales & cash_sales
+        $totalSales = MposSalesH::where('nid_shift', $shift->nid)
+            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->sum('ngrandtotal');
+
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->where('cstatus', MposSalesH::STATUS_PAID)
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
-        $cashIn = MposCashMovement::where('nid_shift', $shift->nid)
-            ->where('ctype', MposCashMovement::TYPE_CASH_IN)
-            ->sum('namount');
+        $cashRefund = 0;
+        $cashCancellation = 0;
 
-        $cashOut = MposCashMovement::where('nid_shift', $shift->nid)
-            ->where('ctype', MposCashMovement::TYPE_CASH_OUT)
-            ->sum('namount');
-
-        $expectedCash = $shift->nopening_cash + $cashSales + $cashIn - $cashOut;
+        $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
 
         $data = $shift->toArray();
+        $data['nsales_cash'] = (float) $totalSales;
         $data['cash_sales'] = (float) $cashSales;
-        $data['cash_in'] = (float) $cashIn;
-        $data['cash_out'] = (float) $cashOut;
-        $data['expected_cash'] = (float) $expectedCash;
+        $data['nexpected_cash'] = (float) $expectedCash;
 
         return response()->json([
             'success' => true,
@@ -121,7 +119,7 @@ class ShiftController extends Controller
         ], 200);
     }
 
-    public function start(Request $request)
+    public function open(Request $request)
     {
         $validated = $request->validate([
             'nid_outlet' => 'required|integer',
@@ -179,8 +177,17 @@ class ShiftController extends Controller
                 'nid_user' => $mposUser->nid,
                 'cshift_no' => $cshiftNo,
                 'dopened_at' => now(),
+                'dclosed_at' => null,
                 'nopening_cash' => $validated['nopening_cash'],
-                'nexpected_cash' => $validated['nopening_cash'],
+                'nsales_cash' => 0,
+                'nrefund_cash' => 0,
+                'ncancellation_cash' => 0,
+                'ncash_in' => 0,
+                'ncash_out' => 0,
+                'nexpected_cash' => null,
+                'nactual_cash' => null,
+                'ndifference' => null,
+                'nid_closed_by' => null,
                 'cstatus' => 'OPEN',
             ]);
 
@@ -188,29 +195,40 @@ class ShiftController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Shift berhasil dimulai.',
+                'message' => 'Shift berhasil dibuka.',
                 'data' => $shift,
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal memulai shift: '.$e->getMessage(), ['exception' => $e]);
+            Log::error('Gagal membuka shift: '.$e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat memulai shift.',
+                'message' => 'Terjadi kesalahan saat membuka shift.',
             ], 500);
         }
     }
 
-    public function cashMovement(Request $request)
+    public function cashIn(Request $request)
     {
         $validated = $request->validate([
-            'nid_shift' => 'required|integer',
-            'ctype' => 'required|string|in:'.MposCashMovement::TYPE_CASH_IN.','.MposCashMovement::TYPE_CASH_OUT,
-            'namount' => 'required|numeric|min:0.01',
-            'cdescription' => 'nullable|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
         ]);
 
+        return $this->handleCashMovement($request, 'CASH_IN', $validated['amount']);
+    }
+
+    public function cashOut(Request $request)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+        ]);
+
+        return $this->handleCashMovement($request, 'CASH_OUT', $validated['amount']);
+    }
+
+    protected function handleCashMovement(Request $request, $type, $amount)
+    {
         $mposUser = $this->getMposUser($request);
 
         if (! $mposUser) {
@@ -220,46 +238,33 @@ class ShiftController extends Controller
             ], 401);
         }
 
-        $shift = MposShift::where('nid', $validated['nid_shift'])->first();
+        $shift = MposShift::where('nid_user', $mposUser->nid)
+            ->where('cstatus', 'OPEN')
+            ->first();
 
         if (! $shift) {
             return response()->json([
                 'success' => false,
-                'message' => 'Shift tidak ditemukan.',
-            ], 404);
-        }
-
-        if ($shift->nid_user !== $mposUser->nid) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda tidak memiliki akses ke shift ini.',
-            ], 403);
-        }
-
-        if ($shift->cstatus !== 'OPEN') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tidak dapat melakukan cash movement pada shift yang sudah ditutup.',
+                'message' => 'Anda tidak memiliki shift yang sedang OPEN.',
             ], 422);
         }
 
-        $movement = MposCashMovement::create([
-            'nid_shift' => $shift->nid,
-            'nid_user' => $mposUser->nid,
-            'ctype' => $validated['ctype'],
-            'namount' => $validated['namount'],
-            'cdescription' => $validated['cdescription'],
-            'dcreated_at' => now(),
-        ]);
+        if ($type === 'CASH_IN') {
+            $shift->ncash_in += $amount;
+        } else {
+            $shift->ncash_out += $amount;
+        }
+
+        $shift->save();
 
         return response()->json([
             'success' => true,
-            'message' => 'Cash movement berhasil dicatat.',
-            'data' => $movement,
-        ], 201);
+            'message' => $type === 'CASH_IN' ? 'Kas masuk berhasil dicatat.' : 'Kas keluar berhasil dicatat.',
+            'data' => $shift,
+        ], 200);
     }
 
-    public function close(Request $request, $id)
+    public function close(Request $request)
     {
         $validated = $request->validate([
             'nactual_cash' => 'required|numeric|min:0',
@@ -277,59 +282,48 @@ class ShiftController extends Controller
         DB::beginTransaction();
         try {
             // Gunakan lockForUpdate untuk mencegah race condition
-            $shift = MposShift::where('nid', $id)->lockForUpdate()->first();
+            $shift = MposShift::where('nid_user', $mposUser->nid)
+                ->where('cstatus', 'OPEN')
+                ->lockForUpdate()
+                ->first();
 
             if (! $shift) {
                 DB::rollBack();
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Shift tidak ditemukan.',
-                ], 404);
-            }
-
-            if ($shift->nid_user !== $mposUser->nid) {
-                DB::rollBack();
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Anda tidak memiliki akses ke shift ini.',
-                ], 403);
-            }
-
-            if ($shift->cstatus !== 'OPEN') {
-                DB::rollBack();
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Shift ini sudah ditutup sebelumnya.',
+                    'message' => 'Shift tidak ditemukan atau sudah ditutup sebelumnya.',
                 ], 422);
             }
 
-            // Hitung expected cash
+            // Hitung gross sales (seluruh metode pembayaran)
+            $totalSales = MposSalesH::where('nid_shift', $shift->nid)
+                ->where('cstatus', MposSalesH::STATUS_PAID)
+                ->sum('ngrandtotal');
+
+            // Hitung hanya cash sales
             $cashSales = MposSalesH::where('nid_shift', $shift->nid)
                 ->where('cstatus', MposSalesH::STATUS_PAID)
                 ->whereHas('payment', function ($query) {
                     $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
                 })->sum('ngrandtotal');
 
-            $cashIn = MposCashMovement::where('nid_shift', $shift->nid)
-                ->where('ctype', MposCashMovement::TYPE_CASH_IN)
-                ->sum('namount');
+            $cashRefund = 0;
+            $cashCancellation = 0;
 
-            $cashOut = MposCashMovement::where('nid_shift', $shift->nid)
-                ->where('ctype', MposCashMovement::TYPE_CASH_OUT)
-                ->sum('namount');
-
-            $expectedCash = $shift->nopening_cash + $cashSales + $cashIn - $cashOut;
+            $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
             $actualCash = (float) $validated['nactual_cash'];
             $difference = $actualCash - $expectedCash;
 
             $shift->update([
-                'dclosed_at' => now(),
+                'nsales_cash' => $totalSales,
+                'nrefund_cash' => $cashRefund,
+                'ncancellation_cash' => $cashCancellation,
                 'nexpected_cash' => $expectedCash,
                 'nactual_cash' => $actualCash,
                 'ndifference' => $difference,
+                'nid_closed_by' => $mposUser->nid,
+                'dclosed_at' => now(),
                 'cstatus' => 'CLOSED',
             ]);
 
@@ -403,7 +397,7 @@ class ShiftController extends Controller
             ], 401);
         }
 
-        $shift = MposShift::with(['outlet', 'user.user', 'cashMovements.user'])
+        $shift = MposShift::with(['outlet', 'user.user'])
             ->where('nid', $id)
             ->first();
 
@@ -421,28 +415,23 @@ class ShiftController extends Controller
             ], 403);
         }
 
+        $totalSales = MposSalesH::where('nid_shift', $shift->nid)
+            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->sum('ngrandtotal');
+
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->where('cstatus', MposSalesH::STATUS_PAID)
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
-        $cashIn = MposCashMovement::where('nid_shift', $shift->nid)
-            ->where('ctype', MposCashMovement::TYPE_CASH_IN)
-            ->sum('namount');
-
-        $cashOut = MposCashMovement::where('nid_shift', $shift->nid)
-            ->where('ctype', MposCashMovement::TYPE_CASH_OUT)
-            ->sum('namount');
-
         $data = $shift->toArray();
+        $data['nsales_cash'] = $shift->cstatus === 'OPEN' ? (float) $totalSales : (float) $shift->nsales_cash;
         $data['cash_sales'] = (float) $cashSales;
-        $data['cash_in'] = (float) $cashIn;
-        $data['cash_out'] = (float) $cashOut;
 
         // expected cash and others are already in shift if closed, or calculated if open
         if ($shift->cstatus === 'OPEN') {
-            $data['expected_cash'] = $shift->nopening_cash + $cashSales + $cashIn - $cashOut;
+            $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - 0 - 0 + $shift->ncash_in - $shift->ncash_out;
         }
 
         return response()->json([
