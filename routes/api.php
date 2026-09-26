@@ -29,9 +29,10 @@ Route::get('/user', function (Request $request) {
 
 // Shift Endpoints (tanpa wajib token Sanctum)
 Route::get('/shifts/current', [ShiftController::class, 'current']);
-Route::post('/shifts/start', [ShiftController::class, 'start']);
-Route::post('/shifts/cash-movement', [ShiftController::class, 'cashMovement']);
-Route::post('/shifts/{id}/close', [ShiftController::class, 'close']);
+Route::post('/shifts/open', [ShiftController::class, 'open']);
+Route::post('/shifts/close', [ShiftController::class, 'close']);
+Route::post('/shifts/cash-in', [ShiftController::class, 'cashIn']);
+Route::post('/shifts/cash-out', [ShiftController::class, 'cashOut']);
 Route::get('/shifts/history', [ShiftController::class, 'history']);
 Route::get('/shifts/{id}', [ShiftController::class, 'show']);
 
