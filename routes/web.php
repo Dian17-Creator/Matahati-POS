@@ -7,6 +7,7 @@ use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\IngredientController;
 
 use App\Http\Controllers\Master\ComboController;
+use App\Http\Controllers\Master\CustomerTypeController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\OutletController;
 use App\Http\Controllers\Master\PosUserController;
@@ -29,6 +30,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Master Data Routes
     Route::resource('categories', CategoryController::class);
+    Route::resource('customer-types', CustomerTypeController::class)->except(['create', 'show', 'edit']);
     Route::resource('products', ProductController::class);
     Route::resource('ingredients', IngredientController::class);
 

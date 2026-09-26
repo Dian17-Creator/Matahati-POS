@@ -75,6 +75,9 @@
                     <a href="{{ route('categories.index') }}" class="{{ request()->routeIs('categories.*') ? 'active' : '' }}">
                         <i class="bi bi-tags me-2"></i> Kategori Produk
                     </a>
+                    <a href="{{ route('customer-types.index') }}" class="{{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
+                        <i class="bi bi-person-vcard me-2"></i> Kategori Pelanggan
+                    </a>
                     <a href="{{ route('products.index') }}" class="{{ request()->routeIs('products.*') ? 'active' : '' }}">
                         <i class="bi bi-cup-hot me-2"></i> Produk
                     </a>

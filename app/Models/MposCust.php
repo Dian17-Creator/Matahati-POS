@@ -14,11 +14,38 @@ class MposCust extends Model
     protected $primaryKey = 'nid';
     public $timestamps = false;
     protected $fillable = [
+        'nid_type',
         'cname',
+        'cgender',
+        'cmembership_no',
         'cphone',
+        'dbirth',
+        'cnotes',
         'cemail',
         'caddress',
+        'cpostal_code',
+        'ccountry',
+        'cprovince',
+        'ccity',
+        'cdistrict',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nid_type' => 'integer',
+            'dbirth' => 'date:Y-m-d',
+        ];
+    }
+
+    public function type()
+    {
+        return $this->belongsTo(
+            MposCustType::class,
+            'nid_type',
+            'nid'
+        );
+    }
 
     public function sales()
     {
