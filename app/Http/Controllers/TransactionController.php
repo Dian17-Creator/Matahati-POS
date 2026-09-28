@@ -462,4 +462,120 @@ class TransactionController extends Controller
             ], 500);
         }
     }
+
+    public function voidTransaction(Request $request, string $id)
+    {
+        $request->validate([
+            'cvoid_note' => 'required|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            
+            if (! $transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan',
+                ], 404);
+            }
+
+            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi sudah dibatalkan atau di-refund.',
+                ], 422);
+            }
+
+            $transaction->cstatus = MposSalesH::STATUS_VOID;
+            $transaction->cvoid_note = $request->cvoid_note;
+            $transaction->save();
+
+            if ($transaction->nid_shift) {
+                $shift = MposShift::find($transaction->nid_shift);
+                if ($shift) {
+                    $shift->ncancellation_cash = $shift->ncancellation_cash + $transaction->ngrandtotal;
+                    $shift->save();
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaksi berhasil dibatalkan (VOID)',
+                'data' => $transaction,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Gagal membatalkan transaksi: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat membatalkan transaksi.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    public function refundTransaction(Request $request, string $id)
+    {
+        $request->validate([
+            'crefund_note' => 'required|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            
+            if (! $transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan',
+                ], 404);
+            }
+
+            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi sudah dibatalkan atau di-refund.',
+                ], 422);
+            }
+
+            $transaction->cstatus = MposSalesH::STATUS_REFUND;
+            $transaction->crefund_note = $request->crefund_note;
+            $transaction->save();
+
+            if ($transaction->nid_shift) {
+                $shift = MposShift::find($transaction->nid_shift);
+                if ($shift) {
+                    $shift->nrefund_cash = $shift->nrefund_cash + $transaction->ngrandtotal;
+                    $shift->save();
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaksi berhasil di-refund',
+                'data' => $transaction,
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Gagal me-refund transaksi: '.$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat me-refund transaksi.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
 }
