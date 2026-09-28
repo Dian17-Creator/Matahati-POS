@@ -49,6 +49,8 @@ Route::delete('/customers/{id}', [CustomerController::class, 'apiDestroy']);
 Route::get('/customer-types', [CustomerController::class, 'apiTypes']);
 Route::post('/pos/transactions', [TransactionController::class, 'store']);
 Route::delete('/pos/transactions/{id}', [TransactionController::class, 'destroy']);
+Route::post('/pos/transactions/{id}/void', [TransactionController::class, 'voidTransaction']);
+Route::post('/pos/transactions/{id}/refund', [TransactionController::class, 'refundTransaction']);
 
 Route::get('/transactions', [TransactionController::class, 'index']);
 Route::get('/transactions/history', [TransactionController::class, 'index']);
