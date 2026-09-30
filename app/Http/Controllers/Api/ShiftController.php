@@ -94,17 +94,27 @@ class ShiftController extends Controller
 
         // Hitung real-time total gross sales & cash_sales
         $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_VOID,
+                MposSalesH::STATUS_CANCELLED,
+                MposSalesH::STATUS_REFUND,
+            ])
             ->sum('ngrandtotal');
 
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_VOID,
+                MposSalesH::STATUS_CANCELLED,
+                MposSalesH::STATUS_REFUND,
+            ])
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
-        $cashRefund = 0;
-        $cashCancellation = 0;
+        $cashRefund = (float) ($shift->nrefund_cash ?? 0);
+        $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
 
         $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
 
@@ -298,18 +308,28 @@ class ShiftController extends Controller
 
             // Hitung gross sales (seluruh metode pembayaran)
             $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-                ->where('cstatus', MposSalesH::STATUS_PAID)
+                ->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_VOID,
+                    MposSalesH::STATUS_CANCELLED,
+                    MposSalesH::STATUS_REFUND,
+                ])
                 ->sum('ngrandtotal');
 
             // Hitung hanya cash sales
             $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-                ->where('cstatus', MposSalesH::STATUS_PAID)
+                ->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_VOID,
+                    MposSalesH::STATUS_CANCELLED,
+                    MposSalesH::STATUS_REFUND,
+                ])
                 ->whereHas('payment', function ($query) {
                     $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
                 })->sum('ngrandtotal');
 
-            $cashRefund = 0;
-            $cashCancellation = 0;
+            $cashRefund = (float) ($shift->nrefund_cash ?? 0);
+            $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
 
             $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
             $actualCash = (float) $validated['nactual_cash'];
@@ -416,11 +436,21 @@ class ShiftController extends Controller
         }
 
         $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_VOID,
+                MposSalesH::STATUS_CANCELLED,
+                MposSalesH::STATUS_REFUND,
+            ])
             ->sum('ngrandtotal');
 
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_VOID,
+                MposSalesH::STATUS_CANCELLED,
+                MposSalesH::STATUS_REFUND,
+            ])
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
@@ -431,7 +461,9 @@ class ShiftController extends Controller
 
         // expected cash and others are already in shift if closed, or calculated if open
         if ($shift->cstatus === 'OPEN') {
-            $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - 0 - 0 + $shift->ncash_in - $shift->ncash_out;
+            $cashRefund = (float) ($shift->nrefund_cash ?? 0);
+            $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
+            $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
         }
 
         return response()->json([
