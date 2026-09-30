@@ -81,6 +81,7 @@ class MposSalesH extends Model
         'nchange',
 
         'nitem',
+        'cnote',
 
         'cstatus',
         'ccancel_note',
