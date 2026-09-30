@@ -24,6 +24,8 @@ class MposSalesD extends Model
         'nid_product',
         'cname',
         'nqty',
+        'nqty_void',
+        'nqty_refund',
         'nprice',
         'nsubtotal',
         'cnote',
@@ -36,6 +38,8 @@ class MposSalesD extends Model
             'nid_product' => 'integer',
 
             'nqty' => 'integer',
+            'nqty_void' => 'integer',
+            'nqty_refund' => 'integer',
 
             'nprice' => 'decimal:2',
             'nsubtotal' => 'decimal:2',
