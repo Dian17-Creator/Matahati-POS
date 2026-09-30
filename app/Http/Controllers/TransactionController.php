@@ -186,6 +186,8 @@ class TransactionController extends Controller
             'ntax' => 'nullable|numeric|min:0',
             'npaid' => 'nullable|numeric|min:0',
 
+            'cnote' => 'nullable|string|max:1000',
+
             'details' => 'nullable|array',
             'details.*.nid_product' => 'required_with:details|integer',
             'details.*.nqty' => 'required_with:details|integer|min:1',
@@ -250,8 +252,8 @@ class TransactionController extends Controller
             }
         }
 
-        // Cek Shift Aktif
-        $activeShift = MposShift::where('nid_user', $nidUser)
+        // Cek Shift Aktif (harus berdasarkan user kasir yang sedang login)
+        $activeShift = MposShift::where('nid_user', $loggedInMposUser->nid)
             ->where('nid_outlet', $outletId)
             ->where('cstatus', 'OPEN')
             ->first();
@@ -364,6 +366,7 @@ class TransactionController extends Controller
                 'npaid' => $npaid,
                 'nchange' => $nchange,
                 'nitem' => $nitem,
+                'cnote' => $validated['cnote'] ?? null,
                 'cstatus' => $status,
                 'ccancel_note' => $validated['ccancel_note'] ?? null,
             ]);
@@ -472,7 +475,7 @@ class TransactionController extends Controller
         DB::beginTransaction();
         try {
             $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
-            
+
             if (! $transaction) {
                 return response()->json([
                     'success' => false,
@@ -542,7 +545,7 @@ class TransactionController extends Controller
         DB::beginTransaction();
         try {
             $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
-            
+
             if (! $transaction) {
                 return response()->json([
                     'success' => false,
@@ -750,7 +753,7 @@ class TransactionController extends Controller
         $totalOriginalQty = $details->sum('nqty');
         $totalVoidQty = $details->sum('nqty_void');
         $totalRefundQty = $details->sum('nqty_refund');
-        
+
         $totalProcessed = $totalVoidQty + $totalRefundQty;
         $totalAvailable = $totalOriginalQty - $totalProcessed;
 
