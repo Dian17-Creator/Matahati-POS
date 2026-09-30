@@ -487,6 +487,18 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            $hasItemActions = MposSalesD::where('nid_transaction', $transaction->nid)
+                ->where(function ($q) {
+                    $q->where('nqty_void', '>', 0)->orWhere('nqty_refund', '>', 0);
+                })->exists();
+
+            if ($hasItemActions) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi sudah memiliki proses Void/Refund per item dan tidak dapat diproses sebagai transaksi penuh.',
+                ], 422);
+            }
+
             $transaction->cstatus = MposSalesH::STATUS_VOID;
             $transaction->cvoid_note = $request->cvoid_note;
             $transaction->save();
@@ -545,6 +557,18 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            $hasItemActions = MposSalesD::where('nid_transaction', $transaction->nid)
+                ->where(function ($q) {
+                    $q->where('nqty_void', '>', 0)->orWhere('nqty_refund', '>', 0);
+                })->exists();
+
+            if ($hasItemActions) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi sudah memiliki proses Void/Refund per item dan tidak dapat diproses sebagai transaksi penuh.',
+                ], 422);
+            }
+
             $transaction->cstatus = MposSalesH::STATUS_REFUND;
             $transaction->crefund_note = $request->crefund_note;
             $transaction->save();
@@ -576,6 +600,170 @@ class TransactionController extends Controller
                 'message' => 'Terjadi kesalahan saat me-refund transaksi.',
                 'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
+        }
+    }
+
+    public function voidItems(Request $request, string $id)
+    {
+        return $this->processItemAction($request, $id, 'VOID');
+    }
+
+    public function refundItems(Request $request, string $id)
+    {
+        return $this->processItemAction($request, $id, 'REFUND');
+    }
+
+    protected function processItemAction(Request $request, string $id, string $actionType)
+    {
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.detail_id' => 'required|integer',
+            'items.*.qty' => 'required|integer|min:1',
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $transaction = MposSalesH::where('nid', $id)
+                ->orWhere('cnotransaction', $id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan',
+                ], 404);
+            }
+
+            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND || $transaction->cstatus === MposSalesH::STATUS_CANCELLED) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Transaksi tidak dapat diproses karena status saat ini: {$transaction->cstatus}",
+                ], 422);
+            }
+
+            $totalActionAmount = 0;
+            $processedItems = [];
+
+            foreach ($request->items as $itemReq) {
+                $detailId = $itemReq['detail_id'];
+                $requestQty = $itemReq['qty'];
+
+                $detail = MposSalesD::where('nid', $detailId)
+                    ->where('nid_transaction', $transaction->nid)
+                    ->first();
+
+                if (! $detail) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Item dengan detail_id {$detailId} bukan bagian dari transaksi ini atau tidak ditemukan.",
+                    ], 422);
+                }
+
+                $qtyAvailable = $detail->nqty - $detail->nqty_void - $detail->nqty_refund;
+
+                if ($qtyAvailable <= 0) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Item '{$detail->cname}' sudah habis diproses sebelumnya.",
+                    ], 422);
+                }
+
+                if ($requestQty > $qtyAvailable) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Quantity '{$detail->cname}' yang dapat diproses hanya {$qtyAvailable}.",
+                    ], 422);
+                }
+
+                if ($actionType === 'VOID') {
+                    $detail->nqty_void += $requestQty;
+                } else {
+                    $detail->nqty_refund += $requestQty;
+                }
+                $detail->save();
+
+                $nprice = $detail->nprice;
+                $nsubtotal = $requestQty * $nprice;
+
+                $totalActionAmount += $nsubtotal;
+
+                $processedItems[] = [
+                    'detail_id' => $detail->nid,
+                    'qty' => $requestQty,
+                    'qty_void' => $detail->nqty_void,
+                    'qty_refund' => $detail->nqty_refund,
+                    'qty_available' => $detail->nqty - $detail->nqty_void - $detail->nqty_refund,
+                ];
+            }
+
+            if ($transaction->nid_shift) {
+                $shift = MposShift::find($transaction->nid_shift);
+                if ($shift) {
+                    if ($actionType === 'VOID') {
+                        $shift->ncancellation_cash = $shift->ncancellation_cash + $totalActionAmount;
+                    } else if ($actionType === 'REFUND') {
+                        $shift->nrefund_cash = $shift->nrefund_cash + $totalActionAmount;
+                    }
+                    $shift->save();
+                }
+            }
+
+            $this->resolveTransactionItemActionStatus($transaction);
+
+            DB::commit();
+
+            $transaction->refresh();
+            $actionWord = $actionType === 'VOID' ? 'dibatalkan' : 'dikembalikan';
+
+            return response()->json([
+                'success' => true,
+                'message' => "Item berhasil {$actionWord}.",
+                'data' => [
+                    'transaction_id' => $transaction->nid,
+                    'status' => $transaction->cstatus,
+                    'items' => $processedItems,
+                ]
+            ], 200);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Gagal melakukan {$actionType} item: ".$e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Terjadi kesalahan saat melakukan {$actionType} item.",
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    protected function resolveTransactionItemActionStatus(MposSalesH $transaction)
+    {
+        $details = MposSalesD::where('nid_transaction', $transaction->nid)->get();
+        $totalOriginalQty = $details->sum('nqty');
+        $totalVoidQty = $details->sum('nqty_void');
+        $totalRefundQty = $details->sum('nqty_refund');
+        
+        $totalProcessed = $totalVoidQty + $totalRefundQty;
+        $totalAvailable = $totalOriginalQty - $totalProcessed;
+
+        if ($totalAvailable == 0) {
+            if ($totalVoidQty == $totalOriginalQty) {
+                $transaction->cstatus = MposSalesH::STATUS_VOID;
+                $transaction->cvoid_note = 'Fully voided by item-level actions';
+                $transaction->save();
+            } else if ($totalRefundQty == $totalOriginalQty) {
+                $transaction->cstatus = MposSalesH::STATUS_REFUND;
+                $transaction->crefund_note = 'Fully refunded by item-level actions';
+                $transaction->save();
+            }
         }
     }
 }
