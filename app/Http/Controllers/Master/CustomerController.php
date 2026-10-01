@@ -193,20 +193,39 @@ class CustomerController extends Controller
 
     public function index()
     {
-        $customers = MposCust::paginate(10);
-        return view('customers.index', compact('customers'));
+        $customers = MposCust::with('type')->paginate(10);
+        $customerTypes = MposCustType::all();
+        return view('customers.index', compact('customers', 'customerTypes'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
+            'nid_type' => 'nullable|exists:mpos_cust_type,nid',
             'cname' => 'required|string|max:255',
+            'cgender' => 'nullable|in:MALE,FEMALE',
+            'cmembership_no' => 'nullable|string|max:100',
             'cphone' => 'nullable|string|max:20',
+            'dbirth' => 'nullable|date',
+            'cnotes' => 'nullable|string|max:500',
             'cemail' => 'nullable|email|max:255',
-            'caddress' => 'nullable|string',
+            'caddress' => 'nullable|string|max:500',
+            'cpostal_code' => 'nullable|string|max:10',
+            'ccountry' => 'nullable|string|max:100',
+            'cprovince' => 'nullable|string|max:100',
+            'ccity' => 'nullable|string|max:100',
+            'cdistrict' => 'nullable|string|max:100',
         ]);
 
-        MposCust::create($request->all());
+        $data = $request->all();
+        if (empty($data['nid_type'])) {
+            $guestType = MposCustType::where('cname', 'Guest')->first();
+            if ($guestType) {
+                $data['nid_type'] = $guestType->nid;
+            }
+        }
+
+        MposCust::create($data);
 
         return redirect()->route('customers.index')
             ->with('success', 'Pelanggan berhasil ditambahkan.');
@@ -215,14 +234,33 @@ class CustomerController extends Controller
     public function update(Request $request, string $id)
     {
         $request->validate([
+            'nid_type' => 'nullable|exists:mpos_cust_type,nid',
             'cname' => 'required|string|max:255',
+            'cgender' => 'nullable|in:MALE,FEMALE',
+            'cmembership_no' => 'nullable|string|max:100',
             'cphone' => 'nullable|string|max:20',
+            'dbirth' => 'nullable|date',
+            'cnotes' => 'nullable|string|max:500',
             'cemail' => 'nullable|email|max:255',
-            'caddress' => 'nullable|string',
+            'caddress' => 'nullable|string|max:500',
+            'cpostal_code' => 'nullable|string|max:10',
+            'ccountry' => 'nullable|string|max:100',
+            'cprovince' => 'nullable|string|max:100',
+            'ccity' => 'nullable|string|max:100',
+            'cdistrict' => 'nullable|string|max:100',
         ]);
 
         $customer = MposCust::findOrFail($id);
-        $customer->update($request->all());
+        
+        $data = $request->all();
+        if (empty($data['nid_type'])) {
+            $guestType = MposCustType::where('cname', 'Guest')->first();
+            if ($guestType) {
+                $data['nid_type'] = $guestType->nid;
+            }
+        }
+
+        $customer->update($data);
 
         return redirect()->route('customers.index')
             ->with('success', 'Pelanggan berhasil diperbarui.');
