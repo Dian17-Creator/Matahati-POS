@@ -9,6 +9,7 @@ use App\Http\Controllers\Master\PosUserController;
 use App\Http\Controllers\Master\ProductController;
 use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\Api\PosDashboardController;
 use App\Models\MposSalesH;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +37,7 @@ Route::get('/shifts/history', [ShiftController::class, 'history']);
 Route::get('/shifts/{id}', [ShiftController::class, 'show']);
 
 // Api Transaction
+Route::get('/pos/dashboard', [PosDashboardController::class, 'dashboard']);
 Route::get('/pos/transactions', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/history', [TransactionController::class, 'index']);
 Route::get('/pos/transactions/{id}', [TransactionController::class, 'show']);
