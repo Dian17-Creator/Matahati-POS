@@ -6,7 +6,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Laravel\Sanctum\HasApiTokens;
 
-class muser extends Authenticatable
+class Muser extends Authenticatable
 {
     use HasApiTokens, HasFactory;
     protected $table = 'muser';
