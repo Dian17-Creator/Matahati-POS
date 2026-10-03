@@ -50,7 +50,13 @@ class ProductController extends Controller
         });
 
         $products = $query->paginate(10)->withQueryString();
-        $categories = MposGrpProduct::all();
+        
+        $categories = MposGrpProduct::whereIn('nid', function($q) {
+            $q->select(DB::raw('MIN(nid)'))
+              ->from('mpos_grp_product')
+              ->groupBy('cname');
+        })->orderBy('cname')->get();
+        
         $ingredients = MposIngredients::all();
         $outlets = MposOutlet::orderBy('cname')->get();
 

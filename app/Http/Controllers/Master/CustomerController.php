@@ -208,7 +208,11 @@ class CustomerController extends Controller
     public function index(Request $request)
     {
         $outlets = MposOutlet::orderBy('cname')->get();
-        $customerTypes = MposCustType::all();
+        $customerTypes = MposCustType::whereIn('nid', function($q) {
+            $q->select(DB::raw('MIN(nid)'))
+              ->from('mpos_cust_type')
+              ->groupBy('cname');
+        })->orderBy('cname')->get();
         
         $query = MposCust::query();
         
