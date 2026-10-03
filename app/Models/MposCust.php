@@ -28,6 +28,7 @@ class MposCust extends Model
         'cprovince',
         'ccity',
         'cdistrict',
+        'nid_outlet',
     ];
 
     protected function casts(): array
@@ -54,5 +55,10 @@ class MposCust extends Model
             'nid_customer',
             'nid'
         );
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(MposOutlet::class, 'nid_outlet', 'nid');
     }
 }
