@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\MposCust;
 use App\Models\MposCustType;
+use App\Models\MposOutlet;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CustomerController extends Controller
@@ -26,8 +28,12 @@ class CustomerController extends Controller
                     ->orWhere('cmembership_no', 'like', "%{$search}%");
             });
         }
+        
+        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
+            $query->where('nid_outlet', $request->nid_outlet);
+        }
 
-        $customers = $query->get();
+        $customers = $query->orderBy('cname', 'asc')->get();
 
         return response()->json([
             'success' => true,
@@ -69,6 +75,7 @@ class CustomerController extends Controller
             'cprovince' => 'nullable|string|max:100',
             'ccity' => 'nullable|string|max:100',
             'cdistrict' => 'nullable|string|max:100',
+            'nid_outlet' => 'nullable|exists:mpos_outlet,nid',
         ]);
 
         if ($validator->fails()) {
@@ -123,6 +130,7 @@ class CustomerController extends Controller
             'cprovince' => 'nullable|string|max:100',
             'ccity' => 'nullable|string|max:100',
             'cdistrict' => 'nullable|string|max:100',
+            'nid_outlet' => 'nullable|exists:mpos_outlet,nid',
         ]);
 
         if ($validator->fails()) {
@@ -197,11 +205,28 @@ class CustomerController extends Controller
     // WEB METHODS (Existing)
     // ==========================================
 
-    public function index()
+    public function index(Request $request)
     {
-        $customers = MposCust::with('type')->paginate(10);
+        $outlets = MposOutlet::orderBy('cname')->get();
         $customerTypes = MposCustType::all();
-        return view('customers.index', compact('customers', 'customerTypes'));
+        
+        $query = MposCust::query();
+        
+        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
+            $query->where('nid_outlet', $request->nid_outlet);
+        }
+        
+        $uniqueCustomerIds = $query->select(DB::raw('MIN(nid) as nid'))
+                                   ->groupBy('cname', 'cphone')
+                                   ->pluck('nid');
+                                   
+        $customers = MposCust::with('type')
+                             ->whereIn('nid', $uniqueCustomerIds)
+                             ->orderBy('cname')
+                             ->paginate(10)
+                             ->withQueryString();
+                             
+        return view('customers.index', compact('customers', 'customerTypes', 'outlets'));
     }
 
     public function store(Request $request)
@@ -221,9 +246,11 @@ class CustomerController extends Controller
             'cprovince' => 'nullable|string|max:100',
             'ccity' => 'nullable|string|max:100',
             'cdistrict' => 'nullable|string|max:100',
+            'outlet_ids' => 'required|array|min:1',
+            'outlet_ids.*' => 'exists:mpos_outlet,nid',
         ]);
 
-        $data = $request->all();
+        $data = $request->except(['outlet_ids', 'modal_id']);
         if (empty($data['nid_type'])) {
             $guestType = MposCustType::where('cname', 'Guest')->first();
             if ($guestType) {
@@ -231,10 +258,27 @@ class CustomerController extends Controller
             }
         }
 
-        MposCust::create($data);
-
-        return redirect()->route('customers.index')
-            ->with('success', 'Pelanggan berhasil ditambahkan.');
+        DB::beginTransaction();
+        try {
+            foreach ($request->outlet_ids as $outletId) {
+                $exists = MposCust::where('cphone', $request->cphone)
+                            ->where('cname', $request->cname)
+                            ->where('nid_outlet', $outletId)
+                            ->exists();
+                
+                if (!$exists) {
+                    $insertData = $data;
+                    $insertData['nid_outlet'] = $outletId;
+                    MposCust::create($insertData);
+                }
+            }
+            DB::commit();
+            return redirect()->route('customers.index')
+                ->with('success', 'Pelanggan berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
+        }
     }
 
     public function update(Request $request, string $id)
@@ -254,11 +298,15 @@ class CustomerController extends Controller
             'cprovince' => 'nullable|string|max:100',
             'ccity' => 'nullable|string|max:100',
             'cdistrict' => 'nullable|string|max:100',
+            'outlet_ids' => 'required|array|min:1',
+            'outlet_ids.*' => 'exists:mpos_outlet,nid',
         ]);
 
         $customer = MposCust::findOrFail($id);
+        $originalCname = $customer->cname;
+        $originalCphone = $customer->cphone;
 
-        $data = $request->all();
+        $data = $request->except(['outlet_ids', 'modal_id']);
         if (empty($data['nid_type'])) {
             $guestType = MposCustType::where('cname', 'Guest')->first();
             if ($guestType) {
@@ -266,18 +314,60 @@ class CustomerController extends Controller
             }
         }
 
-        $customer->update($data);
+        DB::beginTransaction();
+        try {
+            // Update current customer
+            $customer->update($data);
 
-        return redirect()->route('customers.index')
-            ->with('success', 'Pelanggan berhasil diperbarui.');
+            foreach ($request->outlet_ids as $outletId) {
+                if ($customer->nid_outlet == $outletId) {
+                    continue;
+                }
+
+                $existingCustomer = MposCust::where('cname', $originalCname)
+                            ->where('cphone', $originalCphone)
+                            ->where('nid_outlet', $outletId)
+                            ->first();
+
+                if ($existingCustomer) {
+                    $existingCustomer->update($data);
+                } else {
+                    $insertData = $data;
+                    $insertData['nid_outlet'] = $outletId;
+                    MposCust::create($insertData);
+                }
+            }
+
+            // Optional: delete instances in outlets not selected
+            MposCust::where('cname', $originalCname)
+                    ->where('cphone', $originalCphone)
+                    ->whereNotIn('nid_outlet', $request->outlet_ids)
+                    ->delete();
+
+            DB::commit();
+            return redirect()->route('customers.index')
+                ->with('success', 'Pelanggan berhasil diperbarui.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
+        }
     }
 
     public function destroy(string $id)
     {
         $customer = MposCust::findOrFail($id);
-        $customer->delete();
-
-        return redirect()->route('customers.index')
-            ->with('success', 'Pelanggan berhasil dihapus.');
+        $cname = $customer->cname;
+        $cphone = $customer->cphone;
+        
+        DB::beginTransaction();
+        try {
+            MposCust::where('cname', $cname)->where('cphone', $cphone)->delete();
+            DB::commit();
+            return redirect()->route('customers.index')
+                ->with('success', 'Pelanggan berhasil dihapus dari semua outlet.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Gagal menghapus pelanggan.');
+        }
     }
 }
