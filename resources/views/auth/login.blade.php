@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Matahati POS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         body {
             background-color: #f1f5f9;
@@ -54,11 +55,26 @@
                 </div>
                 <div class="mb-4">
                     <label for="cpassword" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="cpassword" name="cpassword" required>
+                    <div class="position-relative">
+                        <input type="password" class="form-control" id="cpassword" name="cpassword" required style="padding-right: 40px;">
+                        <i class="bi bi-eye position-absolute" id="togglePassword" style="right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #6c757d;"></i>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100 fw-bold py-2" style="background-color: #b63352; border-color: #b63352;">Masuk</button>
             </form>
         </div>
     </div>
+
+    <script>
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#cpassword');
+
+        togglePassword.addEventListener('click', function (e) {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            this.classList.toggle('bi-eye');
+            this.classList.toggle('bi-eye-slash');
+        });
+    </script>
 </body>
 </html>
