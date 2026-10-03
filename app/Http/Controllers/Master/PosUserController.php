@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\MposUser;
 use App\Models\MposOutlet;
-use App\Models\muser;
+use App\Models\Muser;
 use Illuminate\Http\Request;
 
 class PosUserController extends Controller
