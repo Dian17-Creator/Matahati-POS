@@ -20,6 +20,7 @@ class MposCustType extends Model
 
     protected $fillable = [
         'cname',
+        'nid_outlet',
     ];
 
     public function customers()
@@ -29,5 +30,10 @@ class MposCustType extends Model
             'nid_type',
             'nid'
         );
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(MposOutlet::class, 'nid_outlet', 'nid');
     }
 }
