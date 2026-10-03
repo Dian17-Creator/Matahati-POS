@@ -5,7 +5,19 @@
 @section('content')
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-        <h5 class="mb-0">Daftar Kategori Pelanggan</h5>
+        <div class="d-flex align-items-center">
+            <h5 class="mb-0 me-3">Daftar Kategori Pelanggan</h5>
+            <form action="{{ route('customer-types.index') }}" method="GET" class="d-flex">
+                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Semua Outlet</option>
+                    @foreach($outlets as $outlet)
+                        <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
+                            {{ $outlet->cname }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
@@ -25,6 +37,7 @@
                     <tr>
                         <th width="10%">ID</th>
                         <th>Nama Kategori</th>
+                        <th>Outlet</th>
                         <th width="20%" class="text-center">Aksi</th>
                     </tr>
                 </thead>
@@ -33,6 +46,21 @@
                     <tr>
                         <td>{{ $customerType->nid }}</td>
                         <td>{{ $customerType->cname }}</td>
+                        <td>
+                            @php
+                                $typeOutlets = \App\Models\MposCustType::where('cname', $customerType->cname)->with('outlet')->get();
+                                $hasOutlets = false;
+                            @endphp
+                            @foreach($typeOutlets as $to)
+                                @if($to->outlet)
+                                    <span class="badge bg-light text-dark border mb-1">{{ $to->outlet->cname }}</span><br>
+                                    @php $hasOutlets = true; @endphp
+                                @endif
+                            @endforeach
+                            @if(!$hasOutlets)
+                                <span class="text-muted">-</span>
+                            @endif
+                        </td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#editModal{{ $customerType->nid }}">
                                 <i class="bi bi-pencil"></i> Edit
@@ -64,6 +92,41 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                             @endif
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
+                                            <div class="dropdown @if(old('modal_id') == $customerType->nid) @error('outlet_ids') is-invalid @enderror @endif">
+                                                <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_{{ $customerType->nid }}">
+                                                    <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                                                </button>
+                                                <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                                    @php
+                                                        $typeOutletIds = \App\Models\MposCustType::where('cname', $customerType->cname)->pluck('nid_outlet')->toArray();
+                                                    @endphp
+                                                    @foreach($outlets as $outlet)
+                                                        @php
+                                                            $isChecked = false;
+                                                            if (old('modal_id') == $customerType->nid && old('outlet_ids')) {
+                                                                $isChecked = in_array($outlet->nid, old('outlet_ids'));
+                                                            } else {
+                                                                $isChecked = in_array($outlet->nid, $typeOutletIds);
+                                                            }
+                                                        @endphp
+                                                        <li>
+                                                            <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                                <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
+                                                                <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                                    {{ $outlet->cname }}
+                                                                    @if($customerType->nid_outlet == $outlet->nid)
+                                                                        <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
+                                                                    @endif
+                                                                </label>
+                                                            </div>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                            @if(old('modal_id') == $customerType->nid) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -101,7 +164,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="3" class="text-center text-muted py-4">Belum ada data kategori pelanggan.</td>
+                        <td colspan="4" class="text-center text-muted py-4">Belum ada data kategori pelanggan.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -134,6 +197,29 @@
                         @enderror
                         @endif
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
+                        <div class="dropdown @if(old('modal_id') == 'create') @error('outlet_ids') is-invalid @enderror @endif">
+                            <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_create">
+                                <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                            </button>
+                            <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                @foreach($outlets as $outlet)
+                                    <li>
+                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids')) && old('modal_id') == 'create') ? 'checked' : '' }}>
+                                            <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                {{ $outlet->cname }}
+                                            </label>
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        @if(old('modal_id') == 'create')
+                            @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                        @endif
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -160,6 +246,32 @@
                 myModal.show();
             }
         }
+
+        // Handle Dropdown Outlet Text Update
+        function updateDropdownText() {
+            document.querySelectorAll('.dropdown').forEach(dropdown => {
+                const button = dropdown.querySelector('.dropdown-toggle');
+                if(!button) return;
+                const checkboxes = dropdown.querySelectorAll('.outlet-checkbox:checked');
+                const selectedText = button.querySelector('.selected-text');
+                if(!selectedText) return;
+
+                if (checkboxes.length === 0) {
+                    selectedText.textContent = 'Pilih Outlet...';
+                } else if (checkboxes.length === 1) {
+                    selectedText.textContent = checkboxes[0].getAttribute('data-name');
+                } else {
+                    selectedText.textContent = checkboxes.length + ' Outlet Terpilih';
+                }
+            });
+        }
+
+        document.querySelectorAll('.outlet-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateDropdownText);
+        });
+        
+        // Initial update
+        updateDropdownText();
     });
 </script>
 @endpush
