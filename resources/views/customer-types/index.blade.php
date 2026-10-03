@@ -11,9 +11,9 @@
                 <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">Semua Outlet</option>
                     @foreach($outlets as $outlet)
-                        <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
-                            {{ $outlet->cname }}
-                        </option>
+                    <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
+                        {{ $outlet->cname }}
+                    </option>
                     @endforeach
                 </select>
             </form>
@@ -23,19 +23,19 @@
         </button>
     </div>
     <div class="card-body">
-        
+
         @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
         @endif
 
         <div class="table-responsive">
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th width="10%">ID</th>
+                        <!-- <th width="10%">ID</th> -->
                         <th>Nama Kategori</th>
                         <th>Outlet</th>
                         <th width="20%" class="text-center">Aksi</th>
@@ -44,21 +44,21 @@
                 <tbody>
                     @forelse ($customerTypes as $customerType)
                     <tr>
-                        <td>{{ $customerType->nid }}</td>
+                        <!-- <td>{{ $customerType->nid }}</td> -->
                         <td>{{ $customerType->cname }}</td>
                         <td>
                             @php
-                                $typeOutlets = \App\Models\MposCustType::where('cname', $customerType->cname)->with('outlet')->get();
-                                $hasOutlets = false;
+                            $typeOutlets = \App\Models\MposCustType::where('cname', $customerType->cname)->with('outlet')->get();
+                            $hasOutlets = false;
                             @endphp
                             @foreach($typeOutlets as $to)
-                                @if($to->outlet)
-                                    <span class="badge bg-light text-dark border mb-1">{{ $to->outlet->cname }}</span><br>
-                                    @php $hasOutlets = true; @endphp
-                                @endif
+                            @if($to->outlet)
+                            <span class="badge bg-light text-dark border mb-1">{{ $to->outlet->cname }}</span><br>
+                            @php $hasOutlets = true; @endphp
+                            @endif
                             @endforeach
                             @if(!$hasOutlets)
-                                <span class="text-muted">-</span>
+                            <span class="text-muted">-</span>
                             @endif
                         </td>
                         <td class="text-center">
@@ -101,28 +101,28 @@
                                                 </button>
                                                 <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
                                                     @php
-                                                        $typeOutletIds = \App\Models\MposCustType::where('cname', $customerType->cname)->pluck('nid_outlet')->toArray();
+                                                    $typeOutletIds = \App\Models\MposCustType::where('cname', $customerType->cname)->pluck('nid_outlet')->toArray();
                                                     @endphp
                                                     @foreach($outlets as $outlet)
-                                                        @php
-                                                            $isChecked = false;
-                                                            if (old('modal_id') == $customerType->nid && old('outlet_ids')) {
-                                                                $isChecked = in_array($outlet->nid, old('outlet_ids'));
-                                                            } else {
-                                                                $isChecked = in_array($outlet->nid, $typeOutletIds);
-                                                            }
-                                                        @endphp
-                                                        <li>
-                                                            <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                                                <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
-                                                                <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
-                                                                    {{ $outlet->cname }}
-                                                                    @if($customerType->nid_outlet == $outlet->nid)
-                                                                        <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
-                                                                    @endif
-                                                                </label>
-                                                            </div>
-                                                        </li>
+                                                    @php
+                                                    $isChecked = false;
+                                                    if (old('modal_id') == $customerType->nid && old('outlet_ids')) {
+                                                    $isChecked = in_array($outlet->nid, old('outlet_ids'));
+                                                    } else {
+                                                    $isChecked = in_array($outlet->nid, $typeOutletIds);
+                                                    }
+                                                    @endphp
+                                                    <li>
+                                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
+                                                            <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $customerType->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                                {{ $outlet->cname }}
+                                                                @if($customerType->nid_outlet == $outlet->nid)
+                                                                <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
+                                                                @endif
+                                                            </label>
+                                                        </div>
+                                                    </li>
                                                     @endforeach
                                                 </ul>
                                             </div>
@@ -205,19 +205,19 @@
                             </button>
                             <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
                                 @foreach($outlets as $outlet)
-                                    <li>
-                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids')) && old('modal_id') == 'create') ? 'checked' : '' }}>
-                                            <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
-                                                {{ $outlet->cname }}
-                                            </label>
-                                        </div>
-                                    </li>
+                                <li>
+                                    <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                        <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids')) && old('modal_id') == 'create') ? 'checked' : '' }}>
+                                        <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
+                                            {{ $outlet->cname }}
+                                        </label>
+                                    </div>
+                                </li>
                                 @endforeach
                             </ul>
                         </div>
                         @if(old('modal_id') == 'create')
-                            @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                        @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
                         @endif
                     </div>
                 </div>
@@ -251,10 +251,10 @@
         function updateDropdownText() {
             document.querySelectorAll('.dropdown').forEach(dropdown => {
                 const button = dropdown.querySelector('.dropdown-toggle');
-                if(!button) return;
+                if (!button) return;
                 const checkboxes = dropdown.querySelectorAll('.outlet-checkbox:checked');
                 const selectedText = button.querySelector('.selected-text');
-                if(!selectedText) return;
+                if (!selectedText) return;
 
                 if (checkboxes.length === 0) {
                     selectedText.textContent = 'Pilih Outlet...';
@@ -269,7 +269,7 @@
         document.querySelectorAll('.outlet-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', updateDropdownText);
         });
-        
+
         // Initial update
         updateDropdownText();
     });

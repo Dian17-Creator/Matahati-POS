@@ -22,8 +22,8 @@ class CustomerController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('cname', 'like', "%{$search}%")
-                  ->orWhere('cphone', 'like', "%{$search}%")
-                  ->orWhere('cmembership_no', 'like', "%{$search}%");
+                    ->orWhere('cphone', 'like', "%{$search}%")
+                    ->orWhere('cmembership_no', 'like', "%{$search}%");
             });
         }
 
@@ -177,9 +177,15 @@ class CustomerController extends Controller
         ], 200);
     }
 
-    public function apiTypes()
+    public function apiTypes(Request $request)
     {
-        $types = MposCustType::orderBy('nid', 'asc')->get();
+        $query = MposCustType::orderBy('nid', 'asc');
+
+        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
+            $query->where('nid_outlet', $request->nid_outlet);
+        }
+
+        $types = $query->get();
 
         return response()->json([
             'success' => true,
@@ -251,7 +257,7 @@ class CustomerController extends Controller
         ]);
 
         $customer = MposCust::findOrFail($id);
-        
+
         $data = $request->all();
         if (empty($data['nid_type'])) {
             $guestType = MposCustType::where('cname', 'Guest')->first();
