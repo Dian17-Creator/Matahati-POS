@@ -9,6 +9,8 @@ use App\Models\MposOutlet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\CustomersImport;
 
 class CustomerController extends Controller
 {
@@ -243,6 +245,21 @@ class CustomerController extends Controller
                              ->withQueryString();
                              
         return view('customers.index', compact('customers', 'customerTypes', 'outlets'));
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'outlet_id' => 'required|exists:mpos_outlet,nid',
+            'file' => 'required|file|mimes:xlsx,csv,xls',
+        ]);
+
+        try {
+            Excel::import(new CustomersImport($request->outlet_id), $request->file('file'));
+            return back()->with('success', 'Data pelanggan berhasil diimport.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Terjadi kesalahan saat import: ' . $e->getMessage());
+        }
     }
 
     public function store(Request $request)
