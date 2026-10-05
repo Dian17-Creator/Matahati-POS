@@ -44,6 +44,31 @@
 @endpush
 
 @section('content')
+@if(session('import_results'))
+    @php $res = session('import_results'); @endphp
+    <div class="alert alert-info alert-dismissible fade show shadow-sm" role="alert">
+        <h5 class="alert-heading"><i class="bi bi-info-circle-fill me-2"></i>Hasil Import</h5>
+        <hr>
+        <div class="row text-center mb-3">
+            <div class="col"><div class="fw-bold fs-4">{{ $res['total'] }}</div><small>Total Baris</small></div>
+            <div class="col"><div class="fw-bold fs-4 text-success">{{ $res['success'] }}</div><small>Berhasil</small></div>
+            <div class="col"><div class="fw-bold fs-4 text-danger">{{ $res['failed'] }}</div><small>Gagal</small></div>
+            <div class="col"><div class="fw-bold fs-4 text-warning">{{ $res['duplicate'] }}</div><small>Duplikat</small></div>
+        </div>
+        @if(count($res['errors']) > 0)
+            <div class="alert alert-danger bg-white p-3 border-danger mb-0" style="max-height: 200px; overflow-y: auto;">
+                <p class="fw-bold mb-1">Daftar Error / Duplikat:</p>
+                <ul class="mb-0 small text-danger">
+                    @foreach($res['errors'] as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
@@ -65,9 +90,14 @@
                 </div>
             </form>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
-            <i class="bi bi-plus-lg"></i> Tambah Baru
-        </button>
+        <div>
+            <button type="button" class="btn btn-outline-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-file-earmark-excel"></i> Import Data
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
+                <i class="bi bi-plus-lg"></i> Tambah Baru
+            </button>
+        </div>
     </div>
     <div class="card-body p-0" id="table-container">
         <div class="table-responsive">
@@ -187,7 +217,7 @@
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('nid_category') is-invalid @enderror @endif" id="nid_category_{{ $product->nid }}" name="nid_category" required>
                                                 <option value="">Pilih Kategori</option>
                                                 @foreach($categories as $category)
-                                                    <option value="{{ $category->nid }}" {{ (old('modal_id') == $product->nid ? old('nid_category') : $product->nid_category) == $category->nid ? 'selected' : '' }}>
+                                                    <option value="{{ $category->nid }}" {{ (old('modal_id') == $product->nid ? old('nid_category') == $category->nid : (optional($product->category)->cname == $category->cname)) ? 'selected' : '' }}>
                                                         {{ $category->cname }}
                                                     </option>
                                                 @endforeach
@@ -243,8 +273,8 @@
                                         <div class="col-md-6 mb-3">
                                             <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
-                                                <option value="Active" {{ (old('modal_id') == $product->nid ? old('cstatus') : $product->cstatus) == 'Active' ? 'selected' : '' }}>Aktif</option>
-                                                <option value="Inactive" {{ (old('modal_id') == $product->nid ? old('cstatus') : $product->cstatus) == 'Inactive' ? 'selected' : '' }}>Non-Aktif</option>
+                                                <option value="Active" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'active' ? 'selected' : '' }}>Aktif</option>
+                                                <option value="Inactive" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'inactive' ? 'selected' : '' }}>Non-Aktif</option>
                                             </select>
                                             @if(old('modal_id') == $product->nid) @error('cstatus') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
@@ -550,6 +580,46 @@
         </div>
     </div>
 </div>
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">Import Produk</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('products.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="import_outlet_id" class="form-label">Pilih Outlet</label>
+                        <select class="form-select @error('outlet_id') is-invalid @enderror" id="import_outlet_id" name="outlet_id" required>
+                            <option value="">-- Pilih Outlet --</option>
+                            @foreach($outlets as $outlet)
+                                <option value="{{ $outlet->nid }}">{{ $outlet->cname }}</option>
+                            @endforeach
+                        </select>
+                        @error('outlet_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="mb-3">
+                        <label for="file" class="form-label">File Excel (.xlsx)</label>
+                        <input class="form-control @error('file') is-invalid @enderror" type="file" id="file" name="file" accept=".xlsx,.xls,.csv" required>
+                        @error('file')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')

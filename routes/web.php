@@ -31,6 +31,7 @@ Route::middleware(['auth'])->group(function () {
     // Master Data Routes
     Route::resource('categories', CategoryController::class);
     Route::resource('customer-types', CustomerTypeController::class)->except(['create', 'show', 'edit']);
+    Route::post('products/import', [ProductController::class, 'import'])->name('products.import');
     Route::resource('products', ProductController::class);
     Route::resource('ingredients', IngredientController::class);
 

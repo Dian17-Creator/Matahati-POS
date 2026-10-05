@@ -14,9 +14,25 @@ use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
+    public function import(Request $request)
+    {
+        $request->validate([
+            'outlet_id' => 'required|exists:mpos_outlet,nid',
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        try {
+            $importer = new \App\Imports\ProductsImport($request->outlet_id);
+            \Maatwebsite\Excel\Facades\Excel::import($importer, $request->file('file'));
+
+            return redirect()->back()->with('import_results', $importer->results);
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat import: ' . $e->getMessage());
+        }
+    }
     public function apiIndex(Request $request)
     {
-        $query = MposProduct::with('category');
+        $query = MposProduct::with('category')->where('cstatus', 'ACTIVE');
         
         if ($request->has('nid_outlet') && $request->nid_outlet != '') {
             $query->where('nid_outlet', $request->nid_outlet);
@@ -138,7 +154,7 @@ class ProductController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('products.index')
+            return redirect()->back()
                 ->with('success', 'Produk berhasil ditambahkan.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -276,7 +292,7 @@ class ProductController extends Controller
             }
 
             DB::commit();
-            return redirect()->route('products.index')
+            return redirect()->back()
                 ->with('success', 'Produk berhasil diperbarui.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -302,7 +318,7 @@ class ProductController extends Controller
             $product->delete();
 
             DB::commit();
-            return redirect()->route('products.index')
+            return redirect()->back()
                 ->with('success', 'Produk berhasil dihapus.');
         } catch (\Exception $e) {
             DB::rollBack();
