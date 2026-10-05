@@ -37,6 +37,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('combos', ComboController::class);
 
     // POS Management Routes
+    Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');
     Route::resource('customers', CustomerController::class);
     Route::resource('outlets', OutletController::class);
     Route::resource('pos-users', PosUserController::class);
