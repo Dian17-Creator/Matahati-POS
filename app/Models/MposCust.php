@@ -29,6 +29,8 @@ class MposCust extends Model
         'ccity',
         'cdistrict',
         'nid_outlet',
+        'factive',
+        'dlast_transaction',
     ];
 
     protected function casts(): array
@@ -36,6 +38,8 @@ class MposCust extends Model
         return [
             'nid_type' => 'integer',
             'dbirth' => 'date:Y-m-d',
+            'factive' => 'boolean',
+            'dlast_transaction' => 'datetime',
         ];
     }
 

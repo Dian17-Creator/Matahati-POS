@@ -126,6 +126,20 @@ class MposSalesH extends Model
         return $date->format('Y-m-d H:i:s');
     }
 
+    protected static function booted()
+    {
+        static::saved(function ($sale) {
+            if ($sale->nid_customer && $sale->dtransaction) {
+                $customer = MposCust::find($sale->nid_customer);
+                if ($customer) {
+                    MposCust::where('cname', $customer->cname)
+                            ->where('cphone', $customer->cphone)
+                            ->update(['dlast_transaction' => $sale->dtransaction]);
+                }
+            }
+        });
+    }
+
     public function customer()
     {
         return $this->belongsTo(
