@@ -2,13 +2,54 @@
 
 @section('title', 'Produk')
 
+@push('styles')
+<style>
+    /* Modern Pagination */
+    .pagination {
+        gap: 4px;
+        margin-bottom: 0;
+    }
+    .page-item .page-link {
+        border-radius: 6px !important;
+        border: 1px solid transparent;
+        color: #64748b;
+        font-weight: 500;
+        padding: 6px 12px;
+        background-color: #f8fafc;
+        transition: all 0.2s ease;
+        box-shadow: none;
+    }
+    .page-item.active .page-link {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 10px rgba(13, 110, 253, 0.25);
+    }
+    .page-item .page-link:hover:not(.active):not(.disabled) {
+        background-color: #e2e8f0;
+        color: #1e293b;
+        transform: translateY(-1px);
+    }
+    .page-item.disabled .page-link {
+        background-color: transparent;
+        color: #cbd5e1;
+        cursor: not-allowed;
+    }
+    nav.d-flex.justify-items-center.justify-content-between {
+        align-items: center;
+        width: 100%;
+        padding: 10px 20px;
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
-            <form action="{{ route('products.index') }}" method="GET" class="d-flex">
-                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
+            <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
+                <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 150px;" id="outletFilter">
                     <option value="">Semua Outlet</option>
                     @foreach($outlets as $outlet)
                         <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
@@ -16,15 +57,21 @@
                         </option>
                     @endforeach
                 </select>
+                <div class="input-group input-group-sm" style="width: 350px;">
+                    <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari produk..." value="{{ request('search') }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
             </form>
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0" id="table-container">
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
                 <thead class="table-light">
                     <tr>
                         <th width="8%">Foto</th>
@@ -596,6 +643,55 @@
         
         // Initial update
         updateDropdownText();
+
+        // AJAX Search & Filter
+        const searchInput = document.getElementById('searchInput');
+        const outletFilter = document.getElementById('outletFilter');
+        const filterForm = document.getElementById('filterForm');
+        const tableContainer = document.getElementById('table-container');
+        let searchTimeout;
+
+        function fetchResults() {
+            const url = new URL(filterForm.action);
+            const params = new URLSearchParams(new FormData(filterForm));
+            url.search = params.toString();
+
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newContent = doc.getElementById('table-container');
+                if (newContent) {
+                    tableContainer.innerHTML = newContent.innerHTML;
+                    window.history.pushState({}, '', url);
+                }
+            })
+            .catch(err => console.error("Error fetching data:", err));
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                // Trigger fetch 500ms after user stops typing
+                searchTimeout = setTimeout(fetchResults, 500);
+            });
+        }
+
+        if (outletFilter) {
+            outletFilter.addEventListener('change', fetchResults);
+        }
+        
+        if (filterForm) {
+            filterForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetchResults();
+            });
+        }
     });
 </script>
 @endpush
