@@ -38,6 +38,11 @@ class ProductController extends Controller
             $query->where('nid_outlet', $request->nid_outlet);
         }
 
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('cname', 'like', "%{$search}%");
+        }
+
         // Group by cname so we only show 1 row per product name
         $query->whereIn('nid', function($q) use ($request) {
             $q->select(DB::raw('MIN(nid)'))
