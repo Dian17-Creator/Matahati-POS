@@ -20,6 +20,7 @@ class MposProduct extends Model
         'nid_category',
         'nid_outlet',
         'nprice',
+        'nprice_online',
         'cphotos',
         'cstatus',
         'fcombo',
@@ -30,6 +31,7 @@ class MposProduct extends Model
     {
         return [
             'nprice' => 'decimal:2',
+            'nprice_online' => 'decimal:2',
             'fcombo' => 'boolean',
         ];
     }

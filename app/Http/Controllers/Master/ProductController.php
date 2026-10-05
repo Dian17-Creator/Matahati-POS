@@ -81,6 +81,7 @@ class ProductController extends Controller
             'cname' => 'required|string|max:255',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
+            'nprice_online' => 'nullable|numeric|min:0',
             'cstatus' => 'required|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
@@ -94,6 +95,7 @@ class ProductController extends Controller
 
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
+        $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
 
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
@@ -157,6 +159,7 @@ class ProductController extends Controller
             'cname' => 'required|string|max:255',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
+            'nprice_online' => 'nullable|numeric|min:0',
             'cstatus' => 'required|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
@@ -171,6 +174,7 @@ class ProductController extends Controller
         $product = MposProduct::findOrFail($id);
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
+        $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
 
         if ($request->hasFile('photo')) {
             // Check if other products use this photo before unlink
