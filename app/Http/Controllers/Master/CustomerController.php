@@ -62,6 +62,7 @@ class CustomerController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nid_type' => 'nullable|exists:mpos_cust_type,nid',
+            'factive' => 'nullable|boolean',
             'cname' => 'required|string|max:255',
             'cgender' => 'nullable|in:MALE,FEMALE',
             'cmembership_no' => 'nullable|string|max:100',
@@ -219,12 +220,23 @@ class CustomerController extends Controller
         if ($request->has('nid_outlet') && $request->nid_outlet != '') {
             $query->where('nid_outlet', $request->nid_outlet);
         }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('cname', 'like', "%{$search}%")
+                  ->orWhere('cphone', 'like', "%{$search}%")
+                  ->orWhere('cmembership_no', 'like', "%{$search}%")
+                  ->orWhere('cemail', 'like', "%{$search}%");
+            });
+        }
         
         $uniqueCustomerIds = $query->select(DB::raw('MIN(nid) as nid'))
                                    ->groupBy('cname', 'cphone')
                                    ->pluck('nid');
                                    
         $customers = MposCust::with('type')
+                             ->withMax('sales', 'dtransaction')
                              ->whereIn('nid', $uniqueCustomerIds)
                              ->orderBy('cname')
                              ->paginate(10)
@@ -237,6 +249,7 @@ class CustomerController extends Controller
     {
         $request->validate([
             'nid_type' => 'nullable|exists:mpos_cust_type,nid',
+            'factive' => 'nullable|boolean',
             'cname' => 'required|string|max:255',
             'cgender' => 'nullable|in:MALE,FEMALE',
             'cmembership_no' => 'nullable|string|max:100',
@@ -289,6 +302,7 @@ class CustomerController extends Controller
     {
         $request->validate([
             'nid_type' => 'nullable|exists:mpos_cust_type,nid',
+            'factive' => 'nullable|boolean',
             'cname' => 'required|string|max:255',
             'cgender' => 'nullable|in:MALE,FEMALE',
             'cmembership_no' => 'nullable|string|max:100',

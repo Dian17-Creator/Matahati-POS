@@ -18,8 +18,8 @@
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
-            <form action="{{ route('customers.index') }}" method="GET" class="d-flex">
-                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
+            <form action="{{ route('customers.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
+                <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 150px;" id="outletFilter">
                     <option value="">Semua Outlet</option>
                     @foreach($outlets as $outlet)
                     <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
@@ -27,13 +27,19 @@
                     </option>
                     @endforeach
                 </select>
+                <div class="input-group input-group-sm" style="width: 350px;">
+                    <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari pelanggan..." value="{{ request('search') }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
             </form>
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-0" id="table-container">
         <div class="table-responsive">
             <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
                 <thead class="bg-light text-secondary text-center" style="border-bottom: 2px solid #f1f5f9;">
@@ -41,6 +47,7 @@
                         <!-- <th class="py-3 ps-4">ID</th> -->
                         <th class="py-3">Nama Pelanggan</th>
                         <th class="py-3">Outlet</th>
+                        <th class="py-3">Status</th>
                         <th class="py-3">Tipe</th>
                         <th class="py-3">No Member</th>
                         <th class="py-3">Gender</th>
@@ -54,6 +61,7 @@
                         <th class="py-3">Provinsi</th>
                         <th class="py-3">Negara</th>
                         <th class="py-3">Catatan</th>
+                        <th class="py-3">Transaksi Terakhir</th>
                         <th class="text-center py-3 pe-4 sticky-end bg-light">Aksi</th>
                     </tr>
                 </thead>
@@ -86,6 +94,13 @@
                             <span class="text-muted">-</span>
                             @endif
                         </td>
+                        <td>
+                            @if($customer->factive)
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded">Aktif</span>
+                            @else
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded">Non-Aktif</span>
+                            @endif
+                        </td>
                         <td>{{ $customer->type ? $customer->type->cname : '-' }}</td>
                         <td>{{ $customer->cmembership_no ?? '-' }}</td>
                         <td>{{ $customer->cgender ?? '-' }}</td>
@@ -99,6 +114,15 @@
                         <td>{{ $customer->cprovince ?? '-' }}</td>
                         <td>{{ $customer->ccountry ?? '-' }}</td>
                         <td>{{ $customer->cnotes ? \Illuminate\Support\Str::limit($customer->cnotes, 20) : '-' }}</td>
+                        <td>
+                            @if($customer->dlast_transaction)
+                                {{ \Carbon\Carbon::parse($customer->dlast_transaction)->format('d M Y H:i') }}
+                            @elseif($customer->sales_max_dtransaction)
+                                {{ \Carbon\Carbon::parse($customer->sales_max_dtransaction)->format('d M Y H:i') }}
+                            @else
+                                <span class="text-muted">-</span>
+                            @endif
+                        </td>
                         <td class="text-center pe-4 sticky-end bg-white">
                             <div class="d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 36px; height: 36px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $customer->nid }}" title="Edit">
@@ -230,6 +254,14 @@
                                                 <label for="cdistrict_{{ $customer->nid }}" class="form-label">Kecamatan</label>
                                                 <input type="text" class="form-control @if(old('modal_id') == $customer->nid) @error('cdistrict') is-invalid @enderror @endif" id="cdistrict_{{ $customer->nid }}" name="cdistrict" value="{{ old('modal_id') == $customer->nid ? old('cdistrict') : $customer->cdistrict }}">
                                                 @if(old('modal_id') == $customer->nid) @error('cdistrict') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                            </div>
+                                            <div class="col-md-12 mb-3">
+                                                <label for="factive_{{ $customer->nid }}" class="form-label">Status Pelanggan</label>
+                                                <select class="form-select @if(old('modal_id') == $customer->nid) @error('factive') is-invalid @enderror @endif" id="factive_{{ $customer->nid }}" name="factive">
+                                                    <option value="1" {{ (old('modal_id') == $customer->nid ? old('factive') : $customer->factive) == 1 ? 'selected' : (old('modal_id') != $customer->nid && !isset($customer->factive) ? 'selected' : '') }}>Aktif</option>
+                                                    <option value="0" {{ (old('modal_id') == $customer->nid ? old('factive') : $customer->factive) == 0 && isset($customer->factive) ? 'selected' : '' }}>Non-Aktif</option>
+                                                </select>
+                                                @if(old('modal_id') == $customer->nid) @error('factive') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                             </div>
                                             <div class="col-md-12 mb-3">
                                                 <label for="caddress_{{ $customer->nid }}" class="form-label">Alamat</label>
@@ -396,6 +428,14 @@
                             @if(old('modal_id') == 'create') @error('cdistrict') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                         </div>
                         <div class="col-md-12 mb-3">
+                            <label for="factive" class="form-label">Status Pelanggan</label>
+                            <select class="form-select @if(old('modal_id') == 'create') @error('factive') is-invalid @enderror @endif" id="factive" name="factive">
+                                <option value="1" {{ old('modal_id') == 'create' && old('factive') == '1' ? 'selected' : (old('modal_id') != 'create' ? 'selected' : '') }}>Aktif</option>
+                                <option value="0" {{ old('modal_id') == 'create' && old('factive') == '0' ? 'selected' : '' }}>Non-Aktif</option>
+                            </select>
+                            @if(old('modal_id') == 'create') @error('factive') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                        </div>
+                        <div class="col-md-12 mb-3">
                             <label for="caddress" class="form-label">Alamat</label>
                             <textarea class="form-control @if(old('modal_id') == 'create') @error('caddress') is-invalid @enderror @endif" id="caddress" name="caddress" rows="2">{{ old('modal_id') == 'create' ? old('caddress') : '' }}</textarea>
                             @if(old('modal_id') == 'create') @error('caddress') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
@@ -458,6 +498,55 @@
 
         // Initial update
         updateDropdownText();
+
+        // AJAX Search
+        const filterForm = document.getElementById('filterForm');
+        const searchInput = document.getElementById('searchInput');
+        const outletFilter = document.getElementById('outletFilter');
+        const tableContainer = document.getElementById('table-container');
+        let searchTimeout;
+
+        function fetchResults() {
+            const url = new URL(filterForm.action);
+            const params = new URLSearchParams(new FormData(filterForm));
+            url.search = params.toString();
+
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newContent = doc.getElementById('table-container');
+                if (newContent) {
+                    tableContainer.innerHTML = newContent.innerHTML;
+                    window.history.pushState({}, '', url);
+                }
+            })
+            .catch(err => console.error("Error fetching data:", err));
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                // Trigger fetch 500ms after user stops typing
+                searchTimeout = setTimeout(fetchResults, 500);
+            });
+        }
+
+        if (outletFilter) {
+            outletFilter.addEventListener('change', fetchResults);
+        }
+        
+        if (filterForm) {
+            filterForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                fetchResults();
+            });
+        }
     });
 </script>
 @endpush
