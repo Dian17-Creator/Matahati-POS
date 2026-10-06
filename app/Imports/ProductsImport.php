@@ -15,6 +15,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
     public $results = [
         'total' => 0,
         'success' => 0,
+        'updated' => 0,
         'failed' => 0,
         'duplicate' => 0,
         'errors' => []
@@ -88,33 +89,39 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 }
             }
 
-            // Cek Duplicate (cname, nid_category, nid_outlet)
+            // Cek Produk Berdasarkan cname dan nid_outlet
             $existing = MposProduct::where('cname', $cname)
-                ->where('nid_category', $category->nid)
                 ->where('nid_outlet', $this->outletId)
                 ->first();
 
-            if ($existing) {
-                $this->results['duplicate']++;
-                $this->results['errors'][] = "Row {$rowNum}: Product '{$cname}' sudah ada pada outlet tersebut.";
-                continue;
-            }
-
-            // Insert Database menggunakan Transaction per baris jika mau aman
+            // Insert atau Update Database menggunakan Transaction per baris
             try {
                 DB::beginTransaction();
-                MposProduct::create([
-                    'cname' => $cname,
-                    'nid_category' => $category->nid,
-                    'nid_outlet' => $this->outletId,
-                    'nprice' => $posSellPrice,
-                    'nprice_online' => $sellPrice,
-                    'cphotos' => $photo,
-                    'cstatus' => $status,
-                    'fcombo' => 0
-                ]);
+                
+                if ($existing) {
+                    $existing->update([
+                        'nid_category' => $category->nid,
+                        'nprice' => $posSellPrice,
+                        'nprice_online' => $sellPrice,
+                        'cphotos' => $photo,
+                        'cstatus' => $status,
+                    ]);
+                    $this->results['updated']++;
+                } else {
+                    MposProduct::create([
+                        'cname' => $cname,
+                        'nid_category' => $category->nid,
+                        'nid_outlet' => $this->outletId,
+                        'nprice' => $posSellPrice,
+                        'nprice_online' => $sellPrice,
+                        'cphotos' => $photo,
+                        'cstatus' => $status,
+                        'fcombo' => 0
+                    ]);
+                    $this->results['success']++;
+                }
+                
                 DB::commit();
-                $this->results['success']++;
             } catch (\Exception $e) {
                 DB::rollBack();
                 $this->results['failed']++;
