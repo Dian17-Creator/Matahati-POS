@@ -211,10 +211,10 @@
                                                         @foreach($outlets as $outlet)
                                                         @php
                                                         $isChecked = false;
-                                                        if (old('modal_id') == $customer->nid && old('outlet_ids')) {
-                                                        $isChecked = in_array($outlet->nid, old('outlet_ids'));
+                                                        if (old('modal_id') == $customer->nid) {
+                                                            $isChecked = is_array(old('outlet_ids')) ? in_array($outlet->nid, old('outlet_ids')) : false;
                                                         } else {
-                                                        $isChecked = in_array($outlet->nid, $custOutletIds);
+                                                            $isChecked = in_array($outlet->nid, $custOutletIds);
                                                         }
                                                         @endphp
                                                         <li>
@@ -392,7 +392,7 @@
                                     @foreach($outlets as $outlet)
                                     <li>
                                         <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids')) && old('modal_id') == 'create') ? 'checked' : '' }}>
+                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (old('modal_id') == 'create' ? (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids'))) : false) ? 'checked' : '' }}>
                                             <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
                                                 {{ $outlet->cname }}
                                             </label>
@@ -564,9 +564,8 @@
 
         // Remove old listeners to prevent duplicate triggers
         document.querySelectorAll('.outlet-checkbox').forEach(checkbox => {
-            const newCheckbox = checkbox.cloneNode(true);
-            checkbox.parentNode.replaceChild(newCheckbox, checkbox);
-            newCheckbox.addEventListener('change', updateDropdownText);
+            checkbox.removeEventListener('change', updateDropdownText);
+            checkbox.addEventListener('change', updateDropdownText);
         });
 
         // Initial update
