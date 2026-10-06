@@ -292,7 +292,14 @@ class TransactionController extends Controller
                     ], 422);
                 }
 
+                $orderType = strtoupper((string) ($validated['cordertype'] ?? ''));
+                $isOnlineOrder = ($orderType === 'ONLINE');
+
                 $price = (float) $product->nprice;
+                if ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
+                    $price = (float) $product->nprice_online;
+                }
+
                 $qty = (int) $item['nqty'];
                 $itemSubtotal = $price * $qty;
 
