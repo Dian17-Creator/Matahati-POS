@@ -93,6 +93,11 @@ class ProductController extends Controller
             'nqty.*.numeric' => 'Kuantitas harus berupa angka.',
         ];
 
+        if (!$request->has('has_recipe')) {
+            $request->request->remove('nid_ingredient');
+            $request->request->remove('nqty');
+        }
+
         $request->validate([
             'cname' => 'required|string|max:255',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
@@ -170,6 +175,11 @@ class ProductController extends Controller
             'nid_ingredient.*.exists' => 'Bahan baku yang dipilih tidak valid.',
             'nqty.*.numeric' => 'Kuantitas harus berupa angka.',
         ];
+
+        if (!$request->has('has_recipe')) {
+            $request->request->remove('nid_ingredient');
+            $request->request->remove('nqty');
+        }
 
         $request->validate([
             'cname' => 'required|string|max:255',
