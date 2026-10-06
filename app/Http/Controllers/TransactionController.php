@@ -165,6 +165,7 @@ class TransactionController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'nid' => 'nullable|integer',
             'nid_customer' => 'nullable|integer',
             'nid_outlet' => 'required|integer',
             'nid_user' => 'nullable|integer',
@@ -341,42 +342,84 @@ class TransactionController extends Controller
             }
         }
 
-        // 4. Generate nomor transaksi & nomor antrean sesuai format POS (#2C62{YYMMDD}{8-digit sequence})
-        $trxData = $this->generateTransactionNumber(
-            (int) $validated['nid_outlet'],
-            $validated['nqueue'] ?? null
-        );
-        $cnotransaction = $trxData['cnotransaction'];
-        $nqueue = $trxData['nqueue'];
+        // 4. Cek apakah ini update DRAFT atau transaksi baru
+        $existingDraft = null;
+        if (!empty($validated['nid'])) {
+            $existingDraft = MposSalesH::where('nid', $validated['nid'])
+                ->where('cstatus', MposSalesH::STATUS_DRAFT)
+                ->first();
+        }
+
+        if (!$existingDraft) {
+            // Generate nomor transaksi & nomor antrean sesuai format POS (#2C62{YYMMDD}{8-digit sequence})
+            $trxData = $this->generateTransactionNumber(
+                (int) $validated['nid_outlet'],
+                $validated['nqueue'] ?? null
+            );
+            $cnotransaction = $trxData['cnotransaction'];
+            $nqueue = $trxData['nqueue'];
+        } else {
+            $cnotransaction = $existingDraft->cnotransaction;
+            $nqueue = $existingDraft->nqueue;
+        }
 
         // 5. Atomic database transaction
         DB::beginTransaction();
         try {
-            $salesH = MposSalesH::create([
-                'cnotransaction' => $cnotransaction,
-                'dtransaction' => now(),
-                'nid_customer' => $validated['nid_customer'] ?? null,
-                'nid_user' => $nidUser,
-                'nid_shift' => $activeShift->nid,
-                'nid_outlet' => (int) $validated['nid_outlet'],
-                'nid_voucher' => $validated['nid_voucher'] ?? null,
-                'nid_payment' => $validated['nid_payment'] ?? null,
-                'cname_customer' => $validated['cname_customer'] ?? null,
-                'nqueue' => $nqueue,
-                'cordertype' => $validated['cordertype'],
-                'nvisitor' => (int) ($validated['nvisitor'] ?? 1),
-                'ctable' => $validated['ctable'] ?? null,
-                'nsubtotal' => $nsubtotal,
-                'ndiscount' => $ndiscount,
-                'ntax' => $ntax,
-                'ngrandtotal' => $ngrandtotal,
-                'npaid' => $npaid,
-                'nchange' => $nchange,
-                'nitem' => $nitem,
-                'cnote' => $validated['cnote'] ?? null,
-                'cstatus' => $status,
-                'ccancel_note' => $validated['ccancel_note'] ?? null,
-            ]);
+            if ($existingDraft) {
+                $existingDraft->update([
+                    'nid_customer' => $validated['nid_customer'] ?? null,
+                    'nid_user' => $nidUser,
+                    'nid_shift' => $activeShift->nid,
+                    'nid_outlet' => (int) $validated['nid_outlet'],
+                    'nid_voucher' => $validated['nid_voucher'] ?? null,
+                    'nid_payment' => $validated['nid_payment'] ?? null,
+                    'cname_customer' => $validated['cname_customer'] ?? null,
+                    'cordertype' => $validated['cordertype'],
+                    'nvisitor' => (int) ($validated['nvisitor'] ?? 1),
+                    'ctable' => $validated['ctable'] ?? null,
+                    'nsubtotal' => $nsubtotal,
+                    'ndiscount' => $ndiscount,
+                    'ntax' => $ntax,
+                    'ngrandtotal' => $ngrandtotal,
+                    'npaid' => $npaid,
+                    'nchange' => $nchange,
+                    'nitem' => $nitem,
+                    'cnote' => $validated['cnote'] ?? null,
+                    'cstatus' => $status,
+                    'ccancel_note' => $validated['ccancel_note'] ?? null,
+                ]);
+                $salesH = $existingDraft;
+
+                // Hapus detail item lama di mpos_sales_d
+                MposSalesD::where('nid_transaction', $salesH->nid)->delete();
+            } else {
+                $salesH = MposSalesH::create([
+                    'cnotransaction' => $cnotransaction,
+                    'dtransaction' => now(),
+                    'nid_customer' => $validated['nid_customer'] ?? null,
+                    'nid_user' => $nidUser,
+                    'nid_shift' => $activeShift->nid,
+                    'nid_outlet' => (int) $validated['nid_outlet'],
+                    'nid_voucher' => $validated['nid_voucher'] ?? null,
+                    'nid_payment' => $validated['nid_payment'] ?? null,
+                    'cname_customer' => $validated['cname_customer'] ?? null,
+                    'nqueue' => $nqueue,
+                    'cordertype' => $validated['cordertype'],
+                    'nvisitor' => (int) ($validated['nvisitor'] ?? 1),
+                    'ctable' => $validated['ctable'] ?? null,
+                    'nsubtotal' => $nsubtotal,
+                    'ndiscount' => $ndiscount,
+                    'ntax' => $ntax,
+                    'ngrandtotal' => $ngrandtotal,
+                    'npaid' => $npaid,
+                    'nchange' => $nchange,
+                    'nitem' => $nitem,
+                    'cnote' => $validated['cnote'] ?? null,
+                    'cstatus' => $status,
+                    'ccancel_note' => $validated['ccancel_note'] ?? null,
+                ]);
+            }
 
             foreach ($detailsToInsert as &$detail) {
                 $detail['nid_transaction'] = $salesH->nid;
@@ -443,14 +486,13 @@ class TransactionController extends Controller
         DB::beginTransaction();
         try {
             $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
             if (! empty($transaction)) {
                 MposSalesD::where('nid_transaction', $transaction->nid)->delete();
                 $transaction->delete();
                 DB::commit();
 
                 return response()->json([
-                    'success' => $transaction,
+                    'success' => true,
                     'message' => 'Transaksi berhasil dihapus',
                 ], 200);
             }
