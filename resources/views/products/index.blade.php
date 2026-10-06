@@ -674,12 +674,18 @@
             }
         }
 
+    function initModalsJS() {
         // Handle Toggle Recipe Switch
         const toggleSwitches = document.querySelectorAll('.toggle-recipe-switch');
         toggleSwitches.forEach(function(switchElem) {
-            switchElem.addEventListener('change', function() {
+            // Remove old event listeners to prevent duplicate triggers
+            const newSwitchElem = switchElem.cloneNode(true);
+            switchElem.parentNode.replaceChild(newSwitchElem, switchElem);
+            
+            newSwitchElem.addEventListener('change', function() {
                 const targetId = this.getAttribute('data-target');
                 const section = document.getElementById(targetId);
+                if (!section) return;
                 const inputs = section.querySelectorAll('select, input:not([type="button"])');
                 
                 if (this.checked) {
@@ -698,7 +704,7 @@
             });
             
             // Trigger immediately to disable inputs if the switch is initially off
-            switchElem.dispatchEvent(new Event('change'));
+            newSwitchElem.dispatchEvent(new Event('change'));
         });
         
         // Handle Dropdown Outlet Text Update
@@ -726,6 +732,26 @@
         
         // Initial update
         updateDropdownText();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
+        var modalId = "{{ old('modal_id') }}";
+        
+        if (hasErrors && modalId) {
+            if (modalId === 'create') {
+                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
+                myModal.show();
+            } else {
+                var editModal = document.getElementById('editModal' + modalId);
+                if(editModal) {
+                    var myModal = new bootstrap.Modal(editModal);
+                    myModal.show();
+                }
+            }
+        }
+
+        initModalsJS();
 
         // AJAX Search & Filter
         const searchInput = document.getElementById('searchInput');
@@ -752,6 +778,9 @@
                 if (newContent) {
                     tableContainer.innerHTML = newContent.innerHTML;
                     window.history.pushState({}, '', url);
+                    
+                    // Re-initialize modal Javascript bindings after AJAX DOM replacement
+                    initModalsJS();
                 }
             })
             .catch(err => console.error("Error fetching data:", err));
