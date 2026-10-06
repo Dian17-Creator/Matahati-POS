@@ -51,7 +51,8 @@
         <hr>
         <div class="row text-center mb-3">
             <div class="col"><div class="fw-bold fs-4">{{ $res['total'] }}</div><small>Total Baris</small></div>
-            <div class="col"><div class="fw-bold fs-4 text-success">{{ $res['success'] }}</div><small>Berhasil</small></div>
+            <div class="col"><div class="fw-bold fs-4 text-success">{{ $res['success'] }}</div><small>Berhasil (Baru)</small></div>
+            <div class="col"><div class="fw-bold fs-4 text-info">{{ $res['updated'] ?? 0 }}</div><small>Diperbarui</small></div>
             <div class="col"><div class="fw-bold fs-4 text-danger">{{ $res['failed'] }}</div><small>Gagal</small></div>
             <div class="col"><div class="fw-bold fs-4 text-warning">{{ $res['duplicate'] }}</div><small>Duplikat</small></div>
         </div>
