@@ -291,6 +291,18 @@ class ProductController extends Controller
                 }
             }
 
+            // Hapus produk di outlet yang tidak dicentang (unchecked)
+            $unselectedOutlets = MposProduct::where('cname', $originalCname)
+                ->whereNotIn('nid_outlet', $request->outlet_ids)
+                ->get();
+            
+            foreach ($unselectedOutlets as $unselected) {
+                // Hapus resep
+                MposRecipe::where('nid_product', $unselected->nid)->delete();
+                // Hapus produk
+                $unselected->delete();
+            }
+
             DB::commit();
             return redirect()->back()
                 ->with('success', 'Produk berhasil diperbarui.');

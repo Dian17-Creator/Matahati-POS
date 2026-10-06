@@ -542,20 +542,7 @@
 
 @push('scripts')
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
-        var modalId = "{{ old('modal_id') }}";
-
-        if (hasErrors && modalId) {
-            if (modalId === 'create') {
-                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
-                myModal.show();
-            } else {
-                var myModal = new bootstrap.Modal(document.getElementById('editModal' + modalId));
-                myModal.show();
-            }
-        }
-
+    function initModalsJS() {
         // Handle Dropdown Outlet Text Update
         function updateDropdownText() {
             document.querySelectorAll('.dropdown').forEach(dropdown => {
@@ -575,12 +562,32 @@
             });
         }
 
+        // Remove old listeners to prevent duplicate triggers
         document.querySelectorAll('.outlet-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', updateDropdownText);
+            const newCheckbox = checkbox.cloneNode(true);
+            checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+            newCheckbox.addEventListener('change', updateDropdownText);
         });
 
         // Initial update
         updateDropdownText();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
+        var modalId = "{{ old('modal_id') }}";
+
+        if (hasErrors && modalId) {
+            if (modalId === 'create') {
+                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
+                myModal.show();
+            } else {
+                var myModal = new bootstrap.Modal(document.getElementById('editModal' + modalId));
+                myModal.show();
+            }
+        }
+
+        initModalsJS();
 
         // AJAX Search
         const filterForm = document.getElementById('filterForm');
@@ -607,6 +614,8 @@
                 if (newContent) {
                     tableContainer.innerHTML = newContent.innerHTML;
                     window.history.pushState({}, '', url);
+                    
+                    initModalsJS();
                 }
             })
             .catch(err => console.error("Error fetching data:", err));
