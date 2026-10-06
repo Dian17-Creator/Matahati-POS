@@ -676,35 +676,35 @@
 
     function initModalsJS() {
         // Handle Toggle Recipe Switch
+        function handleRecipeSwitchChange() {
+            const targetId = this.getAttribute('data-target');
+            const section = document.getElementById(targetId);
+            if (!section) return;
+            const inputs = section.querySelectorAll('select, input:not([type="button"])');
+            
+            if (this.checked) {
+                section.style.display = 'block';
+                inputs.forEach(input => {
+                    input.setAttribute('required', 'required');
+                    input.removeAttribute('disabled');
+                });
+            } else {
+                section.style.display = 'none';
+                inputs.forEach(input => {
+                    input.removeAttribute('required');
+                    input.setAttribute('disabled', 'disabled');
+                });
+            }
+        }
+
         const toggleSwitches = document.querySelectorAll('.toggle-recipe-switch');
         toggleSwitches.forEach(function(switchElem) {
             // Remove old event listeners to prevent duplicate triggers
-            const newSwitchElem = switchElem.cloneNode(true);
-            switchElem.parentNode.replaceChild(newSwitchElem, switchElem);
-            
-            newSwitchElem.addEventListener('change', function() {
-                const targetId = this.getAttribute('data-target');
-                const section = document.getElementById(targetId);
-                if (!section) return;
-                const inputs = section.querySelectorAll('select, input:not([type="button"])');
-                
-                if (this.checked) {
-                    section.style.display = 'block';
-                    inputs.forEach(input => {
-                        input.setAttribute('required', 'required');
-                        input.removeAttribute('disabled');
-                    });
-                } else {
-                    section.style.display = 'none';
-                    inputs.forEach(input => {
-                        input.removeAttribute('required');
-                        input.setAttribute('disabled', 'disabled');
-                    });
-                }
-            });
+            switchElem.removeEventListener('change', handleRecipeSwitchChange);
+            switchElem.addEventListener('change', handleRecipeSwitchChange);
             
             // Trigger immediately to disable inputs if the switch is initially off
-            newSwitchElem.dispatchEvent(new Event('change'));
+            switchElem.dispatchEvent(new Event('change'));
         });
         
         // Handle Dropdown Outlet Text Update
