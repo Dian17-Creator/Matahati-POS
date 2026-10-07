@@ -80,14 +80,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
             // Jika ada foto, kita simpan teksnya. Jika null, null
             $photo = isset($row['photo_1']) && trim($row['photo_1']) !== '' ? trim($row['photo_1']) : null;
 
-            // Parse status
-            $published = isset($row['published']) ? trim($row['published']) : '';
+            // Set status ke ACTIVE secara default (mengabaikan kolom published)
             $status = 'ACTIVE';
-            if (in_array(strtolower($published), ['tidak aktif', 'false', '0', ''], true) && $published !== '1') {
-                if (strtolower($published) !== '') {
-                    $status = 'INACTIVE';
-                }
-            }
 
             // Cek Produk Berdasarkan cname dan nid_outlet
             $existing = MposProduct::where('cname', $cname)
