@@ -122,6 +122,7 @@ class ShiftController extends Controller
         $data['nsales_cash'] = (float) $totalSales;
         $data['cash_sales'] = (float) $cashSales;
         $data['nexpected_cash'] = (float) $expectedCash;
+        $data = $this->attachShiftMetrics($data, $shift->nid);
 
         return response()->json([
             'success' => true,
@@ -349,10 +350,12 @@ class ShiftController extends Controller
 
             DB::commit();
 
+            $data = $this->attachShiftMetrics($shift->toArray(), $shift->nid);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Shift berhasil ditutup.',
-                'data' => $shift,
+                'data' => $data,
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -393,10 +396,14 @@ class ShiftController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $shifts = $query->paginate($perPage);
 
+        $shiftItems = collect($shifts->items())->map(function ($item) {
+            return $this->attachShiftMetrics($item->toArray(), $item->nid);
+        });
+
         return response()->json([
             'success' => true,
             'message' => 'Riwayat shift berhasil diambil.',
-            'data' => $shifts->items(),
+            'data' => $shiftItems,
             'pagination' => [
                 'current_page' => $shifts->currentPage(),
                 'last_page' => $shifts->lastPage(),
@@ -466,10 +473,45 @@ class ShiftController extends Controller
             $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
         }
 
+        $data = $this->attachShiftMetrics($data, $shift->nid);
+
         return response()->json([
             'success' => true,
             'message' => 'Detail shift berhasil diambil.',
             'data' => $data,
         ], 200);
+    }
+
+    protected function attachShiftMetrics(array $data, int $shiftId): array
+    {
+        $validStatuses = [
+            MposSalesH::STATUS_PAID,
+            MposSalesH::STATUS_VOID,
+            MposSalesH::STATUS_CANCELLED,
+            MposSalesH::STATUS_REFUND,
+        ];
+
+        $totalReceipts = MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->count();
+
+        $totalPax = (int) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->sum('nvisitor');
+
+        $subtotal = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->sum('nsubtotal');
+
+        $discount = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->sum('ndiscount');
+
+        $data['total_receipts'] = $totalReceipts;
+        $data['total_pax'] = $totalPax > 0 ? $totalPax : $totalReceipts;
+        $data['subtotal'] = $subtotal;
+        $data['discount_amount'] = $discount;
+
+        return $data;
     }
 }
