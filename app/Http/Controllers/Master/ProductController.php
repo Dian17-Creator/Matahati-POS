@@ -127,9 +127,19 @@ class ProductController extends Controller
 
     public function show(string $id)
     {
-        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType'])->findOrFail($id);
+        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient'])->findOrFail($id);
         $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
-        return view('products.show', compact('product', 'customerTypes'));
+        
+        $categories = \App\Models\MposGrpProduct::whereIn('nid', function($q) {
+            $q->select(\Illuminate\Support\Facades\DB::raw('MIN(nid)'))
+              ->from('mpos_grp_product')
+              ->groupBy('cname');
+        })->orderBy('cname')->get();
+
+        $ingredients = \App\Models\MposIngredients::all();
+        $outlets = \App\Models\MposOutlet::orderBy('cname')->get();
+
+        return view('products.show', compact('product', 'customerTypes', 'categories', 'ingredients', 'outlets'));
     }
 
     public function store(Request $request)
