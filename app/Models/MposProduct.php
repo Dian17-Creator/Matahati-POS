@@ -92,4 +92,13 @@ class MposProduct extends Model
             'nid'
         );
     }
+
+    public function productPrices()
+    {
+        return $this->hasMany(
+            MposProductPrice::class,
+            'nid_product',
+            'nid'
+        );
+    }
 }

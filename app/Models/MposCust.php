@@ -65,4 +65,9 @@ class MposCust extends Model
     {
         return $this->belongsTo(MposOutlet::class, 'nid_outlet', 'nid');
     }
+
+    public function customerType()
+    {
+        return $this->belongsTo(MposCustType::class, 'nid_type', 'nid');
+    }
 }

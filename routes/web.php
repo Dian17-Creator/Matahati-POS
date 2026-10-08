@@ -8,6 +8,8 @@ use App\Http\Controllers\Master\IngredientController;
 
 use App\Http\Controllers\Master\ComboController;
 use App\Http\Controllers\Master\CustomerTypeController;
+use App\Http\Controllers\Master\PriceCategoryController;
+use App\Http\Controllers\Master\ProductPriceController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\OutletController;
 use App\Http\Controllers\Master\PosUserController;
@@ -33,6 +35,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('customer-types', CustomerTypeController::class)->except(['create', 'show', 'edit']);
     Route::post('products/import', [ProductController::class, 'import'])->name('products.import');
     Route::resource('products', ProductController::class);
+    Route::get('products/{product}/detail', [ProductController::class, 'show'])->name('products.show');
+    Route::post('products/{product}/prices', [ProductPriceController::class, 'store'])->name('products.prices.store');
+    Route::put('products/{product}/prices/{price}', [ProductPriceController::class, 'update'])->name('products.prices.update');
+    Route::delete('products/{product}/prices/{price}', [ProductPriceController::class, 'destroy'])->name('products.prices.destroy');
     Route::resource('ingredients', IngredientController::class);
 
     Route::resource('combos', ComboController::class);

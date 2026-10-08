@@ -175,6 +175,9 @@
                             @endif
                         </td>
                         <td class="text-center">
+                            <a href="{{ route('products.show', $product->nid) }}" class="btn btn-sm btn-primary text-white" title="Detail">
+                                <i class="bi bi-eye"></i> Detail
+                            </a>
                             <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#editModal{{ $product->nid }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
