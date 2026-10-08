@@ -661,22 +661,6 @@
         container.appendChild(row);
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
-        var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
-        var modalId = "{{ old('modal_id') }}";
-        
-        if (hasErrors && modalId) {
-            if (modalId === 'create') {
-                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
-                myModal.show();
-            } else {
-                var editModal = document.getElementById('editModal' + modalId);
-                if(editModal) {
-                    var myModal = new bootstrap.Modal(editModal);
-                    myModal.show();
-                }
-            }
-        }
 
     function initModalsJS() {
         // Handle Toggle Recipe Switch
