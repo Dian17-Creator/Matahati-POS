@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
-use App\Models\MposCustType;
+use App\Models\MposPriceCategory;
 use App\Models\MposOutlet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-class CustomerTypeController extends Controller
+class PriceCategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = MposCustType::with('outlet');
+        $query = MposPriceCategory::with('outlet');
 
         if ($request->has('nid_outlet') && $request->nid_outlet != '') {
             $query->where('nid_outlet', $request->nid_outlet);
@@ -20,7 +20,7 @@ class CustomerTypeController extends Controller
 
         $query->whereIn('nid', function($q) use ($request) {
             $q->select(DB::raw('MIN(nid)'))
-              ->from('mpos_cust_type')
+              ->from('mpos_price_category')
               ->groupBy('cname');
               
             if ($request->has('nid_outlet') && $request->nid_outlet != '') {
@@ -28,10 +28,10 @@ class CustomerTypeController extends Controller
             }
         });
 
-        $customerTypes = $query->paginate(10)->withQueryString();
+        $priceCategories = $query->paginate(10)->withQueryString();
         $outlets = MposOutlet::orderBy('cname')->get();
 
-        return view('customer-types.index', compact('customerTypes', 'outlets'));
+        return view('price-categories.index', compact('priceCategories', 'outlets'));
     }
 
     public function store(Request $request)
@@ -45,20 +45,20 @@ class CustomerTypeController extends Controller
         DB::beginTransaction();
         try {
             foreach ($request->outlet_ids as $outletId) {
-                $exists = MposCustType::where('cname', $request->cname)
+                $exists = MposPriceCategory::where('cname', $request->cname)
                             ->where('nid_outlet', $outletId)
                             ->exists();
                 
                 if (!$exists) {
-                    MposCustType::create([
+                    MposPriceCategory::create([
                         'cname' => $request->cname,
                         'nid_outlet' => $outletId,
                     ]);
                 }
             }
             DB::commit();
-            return redirect()->route('customer-types.index')
-                ->with('success', 'Kategori pelanggan berhasil ditambahkan.');
+            return redirect()->route('price-categories.index')
+                ->with('success', 'Kategori harga berhasil ditambahkan.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
@@ -73,36 +73,31 @@ class CustomerTypeController extends Controller
             'outlet_ids.*' => 'exists:mpos_outlet,nid',
         ]);
 
-        $customerType = MposCustType::findOrFail($id);
-        $originalCname = $customerType->cname;
+        $priceCategory = MposPriceCategory::findOrFail($id);
+        $originalCname = $priceCategory->cname;
 
         DB::beginTransaction();
         try {
-            // Update current customer type
-            $customerType->update([
-                'cname' => $request->cname,
-            ]);
+            $priceCategory->update(['cname' => $request->cname]);
 
             foreach ($request->outlet_ids as $outletId) {
-                if ($customerType->nid_outlet == $outletId) {
+                if ($priceCategory->nid_outlet == $outletId) {
                     continue;
                 }
 
-                $existingCustomerType = MposCustType::where('cname', $originalCname)
+                $existingPriceCategory = MposPriceCategory::where('cname', $originalCname)
                             ->where('nid_outlet', $outletId)
                             ->first();
 
-                if ($existingCustomerType) {
-                    $existingCustomerType->update([
-                        'cname' => $request->cname,
-                    ]);
+                if ($existingPriceCategory) {
+                    $existingPriceCategory->update(['cname' => $request->cname]);
                 } else {
-                    $exists = MposCustType::where('cname', $request->cname)
+                    $exists = MposPriceCategory::where('cname', $request->cname)
                                 ->where('nid_outlet', $outletId)
                                 ->exists();
 
                     if (!$exists) {
-                        MposCustType::create([
+                        MposPriceCategory::create([
                             'cname' => $request->cname,
                             'nid_outlet' => $outletId,
                         ]);
@@ -110,8 +105,8 @@ class CustomerTypeController extends Controller
                 }
             }
             DB::commit();
-            return redirect()->route('customer-types.index')
-                ->with('success', 'Kategori pelanggan berhasil diperbarui.');
+            return redirect()->route('price-categories.index')
+                ->with('success', 'Kategori harga berhasil diperbarui.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
@@ -120,17 +115,17 @@ class CustomerTypeController extends Controller
 
     public function destroy(string $id)
     {
-        $customerType = MposCustType::findOrFail($id);
+        $priceCategory = MposPriceCategory::findOrFail($id);
         
-        // Prevent deleting if there are customers using this type
-        if ($customerType->customers()->exists()) {
-            return redirect()->route('customer-types.index')
-                ->with('error', 'Kategori tidak dapat dihapus karena sudah digunakan oleh pelanggan.');
+        // Prevent deleting if used in customer types or product prices
+        if ($priceCategory->customerTypes()->exists() || $priceCategory->productPrices()->exists()) {
+            return redirect()->route('price-categories.index')
+                ->with('error', 'Kategori harga tidak dapat dihapus karena sudah digunakan.');
         }
 
-        $customerType->delete();
+        $priceCategory->delete();
 
-        return redirect()->route('customer-types.index')
-            ->with('success', 'Kategori pelanggan berhasil dihapus.');
+        return redirect()->route('price-categories.index')
+            ->with('success', 'Kategori harga berhasil dihapus.');
     }
 }

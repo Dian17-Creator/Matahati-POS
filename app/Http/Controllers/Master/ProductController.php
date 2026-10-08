@@ -8,6 +8,7 @@ use App\Models\MposGrpProduct;
 use App\Models\MposRecipe;
 use App\Models\MposIngredients;
 use App\Models\MposOutlet;
+use App\Models\MposCustType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -33,13 +34,53 @@ class ProductController extends Controller
     public function apiIndex(Request $request)
     {
         $query = MposProduct::with('category')->where('cstatus', 'ACTIVE');
-        
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+
+        if ($request->filled('nid_outlet')) {
+            $query->where('nid_outlet', $request->input('nid_outlet'));
+        } elseif ($request->filled('outlet_id')) {
+            $query->where('nid_outlet', $request->input('outlet_id'));
+        }
+
+        $customerId = $request->input('nid_customer') ?? $request->input('customer_id');
+        $isReseller = false;
+        $resellerTypeId = null;
+
+        if (!empty($customerId)) {
+            $customer = \App\Models\MposCust::with('type')->find($customerId);
+            if ($customer && $customer->type) {
+                $typeName = strtoupper(trim((string) $customer->type->cname));
+                if ($typeName === 'RESELLER') {
+                    $isReseller = true;
+                    $resellerTypeId = $customer->type->nid;
+                }
+            }
+        }
+
+        if ($isReseller && $resellerTypeId) {
+            // Filter: Hanya sertakan produk yang memiliki harga reseller untuk nid_cust_type ini
+            $query->whereHas('productPrices', function ($q) use ($resellerTypeId) {
+                $q->where('nid_cust_type', $resellerTypeId)
+                  ->where('nqty_start', 1);
+            });
+
+            $query->with(['productPrices' => function ($q) use ($resellerTypeId) {
+                $q->where('nid_cust_type', $resellerTypeId)
+                  ->where('nqty_start', 1);
+            }]);
         }
 
         $products = $query->get();
-        
+
+        if ($isReseller && $resellerTypeId) {
+            // Override nprice dengan harga reseller dari mpos_product_price
+            foreach ($products as $product) {
+                $resellerPriceObj = $product->productPrices->first();
+                if ($resellerPriceObj && $resellerPriceObj->nprice !== null) {
+                    $product->nprice = (string) $resellerPriceObj->nprice;
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $products
@@ -49,7 +90,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = MposProduct::with(['category', 'recipes.ingredient', 'outlet']);
-        
+
         if ($request->has('nid_outlet') && $request->nid_outlet != '') {
             $query->where('nid_outlet', $request->nid_outlet);
         }
@@ -64,24 +105,31 @@ class ProductController extends Controller
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_product')
               ->groupBy('cname');
-            
+
             if ($request->has('nid_outlet') && $request->nid_outlet != '') {
                 $q->where('nid_outlet', $request->nid_outlet);
             }
         });
 
         $products = $query->paginate(10)->withQueryString();
-        
+
         $categories = MposGrpProduct::whereIn('nid', function($q) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_grp_product')
               ->groupBy('cname');
         })->orderBy('cname')->get();
-        
+
         $ingredients = MposIngredients::all();
         $outlets = MposOutlet::orderBy('cname')->get();
 
         return view('products.index', compact('products', 'categories', 'ingredients', 'outlets'));
+    }
+
+    public function show(string $id)
+    {
+        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType'])->findOrFail($id);
+        $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
+        return view('products.show', compact('product', 'customerTypes'));
     }
 
     public function store(Request $request)
@@ -140,7 +188,7 @@ class ProductController extends Controller
                 $exists = MposProduct::where('cname', $data['cname'])
                             ->where('nid_outlet', $outletId)
                             ->exists();
-                
+
                 if (!$exists) {
                     $productData = $data;
                     $productData['nid_outlet'] = $outletId;
@@ -261,10 +309,10 @@ class ProductController extends Controller
                 if ($existingProduct) {
                     // Jika sudah ada, UPDATE data produk tersebut dengan data yang baru
                     $existingProduct->update($data);
-                    
+
                     // Selalu hapus resep lama untuk product target ini
                     MposRecipe::where('nid_product', $existingProduct->nid)->delete();
-                    
+
                     if ($request->has('has_recipe')) {
                         foreach ($ingredients as $index => $ingredientId) {
                             MposRecipe::create([
@@ -284,7 +332,7 @@ class ProductController extends Controller
                     if (!$exists) {
                         $newProductData = $data;
                         $newProductData['nid_outlet'] = $outletId;
-                        
+
                         $newProduct = MposProduct::create($newProductData);
 
                         // Duplicate resep untuk produk baru
@@ -305,7 +353,7 @@ class ProductController extends Controller
             $unselectedOutlets = MposProduct::where('cname', $originalCname)
                 ->whereNotIn('nid_outlet', $request->outlet_ids)
                 ->get();
-            
+
             foreach ($unselectedOutlets as $unselected) {
                 // Hapus resep
                 MposRecipe::where('nid_product', $unselected->nid)->delete();
