@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,11 +13,13 @@
         body {
             background-color: #f8f9fa;
         }
+
         .sidebar {
             min-height: 100vh;
             background-color: #b63352;
             color: white;
         }
+
         .sidebar a {
             color: rgba(255, 255, 255, 0.7);
             text-decoration: none;
@@ -26,10 +29,13 @@
             margin-bottom: 5px;
             transition: all 0.2s ease-in-out;
         }
-        .sidebar a:hover, .sidebar a.active {
+
+        .sidebar a:hover,
+        .sidebar a.active {
             color: #fff;
             background-color: rgba(255, 255, 255, 0.15);
         }
+
         .sidebar .nav-category {
             font-size: 0.75rem;
             text-transform: uppercase;
@@ -37,28 +43,43 @@
             color: rgba(255, 255, 255, 0.5);
             margin: 15px 15px 5px;
         }
+
         .main-content {
             padding: 20px;
         }
-        
+
         /* Bouncy Modal Animation */
         .modal.fade .modal-dialog {
             transform: scale(0.8);
             transition: transform 0.3s ease-out;
         }
+
         .modal.show .modal-dialog {
             transform: scale(1);
             animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
+
         @keyframes bounceIn {
-            0% { transform: scale(0.7); }
-            50% { transform: scale(1.05); }
-            70% { transform: scale(0.95); }
-            100% { transform: scale(1); }
+            0% {
+                transform: scale(0.7);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            70% {
+                transform: scale(0.95);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
     </style>
     @stack('styles')
 </head>
+
 <body>
     <div class="container-fluid">
         <div class="row">
@@ -66,7 +87,7 @@
             <div class="col-md-2 p-0 sidebar">
                 <div class="p-3">
                     <h4 class="text-center text-white mb-4">MATAHATI POS</h4>
-                    
+
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="bi bi-house me-2"></i> Dashboard
                     </a>
@@ -105,6 +126,11 @@
                     <a href="{{ route('vouchers.index') }}" class="{{ request()->routeIs('vouchers.*') ? 'active' : '' }}">
                         <i class="bi bi-ticket-perforated me-2"></i> Voucher
                     </a>
+
+                    <div class="nav-category">Laporan</div>
+                    <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product') ? 'active' : '' }}">
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i> Laporan Pelanggan
+                    </a>
                 </div>
             </div>
 
@@ -129,18 +155,18 @@
                 <div class="main-content">
                     <!-- Alert Success -->
                     @if (session('success'))
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            {{ session('success') }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                     @endif
 
                     <!-- Alert Error -->
                     @if (session('error'))
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            {{ session('error') }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                     @endif
 
                     <!-- Main Content -->
@@ -154,4 +180,5 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     @stack('scripts')
 </body>
+
 </html>
