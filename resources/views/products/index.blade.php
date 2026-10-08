@@ -102,6 +102,14 @@
     </div>
     <div class="card-body p-0" id="table-container">
         <div class="table-responsive">
+            @php
+                $hasAnyRecipe = false;
+                $hasAnyCombo = false;
+                foreach($products as $p) {
+                    if ($p->recipes->count() > 0) $hasAnyRecipe = true;
+                    if ($p->fcombo) $hasAnyCombo = true;
+                }
+            @endphp
             <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
                 <thead class="table-light">
                     <tr>
@@ -111,8 +119,12 @@
                         <th>Outlet</th>
                         <th>Harga POS / Online</th>
                         <th>Status</th>
+                        @if($hasAnyRecipe)
                         <th>Resep</th>
+                        @endif
+                        @if($hasAnyCombo)
                         <th>Kombo</th>
+                        @endif
                         <th width="15%" class="text-center">Aksi</th>
                     </tr>
                 </thead>
@@ -156,6 +168,7 @@
                                 <span class="badge bg-secondary">{{ $product->cstatus }}</span>
                             @endif
                         </td>
+                        @if($hasAnyRecipe)
                         <td>
                             @if($product->recipes->count() > 0)
                                 <ul class="list-unstyled mb-0 small">
@@ -167,6 +180,8 @@
                                 <span class="text-muted small">-</span>
                             @endif
                         </td>
+                        @endif
+                        @if($hasAnyCombo)
                         <td>
                             @if($product->fcombo)
                                 <span class="badge bg-info text-white">Ya</span>
@@ -174,6 +189,7 @@
                                 <span class="badge bg-light text-dark border">Tidak</span>
                             @endif
                         </td>
+                        @endif
                         <td class="text-center">
                             <a href="{{ route('products.show', $product->nid) }}" class="btn btn-sm btn-primary text-white" title="Detail">
                                 <i class="bi bi-eye"></i> Detail
@@ -404,7 +420,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">Tidak ada data produk.</td>
+                        <td colspan="{{ 6 + ($hasAnyRecipe ? 1 : 0) + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
                     </tr>
                     @endforelse
                 </tbody>
