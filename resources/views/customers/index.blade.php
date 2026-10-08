@@ -56,7 +56,7 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
             <form action="{{ route('customers.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 150px;" id="outletFilter">
+                <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter">
                     <option value="">Semua Outlet</option>
                     @foreach($outlets as $outlet)
                     <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
@@ -64,7 +64,15 @@
                     </option>
                     @endforeach
                 </select>
-                <div class="input-group input-group-sm" style="width: 350px;">
+                <select name="nid_type" class="form-select form-select-sm" style="max-width: 150px;" id="typeFilter">
+                    <option value="">Semua Tipe</option>
+                    @foreach($customerTypes as $type)
+                    <option value="{{ $type->nid }}" {{ request('nid_type') == $type->nid ? 'selected' : '' }}>
+                        {{ $type->cname }}
+                    </option>
+                    @endforeach
+                </select>
+                <div class="input-group input-group-sm" style="width: 250px;">
                     <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari pelanggan..." value="{{ request('search') }}">
                     <button class="btn btn-outline-secondary" type="submit">
                         <i class="bi bi-search"></i>
@@ -592,6 +600,7 @@
         const filterForm = document.getElementById('filterForm');
         const searchInput = document.getElementById('searchInput');
         const outletFilter = document.getElementById('outletFilter');
+        const typeFilter = document.getElementById('typeFilter');
         const tableContainer = document.getElementById('table-container');
         let searchTimeout;
 
@@ -630,6 +639,10 @@
 
         if (outletFilter) {
             outletFilter.addEventListener('change', fetchResults);
+        }
+        
+        if (typeFilter) {
+            typeFilter.addEventListener('change', fetchResults);
         }
         
         if (filterForm) {

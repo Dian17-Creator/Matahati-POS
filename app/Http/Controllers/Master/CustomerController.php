@@ -223,6 +223,15 @@ class CustomerController extends Controller
             $query->where('nid_outlet', $request->nid_outlet);
         }
 
+        if ($request->has('nid_type') && $request->nid_type != '') {
+            $type = MposCustType::find($request->nid_type);
+            if ($type) {
+                $query->whereHas('type', function($q) use ($type) {
+                    $q->where('cname', $type->cname);
+                });
+            }
+        }
+
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
