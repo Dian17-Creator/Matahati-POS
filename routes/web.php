@@ -50,4 +50,11 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('pos-users', PosUserController::class);
     Route::resource('payments', PaymentController::class);
     Route::resource('vouchers', VoucherController::class);
+
+    // Report Routes
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('customer-product', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'index'])->name('customer-product');
+        Route::get('customer-product/products', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'getProductsByCategory'])->name('customer-product.products');
+        Route::get('customer-product/export', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'exportExcel'])->name('customer-product.export');
+    });
 });
