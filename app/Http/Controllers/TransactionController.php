@@ -266,6 +266,22 @@ class TransactionController extends Controller
             ], 422);
         }
 
+        // Cek apakah Customer ber-tipe Reseller
+        $customerId = $validated['nid_customer'] ?? null;
+        $isReseller = false;
+        $resellerTypeId = null;
+
+        if (!empty($customerId)) {
+            $customer = \App\Models\MposCust::with('type')->find($customerId);
+            if ($customer && $customer->type) {
+                $typeName = strtoupper(trim((string) $customer->type->cname));
+                if ($typeName === 'RESELLER') {
+                    $isReseller = true;
+                    $resellerTypeId = $customer->type->nid;
+                }
+            }
+        }
+
         // 2. Fetch products and validate existence & ACTIVE status
         $detailsToInsert = [];
         $nsubtotal = 0;
@@ -297,7 +313,17 @@ class TransactionController extends Controller
                 $isOnlineOrder = ($orderType === 'ONLINE');
 
                 $price = (float) $product->nprice;
-                if ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
+
+                if ($isReseller && $resellerTypeId) {
+                    $resellerPriceRecord = \App\Models\MposProductPrice::where('nid_product', $product->nid)
+                        ->where('nid_cust_type', $resellerTypeId)
+                        ->where('nqty_start', 1)
+                        ->first();
+
+                    if ($resellerPriceRecord && $resellerPriceRecord->nprice !== null) {
+                        $price = (float) $resellerPriceRecord->nprice;
+                    }
+                } elseif ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
                     $price = (float) $product->nprice_online;
                 }
 
