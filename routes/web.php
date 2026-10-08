@@ -34,7 +34,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('categories', CategoryController::class);
     Route::resource('customer-types', CustomerTypeController::class)->except(['create', 'show', 'edit']);
     Route::post('products/import', [ProductController::class, 'import'])->name('products.import');
-    Route::resource('products', ProductController::class);
+    Route::resource('products', ProductController::class)->except(['show']);
     Route::get('products/{product}/detail', [ProductController::class, 'show'])->name('products.show');
     Route::post('products/{product}/prices', [ProductPriceController::class, 'store'])->name('products.prices.store');
     Route::put('products/{product}/prices/{price}', [ProductPriceController::class, 'update'])->name('products.prices.update');
