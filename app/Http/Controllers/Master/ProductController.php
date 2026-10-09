@@ -95,6 +95,10 @@ class ProductController extends Controller
             $query->where('nid_outlet', $request->nid_outlet);
         }
 
+        if ($request->has('nid_category') && $request->nid_category != '') {
+            $query->where('nid_category', $request->nid_category);
+        }
+
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where('cname', 'like', "%{$search}%");
@@ -108,6 +112,9 @@ class ProductController extends Controller
 
             if ($request->has('nid_outlet') && $request->nid_outlet != '') {
                 $q->where('nid_outlet', $request->nid_outlet);
+            }
+            if ($request->has('nid_category') && $request->nid_category != '') {
+                $q->where('nid_category', $request->nid_category);
             }
         });
 
