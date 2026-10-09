@@ -75,11 +75,19 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
             <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 150px;" id="outletFilter">
+                <select name="nid_outlet" class="form-select form-select-sm" style="width: 160px;" id="outletFilter">
                     <option value="">Semua Outlet</option>
                     @foreach($outlets as $outlet)
                         <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
                             {{ $outlet->cname }}
+                        </option>
+                    @endforeach
+                </select>
+                <select name="nid_category" class="form-select form-select-sm" style="width: 160px;" id="categoryFilter">
+                    <option value="">Semua Kategori</option>
+                    @foreach($categories as $category)
+                        <option value="{{ $category->nid }}" {{ request('nid_category') == $category->nid ? 'selected' : '' }}>
+                            {{ $category->cname }}
                         </option>
                     @endforeach
                 </select>
@@ -772,6 +780,7 @@
         // AJAX Search & Filter
         const searchInput = document.getElementById('searchInput');
         const outletFilter = document.getElementById('outletFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
         const filterForm = document.getElementById('filterForm');
         const tableContainer = document.getElementById('table-container');
         let searchTimeout;
@@ -812,6 +821,10 @@
 
         if (outletFilter) {
             outletFilter.addEventListener('change', fetchResults);
+        }
+        
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', fetchResults);
         }
         
         if (filterForm) {
