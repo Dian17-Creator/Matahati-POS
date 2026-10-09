@@ -145,8 +145,72 @@ class CustomerProductReportController extends Controller
         $categoryId = $request->input('category_id');
         $productId = $request->input('product_id');
 
+        $sortCol = $request->input('sort_col', 'customer_name');
+        $sortDir = $request->input('sort_dir', 'asc');
+        $validSortCols = ['customer_name', 'category_name', 'product_name', 'qty', 'total_penjualan', 'diskon', 'modal', 'laba', 'jml_transaksi'];
+        if (!in_array($sortCol, $validSortCols)) {
+            $sortCol = 'customer_name';
+        }
+        $sortDir = strtolower($sortDir) === 'desc' ? 'desc' : 'asc';
+
         $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId);
-        $data = $query->select(
+        
+        // Calculate Grand Totals
+        $summaryQuery = clone $query;
+        $grandTotalsObj = $summaryQuery->select(
+            DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as total_qty'),
+            DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
+            DB::raw('SUM(
+                CASE 
+                    WHEN mpos_sales_h.nsubtotal > 0 
+                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                    ELSE 0 
+                END
+            ) as total_diskon'),
+            DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as total_transaksi')
+        )->first();
+
+        $grandTotals = [
+            'qty' => $grandTotalsObj->total_qty ?? 0,
+            'total_penjualan' => $grandTotalsObj->total_penjualan ?? 0,
+            'diskon' => $grandTotalsObj->total_diskon ?? 0,
+            'modal' => 0,
+            'laba' => ($grandTotalsObj->total_penjualan ?? 0) - ($grandTotalsObj->total_diskon ?? 0) - 0,
+            'jml_transaksi' => $grandTotalsObj->total_transaksi ?? 0
+        ];
+
+        // 1. Data Rangkuman per Pelanggan
+        $summaryDataQuery = clone $query;
+        $summaryData = $summaryDataQuery->select(
+            'mpos_cust.cname as customer_name',
+            DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
+            DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
+            DB::raw('SUM(
+                CASE 
+                    WHEN mpos_sales_h.nsubtotal > 0 
+                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                    ELSE 0 
+                END
+            ) as diskon'),
+            DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
+        )
+        ->groupBy('mpos_cust.cname');
+
+        $summarySortCol = $sortCol;
+        if (in_array($sortCol, ['category_name', 'product_name'])) {
+            $summarySortCol = 'customer_name';
+        }
+        
+        if ($summarySortCol === 'laba') {
+             $summaryData->orderByRaw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END)) ' . $sortDir);
+        } else {
+             $summaryData->orderBy($summarySortCol, $sortDir);
+        }
+        $summaryData = $summaryData->get();
+
+        // 2. Data Detail Produk
+        $detailDataQuery = clone $query;
+        $detailData = $detailDataQuery->select(
             'mpos_cust.cname as customer_name',
             'mpos_grp_product.cname as category_name',
             'mpos_product.cname as product_name',
@@ -161,10 +225,16 @@ class CustomerProductReportController extends Controller
             ) as diskon'),
             DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
         )
-        ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname')
-        ->get();
+        ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname');
 
-        return Excel::download(new CustomerProductExport($data, $startDate, $endDate), 'laporan_pelanggan_produk.xlsx');
+        if ($sortCol === 'laba') {
+             $detailData->orderByRaw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END)) ' . $sortDir);
+        } else {
+             $detailData->orderBy($sortCol, $sortDir);
+        }
+        $detailData = $detailData->get();
+
+        return Excel::download(new CustomerProductExport($summaryData, $detailData, $grandTotals, $startDate, $endDate), 'laporan_pelanggan_produk.xlsx');
     }
 
     private function buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId)
