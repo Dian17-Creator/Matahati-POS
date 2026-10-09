@@ -76,6 +76,18 @@ class ProductsImport implements ToCollection, WithHeadingRow
             $posSellPrice = isset($row['pos_sell_price']) ? floatval(preg_replace('/[^0-9.]/', '', $row['pos_sell_price'])) : 0;
             $sellPrice = isset($row['sell_price']) && trim($row['sell_price']) !== '' ? floatval(preg_replace('/[^0-9.]/', '', $row['sell_price'])) : 0;
 
+            // Parse Stock Qty
+            $rawStockQty = isset($row['stock_qty']) ? trim($row['stock_qty']) : '';
+            $stockQty = 0;
+            if ($rawStockQty !== '') {
+                if (!is_numeric($rawStockQty) || intval($rawStockQty) < 0) {
+                    $this->results['failed']++;
+                    $this->results['errors'][] = "Row {$rowNum} ({$cname}): stock_qty tidak valid atau negatif";
+                    continue;
+                }
+                $stockQty = intval($rawStockQty);
+            }
+
             // Parse foto
             // Jika ada foto, kita simpan teksnya. Jika null, null
             $photo = isset($row['photo_1']) && trim($row['photo_1']) !== '' ? trim($row['photo_1']) : null;
@@ -93,13 +105,19 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 DB::beginTransaction();
                 
                 if ($existing) {
-                    $existing->update([
+                    $updateData = [
                         'nid_category' => $category->nid,
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
                         'cphotos' => $photo,
                         'cstatus' => $status,
-                    ]);
+                    ];
+
+                    if ($rawStockQty !== '') {
+                        $updateData['nqty'] = $stockQty;
+                    }
+
+                    $existing->update($updateData);
                     $this->results['updated']++;
                 } else {
                     MposProduct::create([
@@ -108,6 +126,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nid_outlet' => $this->outletId,
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
+                        'nqty' => $stockQty,
                         'cphotos' => $photo,
                         'cstatus' => $status,
                         'fcombo' => 0

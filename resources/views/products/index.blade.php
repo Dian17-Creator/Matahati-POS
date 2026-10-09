@@ -118,6 +118,7 @@
                         <th>Kategori</th>
                         <th>Outlet</th>
                         <th>Harga POS / Online</th>
+                        <th>Stok / Qty</th>
                         <th>Status</th>
                         @if($hasAnyRecipe)
                         <th>Resep</th>
@@ -161,6 +162,7 @@
                             <div class="fw-bold text-dark" title="Harga POS">Rp {{ number_format($product->nprice, 0, ',', '.') }}</div>
                             <div class="small text-muted" title="Harga Online">Online: Rp {{ number_format($product->nprice_online, 0, ',', '.') }}</div>
                         </td>
+                        <td class="text-center">{{ $product->nqty }}</td>
                         <td>
                             @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
                                 <span class="badge bg-success">{{ $product->cstatus }}</span>
@@ -289,6 +291,11 @@
                                             <label for="nprice_online_{{ $product->nid }}" class="form-label">Harga Online</label>
                                             <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_online') is-invalid @enderror @endif" id="nprice_online_{{ $product->nid }}" name="nprice_online" value="{{ old('modal_id') == $product->nid ? old('nprice_online') : $product->nprice_online }}">
                                             @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="stock_qty_{{ $product->nid }}" class="form-label">Stok / Qty</label>
+                                            <input type="number" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('stock_qty') is-invalid @enderror @endif" id="stock_qty_{{ $product->nid }}" name="stock_qty" value="{{ old('modal_id') == $product->nid ? old('stock_qty') : $product->nqty }}">
+                                            @if(old('modal_id') == $product->nid) @error('stock_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
@@ -420,7 +427,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="{{ 6 + ($hasAnyRecipe ? 1 : 0) + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
+                        <td colspan="{{ 7 + ($hasAnyRecipe ? 1 : 0) + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -503,6 +510,11 @@
                         <label for="nprice_online" class="form-label">Harga Online</label>
                         <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice_online') is-invalid @enderror @endif" id="nprice_online" name="nprice_online" value="{{ old('modal_id') == 'create' ? old('nprice_online') : '' }}">
                         @if(old('modal_id') == 'create') @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="mb-3">
+                        <label for="stock_qty" class="form-label">Stok / Qty Awal</label>
+                        <input type="number" min="0" class="form-control @if(old('modal_id') == 'create') @error('stock_qty') is-invalid @enderror @endif" id="stock_qty" name="stock_qty" value="{{ old('modal_id') == 'create' ? old('stock_qty') : '0' }}">
+                        @if(old('modal_id') == 'create') @error('stock_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="cstatus" class="form-label">Status</label>
