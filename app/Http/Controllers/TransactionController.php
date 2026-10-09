@@ -282,102 +282,23 @@ class TransactionController extends Controller
             }
         }
 
-        // 2. Fetch products and validate existence & ACTIVE status
-        $detailsToInsert = [];
-        $nsubtotal = 0;
-        $nitem = 0;
-
-        if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
-            $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
-            $products = MposProduct::whereIn('nid', $productIds)->get()->keyBy('nid');
-
-            foreach ($validated['details'] as $item) {
-                $productId = $item['nid_product'];
-                $product = $products->get($productId);
-
-                if (! $product) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Produk dengan ID {$productId} tidak ditemukan.",
-                    ], 422);
-                }
-
-                if (strtoupper((string) $product->cstatus) !== 'ACTIVE') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Produk '{$product->cname}' sedang tidak aktif dan tidak dapat ditransaksikan.",
-                    ], 422);
-                }
-
-                $orderType = strtoupper((string) ($validated['cordertype'] ?? ''));
-                $isOnlineOrder = ($orderType === 'ONLINE');
-
-                $price = (float) $product->nprice;
-
-                if ($isReseller && $resellerTypeId) {
-                    $resellerPriceRecord = \App\Models\MposProductPrice::where('nid_product', $product->nid)
-                        ->where('nid_cust_type', $resellerTypeId)
-                        ->where('nqty_start', 1)
-                        ->first();
-
-                    if ($resellerPriceRecord && $resellerPriceRecord->nprice !== null) {
-                        $price = (float) $resellerPriceRecord->nprice;
-                    }
-                } elseif ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
-                    $price = (float) $product->nprice_online;
-                }
-
-                $qty = (int) $item['nqty'];
-                $itemSubtotal = $price * $qty;
-
-                $detailsToInsert[] = [
-                    'nid_product' => $product->nid,
-                    'cname' => $product->cname,
-                    'nqty' => $qty,
-                    'nprice' => $price,
-                    'nsubtotal' => $itemSubtotal,
-                    'cnote' => $item['cnote'] ?? null,
-                ];
-
-                $nsubtotal += $itemSubtotal;
-                $nitem += $qty;
-            }
-        }
-
-        // 3. Calculate header totals
-        $ndiscount = (float) ($validated['ndiscount'] ?? 0);
-        $ntax = (float) ($validated['ntax'] ?? 0);
-        $ngrandtotal = max(0, $nsubtotal - $ndiscount + $ntax);
-
-        $npaid = (float) ($validated['npaid'] ?? 0);
-        $reqStatus = $validated['cstatus'] ?? null;
-
-        if ($reqStatus === MposSalesH::STATUS_CANCELLED) {
-            $nchange = 0;
-            $status = MposSalesH::STATUS_CANCELLED;
-        } elseif ($reqStatus === MposSalesH::STATUS_DRAFT) {
-            $nchange = 0;
-            $status = MposSalesH::STATUS_DRAFT;
-        } else {
-            if ($npaid >= $ngrandtotal) {
-                $nchange = $npaid - $ngrandtotal;
-                $status = MposSalesH::STATUS_PAID;
-            } else {
-                $nchange = 0;
-                $status = MposSalesH::STATUS_PENDING;
-            }
-        }
-
-        // 4. Cek apakah ini update DRAFT atau transaksi baru
+        // 4. Cek apakah ini update DRAFT atau transaksi baru (dan idempotensi)
         $existingDraft = null;
         if (!empty($validated['nid'])) {
-            $existingDraft = MposSalesH::where('nid', $validated['nid'])
-                ->where('cstatus', MposSalesH::STATUS_DRAFT)
-                ->first();
+            $existingTransaction = MposSalesH::where('nid', $validated['nid'])->first();
+            if ($existingTransaction) {
+                if ($existingTransaction->cstatus !== MposSalesH::STATUS_DRAFT) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Transaksi sudah diproses (status: ' . $existingTransaction->cstatus . ') dan tidak dapat diubah.',
+                    ], 422);
+                }
+                $existingDraft = $existingTransaction;
+            }
         }
 
+        // Generate Cnotransaction if new
         if (!$existingDraft) {
-            // Generate nomor transaksi & nomor antrean sesuai format POS (#2C62{YYMMDD}{8-digit sequence})
             $trxData = $this->generateTransactionNumber(
                 (int) $validated['nid_outlet'],
                 $validated['nqueue'] ?? null
@@ -392,6 +313,119 @@ class TransactionController extends Controller
         // 5. Atomic database transaction
         DB::beginTransaction();
         try {
+            // 2. Fetch products and validate existence, ACTIVE status & STOCK
+            $detailsToInsert = [];
+            $nsubtotal = 0;
+            $nitem = 0;
+            $requestedQtys = [];
+
+            if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
+                $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
+                
+                // Use lockForUpdate to ensure stock integrity
+                $products = MposProduct::whereIn('nid', $productIds)->lockForUpdate()->get()->keyBy('nid');
+
+                foreach ($validated['details'] as $item) {
+                    $productId = $item['nid_product'];
+                    $qty = (int) $item['nqty'];
+                    $requestedQtys[$productId] = ($requestedQtys[$productId] ?? 0) + $qty;
+                }
+
+                foreach ($validated['details'] as $item) {
+                    $productId = $item['nid_product'];
+                    $product = $products->get($productId);
+
+                    if (! $product) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Produk dengan ID {$productId} tidak ditemukan.",
+                        ], 422);
+                    }
+
+                    if (strtoupper((string) $product->cstatus) !== 'ACTIVE') {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Produk '{$product->cname}' sedang tidak aktif dan tidak dapat ditransaksikan.",
+                        ], 422);
+                    }
+
+                    $orderType = strtoupper((string) ($validated['cordertype'] ?? ''));
+                    $isOnlineOrder = ($orderType === 'ONLINE');
+                    $price = (float) $product->nprice;
+
+                    if ($isReseller && $resellerTypeId) {
+                        $resellerPriceRecord = \App\Models\MposProductPrice::where('nid_product', $product->nid)
+                            ->where('nid_cust_type', $resellerTypeId)
+                            ->where('nqty_start', 1)
+                            ->first();
+
+                        if ($resellerPriceRecord && $resellerPriceRecord->nprice !== null) {
+                            $price = (float) $resellerPriceRecord->nprice;
+                        }
+                    } elseif ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
+                        $price = (float) $product->nprice_online;
+                    }
+
+                    $qty = (int) $item['nqty'];
+                    $itemSubtotal = $price * $qty;
+
+                    $detailsToInsert[] = [
+                        'nid_product' => $product->nid,
+                        'cname' => $product->cname,
+                        'nqty' => $qty,
+                        'nprice' => $price,
+                        'nsubtotal' => $itemSubtotal,
+                        'cnote' => $item['cnote'] ?? null,
+                    ];
+
+                    $nsubtotal += $itemSubtotal;
+                    $nitem += $qty;
+                }
+            }
+
+            // 3. Calculate header totals
+            $ndiscount = (float) ($validated['ndiscount'] ?? 0);
+            $ntax = (float) ($validated['ntax'] ?? 0);
+            $ngrandtotal = max(0, $nsubtotal - $ndiscount + $ntax);
+
+            $npaid = (float) ($validated['npaid'] ?? 0);
+            $reqStatus = $validated['cstatus'] ?? null;
+
+            if ($reqStatus === MposSalesH::STATUS_CANCELLED) {
+                $nchange = 0;
+                $status = MposSalesH::STATUS_CANCELLED;
+            } elseif ($reqStatus === MposSalesH::STATUS_DRAFT) {
+                $nchange = 0;
+                $status = MposSalesH::STATUS_DRAFT;
+            } else {
+                if ($npaid >= $ngrandtotal) {
+                    $nchange = $npaid - $ngrandtotal;
+                    $status = MposSalesH::STATUS_PAID;
+                } else {
+                    $nchange = 0;
+                    $status = MposSalesH::STATUS_PENDING;
+                }
+            }
+
+            // Stock reduction if status becomes PAID
+            if ($status === MposSalesH::STATUS_PAID && !empty($requestedQtys)) {
+                foreach ($requestedQtys as $productId => $totalReqQty) {
+                    $product = $products->get($productId);
+                    if ($product->nqty < $totalReqQty) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Stok tidak cukup untuk '{$product->cname}'. Sisa stok: {$product->nqty}",
+                        ], 422);
+                    }
+                    // Deduct stock
+                    $product->nqty -= $totalReqQty;
+                    $product->save();
+                }
+            }
+
             if ($existingDraft) {
                 $existingDraft->update([
                     'nid_customer' => $validated['nid_customer'] ?? null,

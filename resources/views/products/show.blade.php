@@ -305,6 +305,62 @@
                             </div>
                         </div>
                     </div>
+                    <input type="hidden" name="stock_qty" value="{{ $product->nqty }}">
+                </form>
+            </div>
+        </div>
+
+        <!-- Stok Card -->
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
+                <h5 class="mb-0">Stok</h5>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditStok">
+                        <i class="bi bi-pencil"></i> Ubah
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary d-none" id="btnCancelStok">
+                        Batal
+                    </button>
+                    <button type="submit" form="formUpdateStok" class="btn btn-sm btn-success d-none" id="btnSaveStok">
+                        Simpan
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <form action="{{ route('products.update', $product->nid) }}" method="POST" id="formUpdateStok">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="modal_id" value="{{ $product->nid }}_stok">
+                    <input type="hidden" name="cname" value="{{ $product->cname }}">
+                    <input type="hidden" name="nid_category" value="{{ $product->nid_category }}">
+                    <input type="hidden" name="cstatus" value="{{ $product->cstatus }}">
+                    <input type="hidden" name="nprice" value="{{ $product->nprice }}">
+                    <input type="hidden" name="nprice_online" value="{{ $product->nprice_online }}">
+                    
+                    @foreach($productOutlets as $oid)
+                    <input type="hidden" name="outlet_ids[]" value="{{ $oid }}">
+                    @endforeach
+
+                    @if($product->fcombo)
+                    <input type="hidden" name="fcombo" value="1">
+                    @endif
+                    @if($product->recipes->count() > 0)
+                    <input type="hidden" name="has_recipe" value="1">
+                    @foreach($product->recipes as $r)
+                    <input type="hidden" name="nid_ingredient[]" value="{{ $r->nid_ingredient }}">
+                    <input type="hidden" name="nqty[]" value="{{ $r->nqty }}">
+                    @endforeach
+                    @endif
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="harga-box mb-0">
+                                <div class="title mb-1">Stok / Qty</div>
+                                <div class="price stok-display">{{ $product->nqty }}</div>
+                                <input type="number" min="0" class="form-control d-none stok-input" name="stock_qty" value="{{ $product->nqty }}">
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -530,6 +586,40 @@
 
             if (hasErrors && modalId === '{{ $product->nid }}') {
                 btnEditHarga.click();
+            }
+        }
+
+        // Inline Stok Edit Logic
+        const btnEditStok = document.getElementById('btnEditStok');
+        const btnCancelStok = document.getElementById('btnCancelStok');
+        const btnSaveStok = document.getElementById('btnSaveStok');
+        const stokDisplays = document.querySelectorAll('.stok-display');
+        const stokInputs = document.querySelectorAll('.stok-input');
+
+        if (btnEditStok) {
+            btnEditStok.addEventListener('click', function() {
+                stokDisplays.forEach(d => d.classList.add('d-none'));
+                stokInputs.forEach(i => i.classList.remove('d-none'));
+                btnEditStok.classList.add('d-none');
+                btnCancelStok.classList.remove('d-none');
+                btnSaveStok.classList.remove('d-none');
+            });
+
+            btnCancelStok.addEventListener('click', function() {
+                stokDisplays.forEach(d => d.classList.remove('d-none'));
+                stokInputs.forEach(i => {
+                    i.classList.add('d-none');
+                    if (i.tagName !== 'SELECT' && i.type !== 'checkbox' && i.type !== 'radio' && i.type !== 'file') {
+                        i.value = i.defaultValue;
+                    }
+                });
+                btnEditStok.classList.remove('d-none');
+                btnCancelStok.classList.add('d-none');
+                btnSaveStok.classList.add('d-none');
+            });
+
+            if (hasErrors && modalId === '{{ $product->nid }}_stok') {
+                btnEditStok.click();
             }
         }
 

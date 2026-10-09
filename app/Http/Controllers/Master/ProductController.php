@@ -165,6 +165,7 @@ class ProductController extends Controller
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
             'outlet_ids.*' => 'exists:mpos_outlet,nid',
+            'stock_qty' => 'nullable|integer|min:0',
             'has_recipe' => 'nullable',
             'nid_ingredient' => 'required_with:has_recipe|array',
             'nid_ingredient.*' => 'required_with:has_recipe|exists:mpos_ingredients,nid',
@@ -172,9 +173,10 @@ class ProductController extends Controller
             'nqty.*' => 'required_with:has_recipe|numeric|min:0.01',
         ], $messages);
 
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids']);
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
+        $data['nqty'] = $request->input('stock_qty') ?: 0;
 
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
@@ -248,6 +250,7 @@ class ProductController extends Controller
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
             'outlet_ids.*' => 'exists:mpos_outlet,nid',
+            'stock_qty' => 'nullable|integer|min:0',
             'has_recipe' => 'nullable',
             'nid_ingredient' => 'required_with:has_recipe|array',
             'nid_ingredient.*' => 'required_with:has_recipe|exists:mpos_ingredients,nid',
@@ -256,9 +259,12 @@ class ProductController extends Controller
         ], $messages);
 
         $product = MposProduct::findOrFail($id);
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids']);
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
+        if ($request->has('stock_qty')) {
+            $data['nqty'] = $request->input('stock_qty') ?: 0;
+        }
 
         if ($request->hasFile('photo')) {
             // Check if other products use this photo before unlink
