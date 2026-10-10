@@ -27,6 +27,7 @@ class MposSalesD extends Model
         'nqty_void',
         'nqty_refund',
         'nprice',
+        'ncost',
         'nsubtotal',
         'cnote',
     ];
@@ -42,6 +43,7 @@ class MposSalesD extends Model
             'nqty_refund' => 'integer',
 
             'nprice' => 'decimal:2',
+            'ncost' => 'decimal:2',
             'nsubtotal' => 'decimal:2',
 
             'dcreated' => 'datetime',

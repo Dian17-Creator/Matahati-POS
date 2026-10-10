@@ -131,6 +131,9 @@
                     <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product') ? 'active' : '' }}">
                         <i class="bi bi-file-earmark-bar-graph me-2"></i> Laporan Pelanggan
                     </a>
+                    <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail') ? 'active' : '' }}">
+                        <i class="bi bi-receipt me-2"></i> Laporan Penjualan
+                    </a>
                 </div>
             </div>
 
