@@ -7,6 +7,7 @@ use App\Models\MposCustType;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class CustomersImport implements ToCollection, WithHeadingRow
@@ -18,7 +19,11 @@ class CustomersImport implements ToCollection, WithHeadingRow
     {
         $this->outletId = $outletId;
         // Cache customer types for quick lookup (case-insensitive mapping)
-        $this->customerTypes = MposCustType::all()->keyBy(function($item) {
+        $this->customerTypes = MposCustType::whereIn('nid', function($q) {
+            $q->select(DB::raw('MIN(nid)'))
+              ->from('mpos_cust_type')
+              ->groupBy('cname');
+        })->get()->keyBy(function($item) {
             return strtolower(trim($item->cname));
         });
     }
@@ -37,6 +42,13 @@ class CustomersImport implements ToCollection, WithHeadingRow
                 $typeKey = strtolower(trim($row['customer_type']));
                 if ($this->customerTypes->has($typeKey)) {
                     $typeId = $this->customerTypes[$typeKey]->nid;
+                }
+            }
+
+            if (empty($typeId)) {
+                $guestTypeKey = 'guest';
+                if ($this->customerTypes->has($guestTypeKey)) {
+                    $typeId = $this->customerTypes[$guestTypeKey]->nid;
                 }
             }
 
