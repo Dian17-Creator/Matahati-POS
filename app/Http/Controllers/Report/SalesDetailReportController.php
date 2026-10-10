@@ -80,7 +80,7 @@ class SalesDetailReportController extends Controller
 
         $query->orderBy('mpos_sales_h.dtransaction', 'desc');
 
-        $transactions = $query->paginate(15)->withQueryString();
+        $transactions = $query->paginate(10)->withQueryString();
 
         // Calculate Summary for PAID transactions only
         $summaryQuery = DB::table('mpos_sales_h')
