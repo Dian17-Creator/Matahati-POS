@@ -315,15 +315,7 @@
             <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                 <h5 class="mb-0">Stok</h5>
                 <div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditStok">
-                        <i class="bi bi-pencil"></i> Ubah
-                    </button>
-                    <button type="button" class="btn btn-sm btn-secondary d-none" id="btnCancelStok">
-                        Batal
-                    </button>
-                    <button type="submit" form="formUpdateStok" class="btn btn-sm btn-success d-none" id="btnSaveStok">
-                        Simpan
-                    </button>
+                    <!-- Tombol edit stok telah dihilangkan -->
                 </div>
             </div>
             <div class="card-body">
