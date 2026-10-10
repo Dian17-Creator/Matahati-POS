@@ -1,14 +1,13 @@
 <table>
     <thead>
         <tr>
-            <th colspan="7" style="font-size: 14pt; font-weight: bold; text-align: center;">LAPORAN RANGKUMAN PELANGGAN</th>
+            <th colspan="6" style="font-size: 14pt; font-weight: bold; text-align: center;">LAPORAN RANGKUMAN PELANGGAN</th>
         </tr>
         <tr>
-            <th colspan="7" style="text-align: center;">Periode: {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</th>
+            <th colspan="6" style="text-align: center;">Periode: {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</th>
         </tr>
         <tr>
             <th>Pelanggan</th>
-            <th>Total Qty</th>
             <th>Total Penjualan</th>
             <th>Diskon</th>
             <th>Modal Produk</th>
@@ -24,7 +23,6 @@
             @endphp
             <tr>
                 <td>{{ $row->customer_name ?? 'Unknown' }}</td>
-                <td>{{ $row->qty }}</td>
                 <td>{{ $row->total_penjualan }}</td>
                 <td>{{ $row->diskon }}</td>
                 <td>{{ $modal }}</td>
@@ -36,7 +34,6 @@
     <tfoot>
         <tr>
             <td style="font-weight: bold; text-align: right;">GRAND TOTAL</td>
-            <td style="font-weight: bold;">{{ $grandTotals['qty'] }}</td>
             <td style="font-weight: bold;">{{ $grandTotals['total_penjualan'] }}</td>
             <td style="font-weight: bold;">{{ $grandTotals['diskon'] }}</td>
             <td style="font-weight: bold;">{{ $grandTotals['modal'] }}</td>

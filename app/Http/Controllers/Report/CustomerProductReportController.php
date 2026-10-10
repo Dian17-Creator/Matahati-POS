@@ -75,31 +75,62 @@ class CustomerProductReportController extends Controller
         $grandTotals->total_modal = 0; // HPP/Modal is not defined in current models
         $grandTotals->total_laba = $grandTotals->total_penjualan - $grandTotals->total_diskon - $grandTotals->total_modal;
 
-        $queryBuilder = $query->select(
-            'mpos_cust.cname as customer_name',
-            'mpos_grp_product.cname as category_name',
-            'mpos_product.cname as product_name',
-            DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
-            DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
-            DB::raw('SUM(
-                CASE 
-                    WHEN mpos_sales_h.nsubtotal > 0 
-                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
-                    ELSE 0 
-                END
-            ) as diskon'),
-            DB::raw('0 as modal'),
-            DB::raw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(
-                CASE 
-                    WHEN mpos_sales_h.nsubtotal > 0 
-                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
-                    ELSE 0 
-                END
-            )) as laba'),
-            DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
-        )
-        ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname')
-        ->orderBy($sortCol, $sortDir);
+        $isSummary = empty($categoryId) && empty($productId);
+
+        if ($isSummary) {
+            // Adjust sort col if it's not available in summary
+            if (in_array($sortCol, ['category_name', 'product_name', 'qty'])) {
+                $sortCol = 'customer_name';
+            }
+            $queryBuilder = $query->select(
+                'mpos_cust.cname as customer_name',
+                DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN mpos_sales_h.nsubtotal > 0 
+                        THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                        ELSE 0 
+                    END
+                ) as diskon'),
+                DB::raw('0 as modal'),
+                DB::raw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(
+                    CASE 
+                        WHEN mpos_sales_h.nsubtotal > 0 
+                        THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                        ELSE 0 
+                    END
+                )) as laba'),
+                DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
+            )
+            ->groupBy('mpos_cust.cname')
+            ->orderBy($sortCol, $sortDir);
+        } else {
+            $queryBuilder = $query->select(
+                'mpos_cust.cname as customer_name',
+                'mpos_grp_product.cname as category_name',
+                'mpos_product.cname as product_name',
+                DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
+                DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN mpos_sales_h.nsubtotal > 0 
+                        THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                        ELSE 0 
+                    END
+                ) as diskon'),
+                DB::raw('0 as modal'),
+                DB::raw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(
+                    CASE 
+                        WHEN mpos_sales_h.nsubtotal > 0 
+                        THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
+                        ELSE 0 
+                    END
+                )) as laba'),
+                DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
+            )
+            ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname')
+            ->orderBy($sortCol, $sortDir);
+        }
 
         if ($request->has('print')) {
             $reports = $queryBuilder->get();
@@ -119,16 +150,21 @@ class CustomerProductReportController extends Controller
             'categoryId',
             'productId',
             'sortCol',
-            'sortDir'
+            'sortDir',
+            'isSummary'
         ));
     }
 
     public function getProductsByCategory(Request $request)
     {
         $categoryId = $request->input('category_id');
-        if ($categoryId) {
+        if (!empty($categoryId)) {
             $products = MposProduct::whereHas('category', function($q) use ($categoryId) {
-                $q->where('cname', $categoryId);
+                if (is_array($categoryId)) {
+                    $q->whereIn('cname', $categoryId);
+                } else {
+                    $q->where('cname', $categoryId);
+                }
             })->select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
         } else {
             $products = MposProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
@@ -183,7 +219,6 @@ class CustomerProductReportController extends Controller
         $summaryDataQuery = clone $query;
         $summaryData = $summaryDataQuery->select(
             'mpos_cust.cname as customer_name',
-            DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
             DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
             DB::raw('SUM(
                 CASE 
@@ -197,7 +232,7 @@ class CustomerProductReportController extends Controller
         ->groupBy('mpos_cust.cname');
 
         $summarySortCol = $sortCol;
-        if (in_array($sortCol, ['category_name', 'product_name'])) {
+        if (in_array($sortCol, ['category_name', 'product_name', 'qty'])) {
             $summarySortCol = 'customer_name';
         }
         
@@ -260,8 +295,12 @@ class CustomerProductReportController extends Controller
             $query->where('mpos_cust.cname', $customerId);
         }
 
-        if ($categoryId) {
-            $query->where('mpos_grp_product.cname', $categoryId);
+        if (!empty($categoryId)) {
+            if (is_array($categoryId)) {
+                $query->whereIn('mpos_grp_product.cname', $categoryId);
+            } else {
+                $query->where('mpos_grp_product.cname', $categoryId);
+            }
         }
 
         if ($productId) {
