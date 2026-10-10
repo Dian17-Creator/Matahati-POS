@@ -56,5 +56,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customer-product', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'index'])->name('customer-product');
         Route::get('customer-product/products', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'getProductsByCategory'])->name('customer-product.products');
         Route::get('customer-product/export', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'exportExcel'])->name('customer-product.export');
+        
+        Route::get('sales-detail', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'index'])->name('sales-detail');
     });
 });

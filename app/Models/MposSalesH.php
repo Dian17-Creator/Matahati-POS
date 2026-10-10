@@ -87,6 +87,9 @@ class MposSalesH extends Model
         'ccancel_note',
         'cvoid_note',
         'crefund_note',
+        'csource',
+        'nservice_charge',
+        'nrounding',
     ];
 
     protected function casts(): array
@@ -113,6 +116,8 @@ class MposSalesH extends Model
 
             'npaid' => 'decimal:2',
             'nchange' => 'decimal:2',
+            'nservice_charge' => 'decimal:2',
+            'nrounding' => 'decimal:2',
         ];
     }
 
