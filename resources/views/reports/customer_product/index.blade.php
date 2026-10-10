@@ -245,7 +245,7 @@
         </div>
         <div class="d-flex gap-2">
             @php
-                $isAnyFilterActive = $customerId || $categoryId || $productId;
+                $isAnyFilterActive = !empty($customerId) || !empty($categoryId) || !empty($productId);
             @endphp
             <button type="button" class="btn {{ $isAnyFilterActive ? 'btn-primary' : 'btn-outline-primary' }} btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
                 <i class="bi bi-funnel"></i> Filter
@@ -271,8 +271,11 @@
             <span class="filter-chip filter-chip-inactive"><i class="bi bi-person"></i> Semua Pelanggan</span>
         @endif
 
-        @if($categoryId)
-            <span class="filter-chip filter-chip-active"><i class="bi bi-tags"></i> {{ $categoryId }}</span>
+        @if(!empty($categoryId))
+            @php 
+                $catDisplay = is_array($categoryId) ? implode(', ', $categoryId) : $categoryId; 
+            @endphp
+            <span class="filter-chip filter-chip-active"><i class="bi bi-tags"></i> {{ $catDisplay }}</span>
         @else
             <span class="filter-chip filter-chip-inactive"><i class="bi bi-tags"></i> Semua Kategori</span>
         @endif
@@ -313,6 +316,7 @@
                         <th class="py-3 text-center">
                             <a href="{{ $sortUrl('customer_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">Pelanggan {!! $sortIcon('customer_name') !!}</a>
                         </th>
+                        @if(!$isSummary)
                         <th class="py-3 text-center">
                             <a href="{{ $sortUrl('category_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">Kategori {!! $sortIcon('category_name') !!}</a>
                         </th>
@@ -322,6 +326,7 @@
                         <th class="py-3 text-center">
                             <a href="{{ $sortUrl('qty', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">Qty {!! $sortIconNum('qty') !!}</a>
                         </th>
+                        @endif
                         <th class="py-3 text-center">
                             <a href="{{ $sortUrl('total_penjualan', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">Total Penjualan {!! $sortIconNum('total_penjualan') !!}</a>
                         </th>
@@ -347,9 +352,11 @@
                         @endphp
                         <tr style="border-bottom: 1px solid #f8f9fa;">
                             <td class="text-center">{{ $row->customer_name ?? 'Unknown' }}</td>
+                            @if(!$isSummary)
                             <td class="text-center">{{ $row->category_name ?? '-' }}</td>
                             <td class="text-center">{{ $row->product_name }}</td>
                             <td class="text-center">{{ number_format($row->qty, 0, ',', '.') }}</td>
+                            @endif
                             <td class="text-center">IDR {{ number_format($row->total_penjualan, 2, ',', '.') }}</td>
                             <td class="text-center">IDR {{ number_format($row->diskon, 2, ',', '.') }}</td>
                             <td class="text-center">IDR {{ number_format($modal, 2, ',', '.') }}</td>
@@ -358,7 +365,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
+                            <td colspan="{{ $isSummary ? 6 : 9 }}" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -369,10 +376,12 @@
         <div class="px-4 py-3 print-grand-total order-2 order-print-3" style="background-color: #1e293b; color: #fff;">
             <div class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #94a3b8;">Grand Total</div>
             <div class="row w-100 m-0">
+                @if(!$isSummary)
                 <div class="col px-0 d-flex flex-column">
                     <span style="font-size: 0.75rem; color: #cbd5e1;">Qty</span>
                     <span class="fw-bold print-text-black" style="font-size: 0.9rem;">{{ number_format($grandTotals->total_qty ?? 0, 0, ',', '.') }}</span>
                 </div>
+                @endif
                 <div class="col px-0 d-flex flex-column">
                     <span style="font-size: 0.75rem; color: #cbd5e1;">Total Penjualan</span>
                     <span class="fw-bold print-text-black" style="font-size: 0.9rem; color: #34d399;">IDR {{ number_format($grandTotals->total_penjualan ?? 0, 2, ',', '.') }}</span>
@@ -442,10 +451,12 @@
 
                     <div class="mb-3">
                         <label class="form-label">Kategori</label>
-                        <select name="category_id" id="category_id" class="form-select tom-select-filter" placeholder="Semua Kategori">
-                            <option value="">Semua Kategori</option>
+                        <select name="category_id[]" id="category_id" class="form-select" multiple placeholder="Pilih Kategori (Kosong = Semua)">
                             @foreach($categories as $cat)
-                                <option value="{{ $cat->cname }}" {{ $categoryId == $cat->cname ? 'selected' : '' }}>{{ $cat->cname }}</option>
+                                @php
+                                    $isSelected = is_array($categoryId) ? in_array($cat->cname, $categoryId) : $categoryId == $cat->cname;
+                                @endphp
+                                <option value="{{ $cat->cname }}" {{ $isSelected ? 'selected' : '' }}>{{ $cat->cname }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -503,18 +514,57 @@
             });
         });
 
-        const categorySelect = document.getElementById('category_id');
+        // Initialize Category Tom Select with checkboxes
+        const categoryTs = new TomSelect('#category_id', {
+            plugins: ['remove_button'],
+            create: false,
+            maxItems: null,
+            hideSelected: false,
+            placeholder: 'Pilih Kategori (Kosong = Semua)',
+            render: {
+                option: function(data, escape) {
+                    const isSelected = this.items.includes(data.value);
+                    return '<div class="d-flex align-items-center"><input type="checkbox" class="form-check-input me-2 mt-0" ' + (isSelected ? 'checked' : '') + ' style="pointer-events: none;">' + escape(data.text) + '</div>';
+                },
+                item: function(data, escape) {
+                    return '<div>' + escape(data.text) + '</div>';
+                }
+            },
+            onItemAdd: function(value) {
+                const option = this.getOption(value);
+                if (option) {
+                    const cb = option.querySelector('input[type="checkbox"]');
+                    if (cb) cb.checked = true;
+                }
+            },
+            onItemRemove: function(value) {
+                const option = this.getOption(value);
+                if (option) {
+                    const cb = option.querySelector('input[type="checkbox"]');
+                    if (cb) cb.checked = false;
+                }
+            }
+        });
+
         const productTs = tomSelects['product_id'];
 
-        categorySelect.addEventListener('change', function () {
-            const categoryId = this.value;
+        categoryTs.on('change', function () {
+            const categoryId = this.getValue();
             
             // Clear current product options in Tom Select
             productTs.clear();
             productTs.clearOptions();
             productTs.addOption({value: '', text: 'Semua Produk'});
+            
+            // Format for query string
+            let queryString = '';
+            if (Array.isArray(categoryId)) {
+                queryString = categoryId.map(id => `category_id[]=${encodeURIComponent(id)}`).join('&');
+            } else if (categoryId) {
+                queryString = `category_id[]=${encodeURIComponent(categoryId)}`;
+            }
 
-            fetch(`{{ route('reports.customer-product.products') }}?category_id=${categoryId}`)
+            fetch(`{{ route('reports.customer-product.products') }}?${queryString}`)
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(product => {
