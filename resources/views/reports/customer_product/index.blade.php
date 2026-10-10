@@ -660,10 +660,16 @@
                 .order-print-3 {
                     order: 3 !important;
                 }
+                body {
+                    margin-top: 1.5cm;
+                    margin-bottom: 1.5cm;
+                    margin-left: 1cm;
+                    margin-right: 1cm;
+                }
             }
             @page {
                 size: portrait; /* Force portrait (vertical) orientation */
-                margin: 1cm;
+                margin: 0; /* Menghilangkan header/footer bawaan browser */
             }
         `;
         document.head.appendChild(style);
