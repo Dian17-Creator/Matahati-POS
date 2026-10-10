@@ -245,8 +245,17 @@
                                                 <label for="nid_type_{{ $customer->nid }}" class="form-label">Tipe Pelanggan</label>
                                                 <select class="form-select @if(old('modal_id') == $customer->nid) @error('nid_type') is-invalid @enderror @endif" id="nid_type_{{ $customer->nid }}" name="nid_type">
                                                     <option value="">Pilih Tipe</option>
+                                                    @php
+                                                        $selectedTypeId = old('modal_id') == $customer->nid ? old('nid_type') : $customer->nid_type;
+                                                        if (old('modal_id') != $customer->nid && $customer->type) {
+                                                            $matchingType = $customerTypes->firstWhere('cname', $customer->type->cname);
+                                                            if ($matchingType) {
+                                                                $selectedTypeId = $matchingType->nid;
+                                                            }
+                                                        }
+                                                    @endphp
                                                     @foreach($customerTypes as $type)
-                                                    <option value="{{ $type->nid }}" {{ (old('modal_id') == $customer->nid ? old('nid_type') : $customer->nid_type) == $type->nid ? 'selected' : '' }}>{{ $type->cname }}</option>
+                                                    <option value="{{ $type->nid }}" {{ $selectedTypeId == $type->nid ? 'selected' : '' }}>{{ $type->cname }}</option>
                                                     @endforeach
                                                 </select>
                                                 @if(old('modal_id') == $customer->nid) @error('nid_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
