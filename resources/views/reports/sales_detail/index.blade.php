@@ -60,6 +60,10 @@
         border-bottom: 2px solid #e2e8f0;
     }
     
+    .table td {
+        padding: 1rem 0.75rem !important;
+    }
+    
     .pagination {
         gap: 4px;
         margin-bottom: 0;
@@ -246,15 +250,15 @@
                         <th class="py-3 text-center">STATUS</th>
                         <th class="py-3 text-center">KASIR</th>
                         <th class="py-3 text-center">PELANGGAN</th>
-                        <th class="py-3 text-end">TOTAL PENJUALAN</th>
-                        <th class="py-3 text-end">VOID/REFUND</th>
-                        <th class="py-3 text-end">DISKON</th>
-                        <th class="py-3 text-end">PAJAK</th>
-                        <th class="py-3 text-end">SERVICE</th>
-                        <th class="py-3 text-end">PEMBULATAN</th>
-                        <th class="py-3 text-end fw-bold text-primary">PENJUALAN NETT</th>
-                        <th class="py-3 text-end">MODAL</th>
-                        <th class="py-3 text-end fw-bold text-success">LABA</th>
+                        <th class="py-3 text-center">TOTAL PENJUALAN</th>
+                        <th class="py-3 text-center">VOID/REFUND</th>
+                        <th class="py-3 text-center">DISKON</th>
+                        <th class="py-3 text-center">PAJAK</th>
+                        <th class="py-3 text-center">SERVICE</th>
+                        <th class="py-3 text-center">PEMBULATAN</th>
+                        <th class="py-3 text-center fw-bold text-primary">PENJUALAN NETT</th>
+                        <th class="py-3 text-center">MODAL</th>
+                        <th class="py-3 text-center fw-bold text-success">LABA</th>
                         <th class="py-3 text-center">DEPOSIT</th>
                     </tr>
                 </thead>
@@ -293,17 +297,17 @@
                             <td class="text-center">{{ $row->cashier_name ?? '-' }}</td>
                             <td class="text-center">{{ $row->final_customer_name }}</td>
                             
-                            <td class="text-end text-muted">Rp {{ number_format($row->ngrandtotal, 0, ',', '.') }}</td>
-                            <td class="text-end text-danger">{{ $row->total_void_refund > 0 ? '-Rp '.number_format($row->total_void_refund, 0, ',', '.') : 'Rp 0' }}</td>
-                            <td class="text-end text-warning">Rp {{ number_format($row->ndiscount, 0, ',', '.') }}</td>
-                            <td class="text-end">Rp {{ number_format($row->ntax, 0, ',', '.') }}</td>
-                            <td class="text-end">Rp {{ number_format($row->nservice_charge, 0, ',', '.') }}</td>
-                            <td class="text-end">Rp {{ number_format($row->nrounding, 0, ',', '.') }}</td>
+                            <td class="text-center text-muted">Rp {{ number_format($row->ngrandtotal, 0, ',', '.') }}</td>
+                            <td class="text-center text-danger">{{ $row->total_void_refund > 0 ? '-Rp '.number_format($row->total_void_refund, 0, ',', '.') : 'Rp 0' }}</td>
+                            <td class="text-center text-warning">Rp {{ number_format($row->ndiscount, 0, ',', '.') }}</td>
+                            <td class="text-center">Rp {{ number_format($row->ntax, 0, ',', '.') }}</td>
+                            <td class="text-center">Rp {{ number_format($row->nservice_charge, 0, ',', '.') }}</td>
+                            <td class="text-center">Rp {{ number_format($row->nrounding, 0, ',', '.') }}</td>
                             
-                            <td class="text-end fw-bold text-primary">Rp {{ number_format($netSalesRow, 0, ',', '.') }}</td>
+                            <td class="text-center fw-bold text-primary">Rp {{ number_format($netSalesRow, 0, ',', '.') }}</td>
                             
-                            <td class="text-end {{ $row->min_cost < 0 ? 'text-danger' : '' }}" title="{{ $row->min_cost < 0 ? 'Modal tidak lengkap' : '' }}">{{ $modalLabel }}</td>
-                            <td class="text-end fw-bold text-success">{{ $labaLabel }}</td>
+                            <td class="text-center {{ $row->min_cost < 0 ? 'text-danger' : '' }}" title="{{ $row->min_cost < 0 ? 'Modal tidak lengkap' : '' }}">{{ $modalLabel }}</td>
+                            <td class="text-center fw-bold text-success">{{ $labaLabel }}</td>
                             <td class="text-center text-muted">-</td>
                         </tr>
                     @empty
