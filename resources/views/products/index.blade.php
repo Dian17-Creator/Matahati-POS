@@ -300,11 +300,7 @@
                                             <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_online') is-invalid @enderror @endif" id="nprice_online_{{ $product->nid }}" name="nprice_online" value="{{ old('modal_id') == $product->nid ? old('nprice_online') : $product->nprice_online }}">
                                             @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
-                                        <div class="mb-3">
-                                            <label for="stock_qty_{{ $product->nid }}" class="form-label">Stok / Qty</label>
-                                            <input type="number" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('stock_qty') is-invalid @enderror @endif" id="stock_qty_{{ $product->nid }}" name="stock_qty" value="{{ old('modal_id') == $product->nid ? old('stock_qty') : $product->nqty }}">
-                                            @if(old('modal_id') == $product->nid) @error('stock_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
+
                                         <div class="col-md-6 mb-3">
                                             <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
