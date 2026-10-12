@@ -301,12 +301,13 @@
                         @php
                             $netQty = $row->nqty - $row->nqty_void - $row->nqty_refund;
                             $grossSubtotal = $netQty * $row->nprice;
-                            $itemDiscount = ($row->transaction_subtotal > 0 && $row->transaction_discount > 0)
+                            $prorateDiscount = ($row->transaction_subtotal > 0 && $row->transaction_discount > 0)
                                 ? ($grossSubtotal / $row->transaction_subtotal) * $row->transaction_discount
                                 : 0;
-                            $totalPenjualan = max(0, $grossSubtotal - $itemDiscount);
+                            $totalPenjualan = max(0, $grossSubtotal - $prorateDiscount);
                             $totalModal = $netQty * $row->ncost;
                             $laba = $totalPenjualan - $totalModal;
+                            $itemDiscount = 0; // Sesuai Olsera, kolom diskon item hanya untuk diskon langsung per-produk (0.00 untuk voucher/diskon nota)
                         @endphp
                         <tr style="border-bottom: 1px solid #f8f9fa;">
                             <td class="text-center">
@@ -322,7 +323,7 @@
                             </td>
                             <td class="text-center">{{ $row->customer_name }}</td>
                             <td class="text-center fw-bold">{{ number_format($netQty, 0, ',', '.') }}</td>
-                            <td class="text-center {{ $itemDiscount > 0 ? 'text-danger' : 'text-muted' }}">
+                            <td class="text-center text-muted">
                                 {{ $itemDiscount > 0 ? 'Rp ' . number_format($itemDiscount, 0, ',', '.') : 'Rp 0' }}
                             </td>
                             <td class="text-center fw-bold text-primary">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</td>
@@ -332,7 +333,7 @@
                             <td class="text-center fw-bold {{ $laba >= 0 ? 'text-success' : 'text-danger' }}">
                                 Rp {{ number_format($laba, 0, ',', '.') }}
                             </td>
-                            <td class="text-center text-muted">-</td>
+                            <td class="text-center text-muted">Rp 0</td>
                         </tr>
                     @empty
                         <tr>
