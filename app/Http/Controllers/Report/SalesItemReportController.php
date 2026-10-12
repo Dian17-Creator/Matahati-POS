@@ -84,13 +84,7 @@ class SalesItemReportController extends Controller
         $summaryQuery = clone $baseQuery;
         $summary = $summaryQuery->select([
             DB::raw('COALESCE(SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund), 0) as total_qty'),
-            DB::raw('COALESCE(SUM(
-                CASE 
-                    WHEN mpos_sales_h.nsubtotal > 0 
-                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
-                    ELSE 0 
-                END
-            ), 0) as total_discount'),
+            DB::raw('0 as total_discount'),
             DB::raw('COALESCE(SUM(
                 ((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - 
                 CASE 
