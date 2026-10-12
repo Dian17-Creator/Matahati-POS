@@ -231,6 +231,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
             // Customer and Cashier Metadata
             $servedBy = trim((string) $this->extractField($normalizedRow, ['served_by', 'servedby', 'kasir', 'sales_name']));
             $customerName = trim((string) $this->extractField($normalizedRow, ['customer_name', 'customername', 'pelanggan', 'customer']));
+            $rawNotes = $this->extractField($normalizedRow, ['notes_order', 'notesorder', 'notes', 'catatan', 'keterangan']);
 
             // Group by Order No
             if (!isset($groupedOrders[$orderNo])) {
@@ -239,6 +240,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                     'dtransaction' => $dtransaction,
                     'served_by' => $servedBy,
                     'customer_name' => $customerName,
+                    'notes' => !empty($rawNotes) ? trim((string)$rawNotes) : null,
                     'items' => [],
                     'total_qty' => 0,
                     'total_subtotal' => 0.0,
@@ -341,12 +343,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                     ]);
                 } else {
                     // CREATE_HEADER_AND_DETAILS
-                    $noteParts = [];
-                    if (!empty($order['served_by'])) {
-                        $noteParts[] = "Kasir Olsera: {$order['served_by']}";
-                    }
-                    $noteParts[] = "Import Detail Item Olsera";
-                    $cnote = implode(' | ', $noteParts);
+                    $cnote = !empty($order['notes']) ? $order['notes'] : null;
 
                     $newHeader = MposSalesH::create([
                         'cnotransaction' => $order['order_no'],
@@ -359,7 +356,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                         'nid_payment' => null,
                         'nid_voucher' => null,
                         'nqueue' => null,
-                        'cordertype' => MposSalesH::ORDER_TYPE_DINE_IN,
+                        'cordertype' => MposSalesH::ORDER_TYPE_TAKE_AWAY,
                         'nvisitor' => 1,
                         'ctable' => null,
                         'nsubtotal' => $order['total_subtotal'],

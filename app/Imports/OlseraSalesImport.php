@@ -181,14 +181,8 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
             $salesEmail = trim((string) $this->extractField($normalizedRow, ['sales_email', 'salesemail', 'email_kasir']));
             $rowCashierUserId = $this->resolveCashierNid($servedBy, $salesEmail);
 
-            $noteParts = [];
-            if ($servedBy !== '') {
-                $noteParts[] = "Kasir Olsera: {$servedBy}";
-            }
-            if ($totalAmountBenchmark !== null && abs($totalAmountBenchmark - $ngrandtotal) > 0.01) {
-                $noteParts[] = "Audit Benchmark Total Amount: Rp " . number_format($totalAmountBenchmark, 0, ',', '.');
-            }
-            $cnote = !empty($noteParts) ? implode(' | ', $noteParts) : 'Import Transaksi Olsera';
+            $rawNotes = $this->extractField($normalizedRow, ['notes', 'catatan', 'keterangan']);
+            $cnote = !empty($rawNotes) ? trim((string)$rawNotes) : null;
 
             // 7. Deteksi Duplikasi Internal File (File-Level Duplicate)
             if (isset($seenInFile[$orderNo])) {
@@ -254,7 +248,7 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
                 'nid_payment' => null,
                 'nid_voucher' => null,
                 'nqueue' => null,
-                'cordertype' => MposSalesH::ORDER_TYPE_DINE_IN, // Fallback valid model MposSalesH
+                'cordertype' => MposSalesH::ORDER_TYPE_TAKE_AWAY, // Tipe pesanan import Olsera: TAKE_AWAY
                 'nvisitor' => 1,
                 'ctable' => null,
                 'nsubtotal' => $nsubtotal,
