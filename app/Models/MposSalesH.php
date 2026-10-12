@@ -90,6 +90,9 @@ class MposSalesH extends Model
         'csource',
         'nservice_charge',
         'nrounding',
+        'ntotal_cost',
+        'ntotal_profit',
+        'dcreated',
     ];
 
     protected function casts(): array
@@ -113,6 +116,8 @@ class MposSalesH extends Model
             'ndiscount' => 'decimal:2',
             'ntax' => 'decimal:2',
             'ngrandtotal' => 'decimal:2',
+            'ntotal_cost' => 'decimal:2',
+            'ntotal_profit' => 'decimal:2',
 
             'npaid' => 'decimal:2',
             'nchange' => 'decimal:2',

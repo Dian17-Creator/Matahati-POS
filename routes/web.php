@@ -58,5 +58,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customer-product/export', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'exportExcel'])->name('customer-product.export');
         
         Route::get('sales-detail', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'index'])->name('sales-detail');
+        Route::post('sales-detail/import-preview', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'importPreview'])->name('sales-detail.import-preview');
+        Route::post('sales-detail/import-confirm', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'importConfirm'])->name('sales-detail.import-confirm');
     });
 });
