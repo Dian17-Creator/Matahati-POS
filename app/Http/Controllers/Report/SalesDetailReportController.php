@@ -153,9 +153,9 @@ class SalesDetailReportController extends Controller
     }
 
     /**
-     * Langkah 1: Upload & Dry-Run Preview Import Olsera (Tanpa Insert ke DB)
+     * Import Transaksi Olsera (1-Step Direct Import)
      */
-    public function importPreview(Request $request)
+    public function import(Request $request)
     {
         $request->validate([
             'outlet_id' => 'required|exists:mpos_outlet,nid',
@@ -173,118 +173,33 @@ class SalesDetailReportController extends Controller
             }
         }
 
-        // Resolusi ID mpos_user yang valid untuk foreign key fk_mpos_sales_h_user
         $mposUserId = $mposUser?->nid 
             ?? MposUser::where('nid_outlet', $request->outlet_id)->first()?->nid 
             ?? MposUser::first()?->nid;
 
-        try {
-            $uploadedFile = $request->file('file');
-            $fileHash = hash_file('sha256', $uploadedFile->getRealPath());
-            $previewToken = 'olsera_import_' . Str::random(32);
-            $extension = $uploadedFile->getClientOriginalExtension() ?: 'xlsx';
-            
-            // Simpan file sementara di storage disk local
-            $tempPath = $uploadedFile->storeAs('temp_imports', $previewToken . '.' . $extension, 'local');
-            $fullTempPath = Storage::disk('local')->path($tempPath);
-
-            // Jalankan parser dalam mode dry-run (isDryRun = true)
-            $importer = new OlseraSalesImport((int)$request->outlet_id, $mposUserId, true);
-            Excel::import($importer, $fullTempPath);
-
-            $outletName = MposOutlet::find($request->outlet_id)?->cname ?? 'Outlet #' . $request->outlet_id;
-
-            // Simpan metadata preview ke Cache selama 15 menit
-            Cache::put($previewToken, [
-                'outlet_id' => (int)$request->outlet_id,
-                'outlet_name' => $outletName,
-                'mpos_user_id' => $mposUserId,
-                'file_hash' => $fileHash,
-                'temp_path' => $tempPath,
-                'original_filename' => $uploadedFile->getClientOriginalName(),
-                'results' => $importer->results,
-            ], now()->addMinutes(15));
-
-            return redirect()->back()
-                ->with('preview_token', $previewToken)
-                ->with('preview_data', Cache::get($previewToken));
-
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', 'Terjadi kesalahan saat memproses preview file: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Langkah 2: Konfirmasi dan Simpan Hasil Import ke mpos_sales_h
-     */
-    public function importConfirm(Request $request)
-    {
-        $request->validate([
-            'preview_token' => 'required|string',
-        ]);
-
-        $previewToken = $request->input('preview_token');
-        $previewData = Cache::get($previewToken);
-
-        if (!$previewData) {
-            return redirect()->route('reports.sales-detail')
-                ->with('error', 'Sesi preview telah kedaluwarsa atau tidak valid. Silakan upload ulang file Anda.');
-        }
-
-        $outletId = $previewData['outlet_id'];
-        $lockKey = "import_olsera_lock_outlet_{$outletId}";
-        $lock = Cache::lock($lockKey, 300);
-
-        if (!$lock->get()) {
-            return redirect()->route('reports.sales-detail')
-                ->with('error', 'Proses import untuk outlet ini sedang berjalan oleh sesi lain. Harap tunggu beberapa saat.');
-        }
-
-        $fullTempPath = Storage::disk('local')->path($previewData['temp_path']);
-
-        // Verifikasi fisik file dan hash file untuk mencegah pergantian file
-        if (!Storage::disk('local')->exists($previewData['temp_path']) || hash_file('sha256', $fullTempPath) !== $previewData['file_hash']) {
-            $lock->release();
-            return redirect()->route('reports.sales-detail')
-                ->with('error', 'File import sementara tidak ditemukan atau telah mengalami perubahan. Silakan upload ulang file.');
-        }
-
         DB::beginTransaction();
         try {
-            // Jalankan import dalam mode execute (isDryRun = false)
-            $importingUserId = $previewData['mpos_user_id'] ?? $previewData['user_id'] ?? null;
-            $importer = new OlseraSalesImport($outletId, $importingUserId, false);
-            Excel::import($importer, $fullTempPath);
+            $outletName = MposOutlet::find($request->outlet_id)?->cname ?? 'Outlet #' . $request->outlet_id;
+            $importer = new OlseraSalesImport((int)$request->outlet_id, $mposUserId, false);
+            Excel::import($importer, $request->file('file'));
 
             DB::commit();
 
-            // Bersihkan file sementara dan cache token
-            Storage::disk('local')->delete($previewData['temp_path']);
-            Cache::forget($previewToken);
-            $lock->release();
+            $saved = $importer->results['saved_count'];
+            $dup = $importer->results['duplicate_skipped'];
+            $conf = $importer->results['conflict_skipped'];
+            $netFormatted = number_format($importer->results['valid_net_amount'], 0, ',', '.');
 
-            $savedCount = $importer->results['saved_count'];
-            $dupCount = $importer->results['duplicate_skipped'];
-            $confCount = $importer->results['conflict_skipped'];
-            $invCount = $importer->results['invalid_rows'];
-            $totalNetFormatted = number_format($importer->results['valid_net_amount'], 0, ',', '.');
+            $msg = "Import Transaksi Olsera Berhasil! Tersimpan {$saved} transaksi (Nett: Rp {$netFormatted}) untuk outlet {$outletName}.";
+            if ($dup > 0 || $conf > 0) {
+                $msg .= " Dilewati: {$dup} duplikat, {$conf} konflik data.";
+            }
 
-            return redirect()->route('reports.sales-detail')
-                ->with('import_success', [
-                    'outlet_name' => $previewData['outlet_name'],
-                    'saved_count' => $savedCount,
-                    'duplicate_skipped' => $dupCount,
-                    'conflict_skipped' => $confCount,
-                    'invalid_rows' => $invCount,
-                    'total_net_amount' => $totalNetFormatted,
-                ]);
+            return redirect()->route('reports.sales-detail')->with('success', $msg);
 
         } catch (\Throwable $e) {
             DB::rollBack();
-            $lock->release();
-
-            return redirect()->route('reports.sales-detail')
-                ->with('error', 'Gagal menyimpan transaksi ke database: ' . $e->getMessage());
+            return redirect()->route('reports.sales-detail')->with('error', 'Gagal mengimpor transaksi: ' . $e->getMessage());
         }
     }
 }

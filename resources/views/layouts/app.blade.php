@@ -134,6 +134,9 @@
                     <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail') ? 'active' : '' }}">
                         <i class="bi bi-receipt me-2"></i> Laporan Penjualan
                     </a>
+                    <a href="{{ route('reports.sales-item') }}" class="{{ request()->routeIs('reports.sales-item') ? 'active' : '' }}">
+                        <i class="bi bi-box-seam me-2"></i> Laporan Item Penjualan
+                    </a>
                 </div>
             </div>
 

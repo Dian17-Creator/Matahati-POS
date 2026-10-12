@@ -198,19 +198,6 @@
     </div>
 </div>
 
-@if(session('import_success'))
-    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3 shadow-sm border-0 d-print-none" role="alert">
-        <i class="bi bi-check-circle-fill fs-4 me-3 text-success"></i>
-        <div class="flex-grow-1">
-            <strong>Import Olsera Berhasil!</strong><br>
-            Tersimpan <strong>{{ session('import_success.saved_count') }}</strong> transaksi valid (Penjualan Nett: <strong>Rp {{ session('import_success.total_net_amount') }}</strong>) untuk outlet <strong>{{ session('import_success.outlet_name') }}</strong>.<br>
-            <span class="small text-muted">
-                Dilewati secara aman: {{ session('import_success.duplicate_skipped') }} duplikat, {{ session('import_success.conflict_skipped') }} konflik data, {{ session('import_success.invalid_rows') }} baris tidak valid.
-            </span>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
@@ -434,27 +421,20 @@
     </div>
 </div>
 
-<!-- Modal 1: Upload File Olsera (Langkah 1: Preview) -->
-<div class="modal fade modern-modal" id="importOlseraModal" tabindex="-1" aria-labelledby="importOlseraModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<!-- Import Modal Olsera -->
+<div class="modal fade" id="importOlseraModal" tabindex="-1" aria-labelledby="importOlseraModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ route('reports.sales-detail.import-preview') }}" method="POST" enctype="multipart/form-data">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importOlseraModalLabel">Import Transaksi Olsera</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('reports.sales-detail.import') }}" method="POST" enctype="multipart/form-data">
                 @csrf
-                <div class="modal-header">
-                    <div>
-                        <h5 class="modal-title mb-1" id="importOlseraModalLabel"><i class="bi bi-cloud-arrow-up text-primary me-2"></i>Import Transaksi Olsera</h5>
-                        <p class="text-muted small mb-0">Upload file export Excel / CSV dari sistem Olsera POS</p>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
                 <div class="modal-body">
-                    <div class="alert alert-info py-2 px-3 small border-0 mb-3" style="background-color: #eff6ff; color: #1e40af;">
-                        <i class="bi bi-shield-check me-1"></i> <strong>Mode Aman (Dry-Run):</strong> File akan diaudit dan divalidasi terlebih dahulu. Database Anda <strong>tidak akan diubah</strong> sebelum Anda memeriksa dan menyetujui ringkasan di layar konfirmasi.
-                    </div>
-
                     <div class="mb-3">
-                        <label class="form-label" for="import_outlet_id">Pilih Outlet Tujuan <span class="text-danger">*</span></label>
-                        <select name="outlet_id" id="import_outlet_id" class="form-select" required {{ $isCashierOnly ? 'disabled' : '' }}>
+                        <label for="import_outlet_id" class="form-label">Pilih Outlet <span class="text-danger">*</span></label>
+                        <select class="form-select @error('outlet_id') is-invalid @enderror" id="import_outlet_id" name="outlet_id" required {{ $isCashierOnly ? 'disabled' : '' }}>
                             @if(!$isCashierOnly)
                                 <option value="">-- Pilih Outlet --</option>
                             @endif
@@ -465,170 +445,32 @@
                         @if($isCashierOnly)
                             <input type="hidden" name="outlet_id" value="{{ $outletId }}">
                         @endif
-                        <div class="form-text small">Transaksi akan dicatat sebagai riwayat transaksi outlet yang dipilih.</div>
+                        @error('outlet_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
-
                     <div class="mb-3">
-                        <label class="form-label" for="import_file">File Excel Olsera (.xlsx, .xls, .csv) <span class="text-danger">*</span></label>
-                        <input type="file" name="file" id="import_file" class="form-control" accept=".xlsx,.xls,.csv" required>
-                        <div class="form-text small">Maksimal ukuran file 20 MB. Mendukung format standar export transaksi Olsera POS.</div>
-                    </div>
-
-                    <div class="p-3 bg-light rounded-3 small text-muted">
-                        <div class="fw-bold text-dark mb-1"><i class="bi bi-info-circle me-1"></i> Ketentuan Mapping & Validasi:</div>
-                        <ul class="mb-0 ps-3">
-                            <li>Transaksi disimpan sebagai <em>Header-Only</em> di <code>mpos_sales_h</code>.</li>
-                            <li>Waktu diambil dari <code>order time</code> (waktu <code>00:00:00</code> bawaan tanggal diabaikan).</li>
-                            <li>Status transaksi dipetakan ke <code>PAID</code> untuk baris dengan <code>paid = 1</code>.</li>
-                            <li>Modal & laba yang kosong akan disimpan kosong (<code>-</code>) tanpa rumus pengganti.</li>
-                        </ul>
+                        <label for="import_file" class="form-label">File Excel (.xlsx, .xls, .csv) <span class="text-danger">*</span></label>
+                        <input class="form-control @error('file') is-invalid @enderror" type="file" id="import_file" name="file" accept=".xlsx,.xls,.csv" required>
+                        @error('file')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Lanjutkan ke Preview</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success">Import</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
-<!-- Modal 2: Preview & Konfirmasi Audit Olsera (Langkah 2: Konfirmasi) -->
-@if(session('preview_data'))
-@php
-    $preview = session('preview_data');
-    $results = $preview['results'] ?? [];
-    $hasIssues = !empty($results['issues']);
-    $validCount = $results['valid_rows'] ?? 0;
-@endphp
-<div class="modal fade modern-modal" id="previewAuditModal" tabindex="-1" aria-labelledby="previewAuditModalLabel" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title mb-1" id="previewAuditModalLabel"><i class="bi bi-clipboard-check text-success me-2"></i>Hasil Audit Preview File Olsera</h5>
-                    <div class="small text-muted">
-                        File: <strong class="text-dark">{{ $preview['original_filename'] ?? '-' }}</strong> &bull;
-                        Outlet: <strong class="text-primary">{{ $preview['outlet_name'] ?? '-' }}</strong> &bull;
-                        Total Baris: <strong>{{ $results['total_rows'] ?? 0 }}</strong>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Metrik Ringkasan Audit -->
-                <div class="row g-3 mb-4">
-                    <div class="col-6 col-md-3">
-                        <div class="p-3 rounded-3 border border-success-subtle bg-success bg-opacity-10 h-100">
-                            <div class="small fw-bold text-success text-uppercase">Siap Diimpor (Valid)</div>
-                            <div class="fs-4 fw-bold text-success">{{ number_format($validCount, 0, ',', '.') }} Baris</div>
-                            <div class="small text-muted mt-1">Nett: <strong>Rp {{ number_format($results['valid_net_amount'] ?? 0, 0, ',', '.') }}</strong></div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="p-3 rounded-3 border border-warning-subtle bg-warning bg-opacity-10 h-100">
-                            <div class="small fw-bold text-warning text-uppercase">Duplikat (Dilewati)</div>
-                            <div class="fs-4 fw-bold text-warning">{{ number_format($results['duplicate_skipped'] ?? 0, 0, ',', '.') }} Baris</div>
-                            <div class="small text-muted mt-1">Nett: Rp {{ number_format($results['duplicate_net_amount'] ?? 0, 0, ',', '.') }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="p-3 rounded-3 border border-danger-subtle bg-danger bg-opacity-10 h-100">
-                            <div class="small fw-bold text-danger text-uppercase">Konflik Data (Dilewati)</div>
-                            <div class="fs-4 fw-bold text-danger">{{ number_format($results['conflict_skipped'] ?? 0, 0, ',', '.') }} Baris</div>
-                            <div class="small text-muted mt-1">Nett: Rp {{ number_format($results['conflict_net_amount'] ?? 0, 0, ',', '.') }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="p-3 rounded-3 border border-secondary-subtle bg-light h-100">
-                            <div class="small fw-bold text-secondary text-uppercase">Format Tidak Valid</div>
-                            <div class="fs-4 fw-bold text-secondary">{{ number_format($results['invalid_rows'] ?? 0, 0, ',', '.') }} Baris</div>
-                            <div class="small text-muted mt-1">Qty rusak / status belum dikenali</div>
-                        </div>
-                    </div>
-                </div>
-
-                @if($validCount === 0)
-                    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-warning"></i>
-                        <div>
-                            <strong>Tidak ada baris valid untuk diimpor.</strong> Seluruh baris transaksi dalam file ini telah ada di database atau memiliki format yang tidak valid.
-                        </div>
-                    </div>
-                @else
-                    <div class="alert alert-info py-2 px-3 small border-0 mb-3" style="background-color: #eff6ff; color: #1e40af;">
-                        <i class="bi bi-info-circle me-1"></i> Hanya <strong>{{ $validCount }} baris transaksi valid</strong> yang akan disimpan ke database. Transaksi duplikat dan konflik akan dilewati tanpa mengubah data yang sudah ada. Sesi konfirmasi berlaku selama 15 menit.
-                    </div>
-                @endif
-
-                <!-- Daftar Isu / Baris Bermasalah -->
-                @if($hasIssues)
-                    <div class="card border-0 shadow-none bg-light mb-3">
-                        <div class="card-header bg-transparent py-2 fw-bold small text-muted text-uppercase">
-                            <i class="bi bi-list-check me-1"></i> Rincian Baris yang Memerlukan Perhatian (Total: {{ count($results['issues']) }})
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive" style="max-height: 250px;">
-                                <table class="table table-sm table-hover mb-0 small align-middle">
-                                    <thead class="table-light text-secondary sticky-top">
-                                        <tr>
-                                            <th class="py-2 px-3" style="width: 80px;">Baris</th>
-                                            <th class="py-2" style="width: 150px;">No. Pesanan</th>
-                                            <th class="py-2" style="width: 140px;">Status Audit</th>
-                                            <th class="py-2">Keterangan / Tindakan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($results['issues'] as $issue)
-                                            <tr>
-                                                <td class="px-3 fw-bold">{{ $issue['row'] ?? '-' }}</td>
-                                                <td><code>{{ $issue['order_no'] ?? '-' }}</code></td>
-                                                <td>
-                                                    @if(($issue['type'] ?? '') === 'DUPLICATE')
-                                                        <span class="badge bg-warning text-dark">DUPLIKAT (DILEWATI)</span>
-                                                    @elseif(($issue['type'] ?? '') === 'CONFLICT')
-                                                        <span class="badge bg-danger">KONFLIK DATA (DILEWATI)</span>
-                                                    @else
-                                                        <span class="badge bg-secondary">TIDAK VALID (DILEWATI)</span>
-                                                    @endif
-                                                </td>
-                                                <td class="text-muted">{{ $issue['message'] ?? '-' }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            </div>
-            <div class="modal-footer d-flex justify-content-between">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal (Tutup)</button>
-                <form action="{{ route('reports.sales-detail.import-confirm') }}" method="POST" class="d-inline">
-                    @csrf
-                    <input type="hidden" name="preview_token" value="{{ session('preview_token') }}">
-                    <button type="submit" class="btn btn-success" {{ $validCount === 0 ? 'disabled' : '' }}>
-                        <i class="bi bi-check-circle me-1"></i> Konfirmasi & Simpan {{ $validCount }} Transaksi Valid
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-@endif
 @endsection
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        @if(session('preview_data'))
-            const previewModalEl = document.getElementById('previewAuditModal');
-            if (previewModalEl) {
-                const previewModal = new bootstrap.Modal(previewModalEl);
-                previewModal.show();
-            }
-        @endif
         document.querySelectorAll('.tom-select-filter').forEach((el) => {
             if (!el.disabled) {
                 new TomSelect(el, {
