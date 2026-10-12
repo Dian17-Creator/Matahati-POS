@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\MposCust;
+use App\Models\MposPayment;
 use App\Models\MposSalesH;
 use App\Models\MposUser;
 use Carbon\Carbon;
@@ -63,6 +64,9 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
             ->keyBy(function ($item) {
                 return $this->normalizeWhitespace((string) $item->cnotransaction);
             });
+
+        // Cache all payment methods for resolution
+        $allPayments = MposPayment::all();
 
         // Set to track duplicates within the current uploaded file
         $seenInFile = [];
@@ -184,6 +188,11 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
             $rawNotes = $this->extractField($normalizedRow, ['notes', 'catatan', 'keterangan']);
             $cnote = !empty($rawNotes) ? trim((string)$rawNotes) : null;
 
+            $rawPaymentMode = trim((string) $this->extractField($normalizedRow, [
+                'payment_mode', 'paymentmode', 'metode_pembayaran', 'cara_bayar', 'payment_method', 'paymentmethod', 'payment_type', 'paymenttype'
+            ]));
+            $nidPayment = $this->resolvePaymentNid($rawPaymentMode, $allPayments);
+
             // 7. Deteksi Duplikasi Internal File (File-Level Duplicate)
             if (isset($seenInFile[$orderNo])) {
                 $this->results['duplicate_skipped']++;
@@ -245,7 +254,7 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
                 'nid_customer' => $nidCustomer,
                 'cname_customer' => $cnameCustomer,
                 'nid_shift' => null, // Wajib NULL untuk transaksi historis
-                'nid_payment' => null,
+                'nid_payment' => $nidPayment,
                 'nid_voucher' => null,
                 'nqueue' => null,
                 'cordertype' => MposSalesH::ORDER_TYPE_TAKE_AWAY, // Tipe pesanan import Olsera: TAKE_AWAY
@@ -561,5 +570,61 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
             'nid_customer' => $nidCustomer,
             'cname_customer' => $finalName,
         ];
+    }
+
+    /**
+     * Resolusi metode pembayaran (mpos_payment.nid) berdasarkan payment mode dari Olsera.
+     */
+    protected function resolvePaymentNid(?string $paymentMode, Collection $allPayments): ?int
+    {
+        if (empty($paymentMode)) {
+            return null;
+        }
+
+        $clean = strtolower(trim($paymentMode));
+
+        // 1. Exact case-insensitive match
+        $matched = $allPayments->first(function ($p) use ($clean) {
+            return strtolower(trim($p->cname)) === $clean;
+        });
+
+        if ($matched) {
+            return $matched->nid;
+        }
+
+        // 2. Common aliases / normalized mapping:
+        // Cash / Tunai
+        if (in_array($clean, ['cash', 'tunai', 'uang tunai', 'cash money'])) {
+            $matched = $allPayments->first(function ($p) {
+                $pName = strtolower(trim($p->cname));
+                return $pName === 'cash' || $pName === 'tunai';
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // QRIS / e-wallet
+        if (str_contains($clean, 'qris') || in_array($clean, ['gopay', 'shopeepay', 'ovo', 'dana'])) {
+            $matched = $allPayments->first(function ($p) {
+                return str_contains(strtolower(trim($p->cname)), 'qris');
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // Debit / BCA / Transfer / EDC
+        if (str_contains($clean, 'debit') || str_contains($clean, 'bca') || str_contains($clean, 'transfer') || str_contains($clean, 'edc') || str_contains($clean, 'mandiri') || str_contains($clean, 'bri')) {
+            $matched = $allPayments->first(function ($p) use ($clean) {
+                $pName = strtolower(trim($p->cname));
+                return str_contains($pName, 'debit') || str_contains($pName, 'bca') || str_contains($pName, 'transfer');
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // 3. Partial substring matching fallback
+        $matched = $allPayments->first(function ($p) use ($clean) {
+            $pName = strtolower(trim($p->cname));
+            return str_contains($clean, $pName) || str_contains($pName, $clean);
+        });
+
+        return $matched?->nid;
     }
 }

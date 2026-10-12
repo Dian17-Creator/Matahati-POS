@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\MposCust;
+use App\Models\MposPayment;
 use App\Models\MposProduct;
 use App\Models\MposSalesD;
 use App\Models\MposSalesH;
@@ -80,6 +81,9 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
             ->select('nid_transaction', DB::raw('COUNT(*) as detail_count'))
             ->groupBy('nid_transaction')
             ->pluck('detail_count', 'nid_transaction');
+
+        // Preload all payments for resolution
+        $allPayments = MposPayment::all();
 
         // Group rows by order_no to maintain 1 header to many details relationship
         $groupedOrders = [];
@@ -232,6 +236,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
             $servedBy = trim((string) $this->extractField($normalizedRow, ['served_by', 'servedby', 'kasir', 'sales_name']));
             $customerName = trim((string) $this->extractField($normalizedRow, ['customer_name', 'customername', 'pelanggan', 'customer']));
             $rawNotes = $this->extractField($normalizedRow, ['notes_order', 'notesorder', 'notes', 'catatan', 'keterangan']);
+            $rawPaymentMode = trim((string) $this->extractField($normalizedRow, ['payment_type', 'paymenttype', 'payment_mode', 'paymentmode', 'metode_pembayaran', 'cara_bayar', 'payment_method', 'paymentmethod']));
 
             // Group by Order No
             if (!isset($groupedOrders[$orderNo])) {
@@ -241,6 +246,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                     'served_by' => $servedBy,
                     'customer_name' => $customerName,
                     'notes' => !empty($rawNotes) ? trim((string)$rawNotes) : null,
+                    'payment_mode' => !empty($rawPaymentMode) ? $rawPaymentMode : null,
                     'items' => [],
                     'total_qty' => 0,
                     'total_subtotal' => 0.0,
@@ -336,14 +342,19 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                 if ($order['action'] === 'ATTACH_DETAILS') {
                     $headerNid = $order['target_header_nid'];
 
-                    // Update header totals if cost/profit/discount were previously null
-                    MposSalesH::where('nid', $headerNid)->update([
+                    $updateHeader = [
                         'ntotal_cost' => $order['total_cost'],
                         'ntotal_profit' => $order['total_profit'],
-                    ]);
+                    ];
+                    $nidPayment = $this->resolvePaymentNid($order['payment_mode'] ?? null, $allPayments);
+                    if ($nidPayment) {
+                        $updateHeader['nid_payment'] = $nidPayment;
+                    }
+                    MposSalesH::where('nid', $headerNid)->update($updateHeader);
                 } else {
                     // CREATE_HEADER_AND_DETAILS
                     $cnote = !empty($order['notes']) ? $order['notes'] : null;
+                    $nidPayment = $this->resolvePaymentNid($order['payment_mode'] ?? null, $allPayments);
 
                     $newHeader = MposSalesH::create([
                         'cnotransaction' => $order['order_no'],
@@ -353,7 +364,7 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                         'nid_customer' => null,
                         'cname_customer' => !empty($order['customer_name']) ? $order['customer_name'] : 'Umum',
                         'nid_shift' => null,
-                        'nid_payment' => null,
+                        'nid_payment' => $nidPayment,
                         'nid_voucher' => null,
                         'nqueue' => null,
                         'cordertype' => MposSalesH::ORDER_TYPE_TAKE_AWAY,
@@ -507,5 +518,61 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Resolusi metode pembayaran (mpos_payment.nid) berdasarkan payment mode dari Olsera.
+     */
+    protected function resolvePaymentNid(?string $paymentMode, Collection $allPayments): ?int
+    {
+        if (empty($paymentMode)) {
+            return null;
+        }
+
+        $clean = strtolower(trim($paymentMode));
+
+        // 1. Exact case-insensitive match
+        $matched = $allPayments->first(function ($p) use ($clean) {
+            return strtolower(trim($p->cname)) === $clean;
+        });
+
+        if ($matched) {
+            return $matched->nid;
+        }
+
+        // 2. Common aliases / normalized mapping:
+        // Cash / Tunai
+        if (in_array($clean, ['cash', 'tunai', 'uang tunai', 'cash money'])) {
+            $matched = $allPayments->first(function ($p) {
+                $pName = strtolower(trim($p->cname));
+                return $pName === 'cash' || $pName === 'tunai';
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // QRIS / e-wallet
+        if (str_contains($clean, 'qris') || in_array($clean, ['gopay', 'shopeepay', 'ovo', 'dana'])) {
+            $matched = $allPayments->first(function ($p) {
+                return str_contains(strtolower(trim($p->cname)), 'qris');
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // Debit / BCA / Transfer / EDC
+        if (str_contains($clean, 'debit') || str_contains($clean, 'bca') || str_contains($clean, 'transfer') || str_contains($clean, 'edc') || str_contains($clean, 'mandiri') || str_contains($clean, 'bri')) {
+            $matched = $allPayments->first(function ($p) use ($clean) {
+                $pName = strtolower(trim($p->cname));
+                return str_contains($pName, 'debit') || str_contains($pName, 'bca') || str_contains($pName, 'transfer');
+            });
+            if ($matched) return $matched->nid;
+        }
+
+        // 3. Partial substring matching fallback
+        $matched = $allPayments->first(function ($p) use ($clean) {
+            $pName = strtolower(trim($p->cname));
+            return str_contains($clean, $pName) || str_contains($pName, $clean);
+        });
+
+        return $matched?->nid;
     }
 }
