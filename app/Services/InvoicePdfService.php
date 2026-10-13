@@ -26,9 +26,10 @@ class InvoicePdfService
             $datePart = $salesH->dtransaction ? Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');
             $filename = "invoice_{$cleanTrxNo}_{$datePart}.pdf";
 
-            // Target penyimpanan (simpan ke shared VPS folder dan local public folder)
+            // Target penyimpanan (sama persis seperti product yang menggunakan public_path('uploads/product'))
+            // Bedanya ini mengarah ke uploads/invoice dan shared VPS folder /var/www/shared/pos/invoice
+            $localDir = public_path('uploads' . DIRECTORY_SEPARATOR . 'invoice');
             $sharedDir = '/var/www/shared/pos/invoice';
-            $localDir = public_path('uploads/invoice');
 
             if (!File::isDirectory($localDir)) {
                 @File::makeDirectory($localDir, 0775, true, true);
@@ -60,11 +61,23 @@ class InvoicePdfService
 
             $pdfContent = $pdf->output();
 
+            $savedCount = 0;
             foreach (array_unique($targetDirs) as $targetDir) {
-                @file_put_contents($targetDir . DIRECTORY_SEPARATOR . $filename, $pdfContent);
+                if (!File::isDirectory($targetDir)) {
+                    @File::makeDirectory($targetDir, 0775, true, true);
+                }
+                $targetFilePath = $targetDir . DIRECTORY_SEPARATOR . $filename;
+                $written = @file_put_contents($targetFilePath, $pdfContent);
+                if ($written !== false) {
+                    @chmod($targetFilePath, 0664);
+                    $savedCount++;
+                    Log::info("Invoice PDF berhasil disimpan: {$targetFilePath} ({$written} bytes)");
+                } else {
+                    Log::warning("Gagal menulis file PDF ke: {$targetFilePath}");
+                }
             }
 
-            return $filename;
+            return $savedCount > 0 ? $filename : null;
         } catch (\Throwable $e) {
             Log::error('Gagal generate PDF invoice: ' . $e->getMessage(), [
                 'exception' => $e,
