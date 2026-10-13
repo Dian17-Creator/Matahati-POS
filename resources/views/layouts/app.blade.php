@@ -24,10 +24,21 @@
             color: rgba(255, 255, 255, 0.7);
             text-decoration: none;
             padding: 10px 15px;
-            display: block;
+            display: flex;
+            align-items: flex-start;
             border-radius: 4px;
             margin-bottom: 5px;
             transition: all 0.2s ease-in-out;
+        }
+
+        .sidebar a i {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .sidebar a span {
+            flex: 1;
+            line-height: 1.4;
         }
 
         .sidebar a:hover,
@@ -89,53 +100,67 @@
                     <h4 class="text-center text-white mb-4">MATAHATI POS</h4>
 
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <i class="bi bi-house me-2"></i> Dashboard
+                        <i class="bi bi-house me-2"></i>
+                        <span>Dashboard</span>
                     </a>
 
                     <div class="nav-category">Master Data</div>
                     <a href="{{ route('categories.index') }}" class="{{ request()->routeIs('categories.*') ? 'active' : '' }}">
-                        <i class="bi bi-tags me-2"></i> Kategori Produk
+                        <i class="bi bi-tags me-2"></i>
+                        <span>Kategori Produk</span>
                     </a>
                     <a href="{{ route('customer-types.index') }}" class="{{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
-                        <i class="bi bi-person-vcard me-2"></i> Kategori Pelanggan
+                        <i class="bi bi-person-vcard me-2"></i>
+                        <span>Kategori Pelanggan</span>
                     </a>
                     <a href="{{ route('products.index') }}" class="{{ request()->routeIs('products.*') ? 'active' : '' }}">
-                        <i class="bi bi-cup-hot me-2"></i> Produk
+                        <i class="bi bi-cup-hot me-2"></i>
+                        <span>Produk</span>
                     </a>
                     <a href="{{ route('ingredients.index') }}" class="{{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
-                        <i class="bi bi-basket me-2"></i> Bahan Baku
+                        <i class="bi bi-basket me-2"></i>
+                        <span>Bahan Baku</span>
                     </a>
 
                     <a href="{{ route('combos.index') }}" class="{{ request()->routeIs('combos.*') ? 'active' : '' }}">
-                        <i class="bi bi-boxes me-2"></i> Produk Kombo
+                        <i class="bi bi-boxes me-2"></i>
+                        <span>Produk Kombo</span>
                     </a>
 
                     <div class="nav-category">POS Management</div>
                     <a href="{{ route('customers.index') }}" class="{{ request()->routeIs('customers.*') ? 'active' : '' }}">
-                        <i class="bi bi-people me-2"></i> Pelanggan
+                        <i class="bi bi-people me-2"></i>
+                        <span>Pelanggan</span>
                     </a>
                     <a href="{{ route('outlets.index') }}" class="{{ request()->routeIs('outlets.*') ? 'active' : '' }}">
-                        <i class="bi bi-shop me-2"></i> Outlet
+                        <i class="bi bi-shop me-2"></i>
+                        <span>Outlet</span>
                     </a>
                     <a href="{{ route('pos-users.index') }}" class="{{ request()->routeIs('pos-users.*') ? 'active' : '' }}">
-                        <i class="bi bi-person-badge me-2"></i> Pengguna POS
+                        <i class="bi bi-person-badge me-2"></i>
+                        <span>Pengguna POS</span>
                     </a>
                     <a href="{{ route('payments.index') }}" class="{{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                        <i class="bi bi-credit-card me-2"></i> Metode Pembayaran
+                        <i class="bi bi-credit-card me-2"></i>
+                        <span>Metode Pembayaran</span>
                     </a>
                     <a href="{{ route('vouchers.index') }}" class="{{ request()->routeIs('vouchers.*') ? 'active' : '' }}">
-                        <i class="bi bi-ticket-perforated me-2"></i> Voucher
+                        <i class="bi bi-ticket-perforated me-2"></i>
+                        <span>Voucher</span>
                     </a>
 
                     <div class="nav-category">Laporan</div>
                     <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
-                        <i class="bi bi-file-earmark-bar-graph me-2"></i> Laporan Pelanggan
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i>
+                        <span>Laporan Pelanggan</span>
                     </a>
                     <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail*') ? 'active' : '' }}">
-                        <i class="bi bi-receipt me-2"></i> Laporan Penjualan
+                        <i class="bi bi-receipt me-2"></i>
+                        <span>Laporan Penjualan</span>
                     </a>
                     <a href="{{ route('reports.sales-item') }}" class="{{ request()->routeIs('reports.sales-item*') ? 'active' : '' }}">
-                        <i class="bi bi-box-seam me-2"></i> Laporan Item Penjualan
+                        <i class="bi bi-box-seam me-2"></i>
+                        <span>Laporan Item Penjualan</span>
                     </a>
                 </div>
             </div>
