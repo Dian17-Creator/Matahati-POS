@@ -81,6 +81,10 @@ class ProductController extends Controller
             }
         }
 
+        foreach ($products as $product) {
+            $product->ftrack_stock = $product->category ? (bool) $product->category->ftrack_stock : true;
+        }
+
         return response()->json([
             'success' => true,
             'data' => $products

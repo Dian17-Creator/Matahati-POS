@@ -60,6 +60,8 @@ class CategoryController extends Controller
             'outlet_ids.*' => 'exists:mpos_outlet,nid',
         ]);
 
+        $trackStock = $request->has('ftrack_stock') ? 1 : 0;
+
         DB::beginTransaction();
         try {
             foreach ($request->outlet_ids as $outletId) {
@@ -71,6 +73,7 @@ class CategoryController extends Controller
                     MposGrpProduct::create([
                         'cname' => $request->cname,
                         'nid_outlet' => $outletId,
+                        'ftrack_stock' => $trackStock,
                     ]);
                 }
             }
@@ -99,11 +102,20 @@ class CategoryController extends Controller
 
         $category = MposGrpProduct::findOrFail($id);
         $originalCname = $category->cname;
+        $trackStock = $request->has('ftrack_stock') ? 1 : 0;
 
         DB::beginTransaction();
         try {
             // Update current category
-            $category->update(['cname' => $request->cname]);
+            $category->update([
+                'cname' => $request->cname,
+                'ftrack_stock' => $trackStock,
+            ]);
+
+            // Sync ftrack_stock to all categories that share the same cname
+            MposGrpProduct::where('cname', $originalCname)->update([
+                'ftrack_stock' => $trackStock,
+            ]);
 
             foreach ($request->outlet_ids as $outletId) {
                 if ($category->nid_outlet == $outletId) {
@@ -115,7 +127,10 @@ class CategoryController extends Controller
                             ->first();
 
                 if ($existingCategory) {
-                    $existingCategory->update(['cname' => $request->cname]);
+                    $existingCategory->update([
+                        'cname' => $request->cname,
+                        'ftrack_stock' => $trackStock,
+                    ]);
                 } else {
                     $exists = MposGrpProduct::where('cname', $request->cname)
                                 ->where('nid_outlet', $outletId)
@@ -125,6 +140,7 @@ class CategoryController extends Controller
                         MposGrpProduct::create([
                             'cname' => $request->cname,
                             'nid_outlet' => $outletId,
+                            'ftrack_stock' => $trackStock,
                         ]);
                     }
                 }

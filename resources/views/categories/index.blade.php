@@ -29,6 +29,7 @@
                     <tr>
                         <!-- <th width="10%">ID</th> -->
                         <th>Nama Kategori</th>
+                        <th>Kelola Stok</th>
                         <th>Outlet</th>
                         <th width="20%" class="text-center">Aksi</th>
                     </tr>
@@ -38,6 +39,13 @@
                     <tr>
                         <!-- <td>{{ $category->nid }}</td> -->
                         <td>{{ $category->cname }}</td>
+                        <td>
+                            @if($category->ftrack_stock)
+                            <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-box-seam me-1"></i> Ya (Kelola Stok)</span>
+                            @else
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary"><i class="bi bi-infinity me-1"></i> Tidak (F&B / Tanpa Stok)</span>
+                            @endif
+                        </td>
                         <td>
                             @php
                             $categoryOutlets = \App\Models\MposGrpProduct::where('cname', $category->cname)->with('outlet')->get();
@@ -84,6 +92,17 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                             @endif
+                                        </div>
+                                        <div class="mb-3 p-2 bg-light rounded border">
+                                            <div class="form-check form-switch mb-1">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="ftrack_stock_{{ $category->nid }}" name="ftrack_stock" value="1" {{ old('modal_id') == $category->nid ? (old('ftrack_stock') ? 'checked' : '') : ($category->ftrack_stock ? 'checked' : '') }}>
+                                                <label class="form-check-label fw-bold" for="ftrack_stock_{{ $category->nid }}">
+                                                    Kelola Stok Produk
+                                                </label>
+                                            </div>
+                                            <div class="form-text small text-muted" style="font-size: 0.78rem;">
+                                                Aktifkan untuk barang retail fisik (IQOS/Device/Pod). Matikan untuk Makanan, Minuman, atau Snack agar kasir bisa bertransaksi tanpa batasan stok.
+                                            </div>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
@@ -188,6 +207,17 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                         @endif
+                    </div>
+                    <div class="mb-3 p-2 bg-light rounded border">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="ftrack_stock_create" name="ftrack_stock" value="1" {{ old('modal_id') == 'create' ? (old('ftrack_stock') ? 'checked' : '') : 'checked' }}>
+                            <label class="form-check-label fw-bold" for="ftrack_stock_create">
+                                Kelola Stok Produk
+                            </label>
+                        </div>
+                        <div class="form-text small text-muted" style="font-size: 0.78rem;">
+                            Aktifkan untuk barang retail fisik (IQOS/Device/Pod). Matikan untuk Makanan, Minuman, atau Snack agar kasir bisa bertransaksi tanpa batasan stok.
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
