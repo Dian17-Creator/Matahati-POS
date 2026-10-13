@@ -322,7 +322,7 @@ class TransactionController extends Controller
 
             if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
                 $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
-                
+
                 // Use lockForUpdate with category to ensure stock and tracking integrity
                 $products = MposProduct::with('category')->whereIn('nid', $productIds)->lockForUpdate()->get()->keyBy('nid');
 
@@ -560,15 +560,24 @@ class TransactionController extends Controller
     {
         $prefix = '#'.$outletId.'C62';
         $datePart = now()->format('ymd');
+        $fullPrefix = $prefix . $datePart;
 
         if (! $queue) {
-            $maxQueue = MposSalesH::where('cnotransaction', 'like', $prefix.$datePart.'%')->max('nqueue');
-            $queue = ((int) $maxQueue) + 1;
+            $lastTrx = MposSalesH::where('cnotransaction', 'like', $fullPrefix . '%')
+                ->orderBy('nid', 'desc')
+                ->first();
+
+            if ($lastTrx) {
+                $lastNumStr = substr($lastTrx->cnotransaction, strlen($fullPrefix));
+                $queue = ((int) $lastNumStr) + 1;
+            } else {
+                $queue = 1;
+            }
         }
 
         do {
             $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
-            $cnotransaction = $prefix.$datePart.$queueStr;
+            $cnotransaction = $fullPrefix . $queueStr;
             $exists = MposSalesH::where('cnotransaction', $cnotransaction)->exists();
             if ($exists) {
                 $queue++;
