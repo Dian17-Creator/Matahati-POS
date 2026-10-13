@@ -18,7 +18,16 @@ class MposGrpProduct extends Model
     protected $fillable = [
         'cname',
         'nid_outlet',
+        'ftrack_stock',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nid_outlet' => 'integer',
+            'ftrack_stock' => 'boolean',
+        ];
+    }
 
     public function products()
     {

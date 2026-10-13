@@ -323,8 +323,8 @@ class TransactionController extends Controller
             if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
                 $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
                 
-                // Use lockForUpdate to ensure stock integrity
-                $products = MposProduct::whereIn('nid', $productIds)->lockForUpdate()->get()->keyBy('nid');
+                // Use lockForUpdate with category to ensure stock and tracking integrity
+                $products = MposProduct::with('category')->whereIn('nid', $productIds)->lockForUpdate()->get()->keyBy('nid');
 
                 foreach ($validated['details'] as $item) {
                     $productId = $item['nid_product'];
@@ -414,16 +414,27 @@ class TransactionController extends Controller
             if ($status === MposSalesH::STATUS_PAID && !empty($requestedQtys)) {
                 foreach ($requestedQtys as $productId => $totalReqQty) {
                     $product = $products->get($productId);
-                    if ($product->nqty < $totalReqQty) {
-                        DB::rollBack();
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Stok tidak cukup untuk '{$product->cname}'. Sisa stok: {$product->nqty}",
-                        ], 422);
+                    if (!$product) continue;
+
+                    // Cek apakah kategori produk melacak stok (ftrack_stock)
+                    $isTrackStock = true;
+                    if ($product->category && isset($product->category->ftrack_stock)) {
+                        $isTrackStock = (bool) $product->category->ftrack_stock;
                     }
-                    // Deduct stock
-                    $product->nqty -= $totalReqQty;
-                    $product->save();
+
+                    // Hanya cek & kurangi stok jika kategori diatur untuk kelola stok
+                    if ($isTrackStock) {
+                        if ($product->nqty < $totalReqQty) {
+                            DB::rollBack();
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Stok tidak cukup untuk '{$product->cname}'. Sisa stok: {$product->nqty}",
+                            ], 422);
+                        }
+                        // Deduct stock
+                        $product->nqty -= $totalReqQty;
+                        $product->save();
+                    }
                 }
             }
 
