@@ -21,21 +21,46 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
-// Public Invoice View Route
-Route::get('/pos/invoice/{filename}', function ($filename) {
+// Public Invoice View Route (Mendukung URL /pos/invoice/ dan /uploads/invoice/)
+$invoiceHandler = function ($filename) {
     $sharedPath = '/var/www/shared/pos/invoice/' . $filename;
-    $localPath = public_path('uploads/invoice/' . $filename);
+    $localPath = public_path('uploads' . DIRECTORY_SEPARATOR . 'invoice' . DIRECTORY_SEPARATOR . $filename);
 
-    $path = file_exists($sharedPath) ? $sharedPath : $localPath;
+    $path = file_exists($sharedPath) ? $sharedPath : (file_exists($localPath) ? $localPath : null);
 
-    if (!file_exists($path)) {
+    // Jika file fisik belum ada di storage, coba buatkan secara otomatis (on-demand fallback)
+    if (! $path || ! file_exists($path)) {
+        if (preg_match('/^invoice_([A-Za-z0-9]+)_(\d+)\.pdf$/', $filename, $matches)) {
+            $cleanTrx = $matches[1];
+            $salesH = \App\Models\MposSalesH::where('cnotransaction', 'like', "%{$cleanTrx}%")
+                ->orWhere('cnotransaction', '#' . $cleanTrx)
+                ->first();
+
+            if ($salesH && class_exists(\App\Services\InvoicePdfService::class)) {
+                $genFile = app(\App\Services\InvoicePdfService::class)->generate($salesH);
+                if ($genFile) {
+                    if (file_exists($sharedPath)) {
+                        $path = $sharedPath;
+                    } elseif (file_exists($localPath)) {
+                        $path = $localPath;
+                    }
+                }
+            }
+        }
+    }
+
+    if (! $path || ! file_exists($path)) {
         abort(404, 'Invoice tidak ditemukan.');
     }
+
     return response()->file($path, [
         'Content-Type' => 'application/pdf',
         'Content-Disposition' => 'inline; filename="' . $filename . '"',
     ]);
-});
+};
+
+Route::get('/pos/invoice/{filename}', $invoiceHandler)->name('invoice.view');
+Route::get('/uploads/invoice/{filename}', $invoiceHandler);
 
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middleware('guest');
