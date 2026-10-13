@@ -92,7 +92,7 @@ class MposSalesH extends Model
         'nrounding',
         'ntotal_cost',
         'ntotal_profit',
-        'pdf_url',
+        'cpdf_url',
         'dcreated',
     ];
 
@@ -144,8 +144,8 @@ class MposSalesH extends Model
                 $customer = MposCust::find($sale->nid_customer);
                 if ($customer) {
                     MposCust::where('cname', $customer->cname)
-                            ->where('cphone', $customer->cphone)
-                            ->update(['dlast_transaction' => $sale->dtransaction]);
+                        ->where('cphone', $customer->cphone)
+                        ->update(['dlast_transaction' => $sale->dtransaction]);
                 }
             }
         });

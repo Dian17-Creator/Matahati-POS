@@ -105,7 +105,7 @@ class TransactionController extends Controller
                 'data' => $transactions,
             ], 200);
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil history transaksi: '.$e->getMessage(), [
+            Log::error('Gagal mengambil history transaksi: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -150,7 +150,7 @@ class TransactionController extends Controller
                 'data' => $transaction,
             ], 200);
         } catch (\Throwable $e) {
-            Log::error('Gagal mengambil detail transaksi: '.$e->getMessage(), [
+            Log::error('Gagal mengambil detail transaksi: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -176,7 +176,7 @@ class TransactionController extends Controller
             'cordertype' => [
                 'required',
                 'string',
-                'in:'.implode(',', MposSalesH::ORDER_TYPES),
+                'in:' . implode(',', MposSalesH::ORDER_TYPES),
             ],
 
             'nvisitor' => 'nullable|integer|min:1',
@@ -196,7 +196,7 @@ class TransactionController extends Controller
 
             'ccancel_note' => 'nullable|string|max:1000',
             'cstatus' => 'nullable|string|max:50',
-            'pdf_url' => 'nullable|string|max:500',
+            'cpdf_url' => 'nullable|string|max:500',
         ]);
 
         $authUser = $request->user() ?? Auth::user();
@@ -296,22 +296,21 @@ class TransactionController extends Controller
             }
         }
 
-        // Generate Cnotransaction if new
-        if (!$existingDraft) {
-            $trxData = $this->generateTransactionNumber(
-                (int) $validated['nid_outlet'],
-                $validated['nqueue'] ?? null
-            );
-            $cnotransaction = $trxData['cnotransaction'];
-            $nqueue = $trxData['nqueue'];
-        } else {
-            $cnotransaction = $existingDraft->cnotransaction;
-            $nqueue = $existingDraft->nqueue;
-        }
-
         // 5. Atomic database transaction
         DB::beginTransaction();
         try {
+            // Generate Cnotransaction if new (inside DB transaction for atomic locking)
+            if (!$existingDraft) {
+                $trxData = $this->generateTransactionNumber(
+                    (int) $validated['nid_outlet'],
+                    $validated['nqueue'] ?? null
+                );
+                $cnotransaction = $trxData['cnotransaction'];
+                $nqueue = $trxData['nqueue'];
+            } else {
+                $cnotransaction = $existingDraft->cnotransaction;
+                $nqueue = $existingDraft->nqueue;
+            }
             // 2. Fetch products and validate existence, ACTIVE status & STOCK
             $detailsToInsert = [];
             $nsubtotal = 0;
@@ -437,7 +436,7 @@ class TransactionController extends Controller
             }
 
             if ($existingDraft) {
-                $pdfUrl = $validated['pdf_url'] ?? $existingDraft->pdf_url;
+                $pdfUrl = $validated['cpdf_url'] ?? $existingDraft->cpdf_url;
                 if (!$pdfUrl) {
                     $cleanTrxNo = str_replace('#', '', $existingDraft->cnotransaction);
                     $datePart = $existingDraft->dtransaction ? \Carbon\Carbon::parse($existingDraft->dtransaction)->format('Ymd') : now()->format('Ymd');
@@ -465,7 +464,7 @@ class TransactionController extends Controller
                     'cnote' => $validated['cnote'] ?? null,
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
-                    'pdf_url' => $pdfUrl,
+                    'cpdf_url' => $pdfUrl,
                 ]);
                 $salesH = $existingDraft;
 
@@ -496,13 +495,13 @@ class TransactionController extends Controller
                     'cnote' => $validated['cnote'] ?? null,
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
-                    'pdf_url' => $validated['pdf_url'] ?? null,
+                    'cpdf_url' => $validated['cpdf_url'] ?? null,
                 ]);
 
-                if (empty($salesH->pdf_url)) {
+                if (empty($salesH->cpdf_url)) {
                     $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
                     $datePart = $salesH->dtransaction ? \Carbon\Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');
-                    $salesH->pdf_url = "https://pos.matahaticafe.com/pos/invoice/invoice_{$cleanTrxNo}_{$datePart}.pdf";
+                    $salesH->cpdf_url = "https://pos.matahaticafe.com/pos/invoice/invoice_{$cleanTrxNo}_{$datePart}.pdf";
                     $salesH->save();
                 }
             }
@@ -545,25 +544,34 @@ class TransactionController extends Controller
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal membuat transaksi POS: '.$e->getMessage(), [
+            Log::error('Gagal membuat transaksi POS: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
+            $errorMessage = $e->getMessage();
+            if ($e instanceof \Illuminate\Database\UniqueConstraintViolationException || (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) || str_contains($errorMessage, 'Duplicate entry')) {
+                $errorMessage = 'Gagal memproses transaksi: Terjadi bentrokan nomor transaksi. Silakan coba tekan Selesai/Gantung sekali lagi.';
+            } else {
+                $errorMessage = 'Gagal memproses transaksi: ' . $errorMessage;
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan sistem saat memproses transaksi.',
+                'message' => $errorMessage,
+                'error' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }
 
     protected function generateTransactionNumber(int $outletId, ?int $queue = null): array
     {
-        $prefix = '#'.$outletId.'C62';
+        $prefix = '#' . $outletId . 'C62';
         $datePart = now()->format('ymd');
         $fullPrefix = $prefix . $datePart;
 
         if (! $queue) {
             $lastTrx = MposSalesH::where('cnotransaction', 'like', $fullPrefix . '%')
+                ->lockForUpdate()
                 ->orderBy('nid', 'desc')
                 ->first();
 
@@ -578,7 +586,7 @@ class TransactionController extends Controller
         do {
             $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
             $cnotransaction = $fullPrefix . $queueStr;
-            $exists = MposSalesH::where('cnotransaction', $cnotransaction)->exists();
+            $exists = MposSalesH::where('cnotransaction', $cnotransaction)->lockForUpdate()->exists();
             if ($exists) {
                 $queue++;
             }
@@ -612,7 +620,7 @@ class TransactionController extends Controller
             ], 404);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal menghapus transaksi: '.$e->getMessage(), [
+            Log::error('Gagal menghapus transaksi: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -679,10 +687,9 @@ class TransactionController extends Controller
                 'message' => 'Transaksi berhasil dibatalkan (VOID)',
                 'data' => $transaction,
             ], 200);
-
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal membatalkan transaksi: '.$e->getMessage(), [
+            Log::error('Gagal membatalkan transaksi: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -749,10 +756,9 @@ class TransactionController extends Controller
                 'message' => 'Transaksi berhasil di-refund',
                 'data' => $transaction,
             ], 200);
-
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal me-refund transaksi: '.$e->getMessage(), [
+            Log::error('Gagal me-refund transaksi: ' . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
@@ -890,10 +896,9 @@ class TransactionController extends Controller
                     'items' => $processedItems,
                 ]
             ], 200);
-
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error("Gagal melakukan {$actionType} item: ".$e->getMessage(), [
+            Log::error("Gagal melakukan {$actionType} item: " . $e->getMessage(), [
                 'exception' => $e,
             ]);
 
