@@ -23,7 +23,11 @@ Route::get('/', function () {
 
 // Public Invoice View Route
 Route::get('/pos/invoice/{filename}', function ($filename) {
-    $path = public_path('uploads/invoice/' . $filename);
+    $sharedPath = '/var/www/shared/pos/invoice/' . $filename;
+    $localPath = public_path('uploads/invoice/' . $filename);
+
+    $path = file_exists($sharedPath) ? $sharedPath : $localPath;
+
     if (!file_exists($path)) {
         abort(404, 'Invoice tidak ditemukan.');
     }
