@@ -26,12 +26,25 @@ class InvoicePdfService
             $datePart = $salesH->dtransaction ? Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');
             $filename = "invoice_{$cleanTrxNo}_{$datePart}.pdf";
 
-            $directory = public_path('uploads/invoice');
-            if (!File::isDirectory($directory)) {
-                File::makeDirectory($directory, 0755, true, true);
+            // Target penyimpanan (simpan ke shared VPS folder dan local public folder)
+            $sharedDir = '/var/www/shared/pos/invoice';
+            $localDir = public_path('uploads/invoice');
+
+            if (!File::isDirectory($localDir)) {
+                @File::makeDirectory($localDir, 0775, true, true);
             }
 
-            $filePath = $directory . DIRECTORY_SEPARATOR . $filename;
+            $targetDirs = [$localDir];
+            if (is_dir('/var/www/shared/pos') || is_dir($sharedDir)) {
+                if (!File::isDirectory($sharedDir)) {
+                    @File::makeDirectory($sharedDir, 0775, true, true);
+                }
+                $targetDirs[] = $sharedDir;
+            }
+
+            if (env('INVOICE_STORAGE_PATH') && is_dir(env('INVOICE_STORAGE_PATH'))) {
+                $targetDirs[] = env('INVOICE_STORAGE_PATH');
+            }
 
             // Calculate paper height dynamically based on item count for thermal roll receipt
             // 80mm roll width = 226.77 pt (~80mm)
@@ -45,7 +58,11 @@ class InvoicePdfService
             $pdf->setPaper([0, 0, $paperWidth, $paperHeight], 'portrait');
             $pdf->setOption(['isRemoteEnabled' => true, 'isHtml5ParserEnabled' => true]);
 
-            $pdf->save($filePath);
+            $pdfContent = $pdf->output();
+
+            foreach (array_unique($targetDirs) as $targetDir) {
+                @file_put_contents($targetDir . DIRECTORY_SEPARATOR . $filename, $pdfContent);
+            }
 
             return $filename;
         } catch (\Throwable $e) {

@@ -519,7 +519,7 @@ class TransactionController extends Controller
             DB::commit();
 
             // Trigger generate invoice PDF saat transaksi PAID
-            if ($salesH->cstatus === MposSalesH::STATUS_PAID) {
+            if ($status === MposSalesH::STATUS_PAID || $salesH->cstatus === MposSalesH::STATUS_PAID) {
                 try {
                     if (class_exists(\App\Services\InvoicePdfService::class)) {
                         app(\App\Services\InvoicePdfService::class)->generate($salesH);
