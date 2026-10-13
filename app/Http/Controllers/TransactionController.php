@@ -234,9 +234,7 @@ class TransactionController extends Controller
         $nidUser = $loggedInMposUser->nid; // default to logged-in user
         if ($request->filled('nid_user')) {
             $requestedNidUser = (int) $request->input('nid_user');
-            $servedByMposUser = MposUser::where('nid', $requestedNidUser)
-                ->where('nid_outlet', $outletId)
-                ->first();
+            $servedByMposUser = MposUser::where('nid', $requestedNidUser)->first();
 
             if ($servedByMposUser) {
                 if (! $servedByMposUser->fowner && ! $servedByMposUser->fcashier && ! $servedByMposUser->fcaptain) {
@@ -249,7 +247,7 @@ class TransactionController extends Controller
             } else {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User "Dilayani Oleh" tidak valid atau tidak bertugas di outlet ini.',
+                    'message' => 'User "Dilayani Oleh" tidak valid.',
                 ], 422);
             }
         }
@@ -524,7 +522,9 @@ class TransactionController extends Controller
             // Trigger generate invoice PDF saat transaksi PAID
             if ($salesH->cstatus === MposSalesH::STATUS_PAID) {
                 try {
-                    app(\App\Services\InvoicePdfService::class)->generate($salesH);
+                    if (class_exists(\App\Services\InvoicePdfService::class)) {
+                        app(\App\Services\InvoicePdfService::class)->generate($salesH);
+                    }
                 } catch (\Throwable $e) {
                     Log::error('Gagal generate invoice PDF setelah commit: ' . $e->getMessage(), [
                         'exception' => $e,
