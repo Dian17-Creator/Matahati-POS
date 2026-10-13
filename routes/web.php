@@ -21,6 +21,18 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// Public Invoice View Route
+Route::get('/pos/invoice/{filename}', function ($filename) {
+    $path = public_path('uploads/invoice/' . $filename);
+    if (!file_exists($path)) {
+        abort(404, 'Invoice tidak ditemukan.');
+    }
+    return response()->file($path, [
+        'Content-Type' => 'application/pdf',
+        'Content-Disposition' => 'inline; filename="' . $filename . '"',
+    ]);
+});
+
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post')->middleware('guest');
