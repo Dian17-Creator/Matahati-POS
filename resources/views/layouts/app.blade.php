@@ -128,13 +128,13 @@
                     </a>
 
                     <div class="nav-category">Laporan</div>
-                    <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product') ? 'active' : '' }}">
+                    <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
                         <i class="bi bi-file-earmark-bar-graph me-2"></i> Laporan Pelanggan
                     </a>
-                    <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail') ? 'active' : '' }}">
+                    <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail*') ? 'active' : '' }}">
                         <i class="bi bi-receipt me-2"></i> Laporan Penjualan
                     </a>
-                    <a href="{{ route('reports.sales-item') }}" class="{{ request()->routeIs('reports.sales-item') ? 'active' : '' }}">
+                    <a href="{{ route('reports.sales-item') }}" class="{{ request()->routeIs('reports.sales-item*') ? 'active' : '' }}">
                         <i class="bi bi-box-seam me-2"></i> Laporan Item Penjualan
                     </a>
                 </div>

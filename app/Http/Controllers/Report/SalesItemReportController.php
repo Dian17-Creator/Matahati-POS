@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Report;
 
 use App\Http\Controllers\Controller;
+use App\Exports\SalesItemExport;
 use App\Imports\OlseraItemSalesImport;
 use App\Models\MposOutlet;
 use App\Models\MposProduct;
@@ -50,7 +51,69 @@ class SalesItemReportController extends Controller
         $outlets = MposOutlet::orderBy('cname')->get();
         $products = MposProduct::select('nid', 'cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
 
-        // Base Query builder
+        $baseQuery = $this->buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search);
+        $summary = $this->buildSummaryQuery($baseQuery)->first();
+        $items = $this->buildItemsQuery($baseQuery)->paginate(15)->withQueryString();
+
+        return view('reports.sales_item.index', compact(
+            'items',
+            'startDate',
+            'endDate',
+            'outletId',
+            'productId',
+            'search',
+            'outlets',
+            'products',
+            'isCashierOnly',
+            'summary'
+        ));
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $startDate = $request->input('start_date', Carbon::now()->format('Y-m-d'));
+        $endDate = $request->input('end_date', Carbon::now()->format('Y-m-d'));
+
+        if ($startDate > $endDate) {
+            $endDate = $startDate;
+        }
+
+        $endDateParsed = Carbon::parse($endDate)->endOfDay();
+        $outletId = $request->input('outlet_id', '');
+        $productId = $request->input('product_id', '');
+        $search = trim($request->input('search', ''));
+
+        $user = Auth::user();
+        $mposUser = null;
+        if ($user) {
+            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
+        }
+
+        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
+        if ($isCashierOnly) {
+            $outletId = $mposUser->nid_outlet;
+        }
+
+        $outletName = 'Semua Outlet';
+        if (!empty($outletId)) {
+            $outlet = MposOutlet::find($outletId);
+            if ($outlet) {
+                $outletName = $outlet->cname;
+            }
+        }
+
+        $baseQuery = $this->buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search);
+        $summary = $this->buildSummaryQuery($baseQuery)->first();
+        $items = $this->buildItemsQuery($baseQuery)->get();
+        $dateSuffix = $startDate === $endDate
+            ? Carbon::parse($startDate)->format('d-m-Y')
+            : Carbon::parse($startDate)->format('d-m-Y') . '_sd_' . Carbon::parse($endDate)->format('d-m-Y');
+
+        return Excel::download(new SalesItemExport($items, $summary, $startDate, $endDate, $outletName), "laporan_item_penjualan_{$dateSuffix}.xlsx");
+    }
+
+    private function buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search)
+    {
         $baseQuery = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
             ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
@@ -80,9 +143,13 @@ class SalesItemReportController extends Controller
             });
         }
 
-        // Calculate Grand Totals across all filtered items (ignoring pagination)
+        return $baseQuery;
+    }
+
+    private function buildSummaryQuery($baseQuery)
+    {
         $summaryQuery = clone $baseQuery;
-        $summary = $summaryQuery->select([
+        return $summaryQuery->select([
             DB::raw('COALESCE(SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund), 0) as total_qty'),
             DB::raw('0 as total_discount'),
             DB::raw('COALESCE(SUM(
@@ -103,9 +170,11 @@ class SalesItemReportController extends Controller
                 END) - 
                 ((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.ncost)
             ), 0) as total_laba'),
-        ])->first();
+        ]);
+    }
 
-        // Paginated rows query
+    private function buildItemsQuery($baseQuery)
+    {
         $itemsQuery = clone $baseQuery;
         $itemsQuery->select([
             'mpos_sales_d.nid as item_id',
@@ -131,20 +200,7 @@ class SalesItemReportController extends Controller
         $itemsQuery->orderBy('mpos_sales_h.dtransaction', 'desc')
                    ->orderBy('mpos_sales_d.nid', 'desc');
 
-        $items = $itemsQuery->paginate(15)->withQueryString();
-
-        return view('reports.sales_item.index', compact(
-            'items',
-            'startDate',
-            'endDate',
-            'outletId',
-            'productId',
-            'search',
-            'outlets',
-            'products',
-            'isCashierOnly',
-            'summary'
-        ));
+        return $itemsQuery;
     }
 
     /**
