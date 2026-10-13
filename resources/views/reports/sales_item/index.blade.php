@@ -216,6 +216,9 @@
             <button type="button" class="btn {{ $isAnyFilterActive ? 'btn-primary' : 'btn-outline-primary' }} btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
                 <i class="bi bi-funnel"></i> Filter
             </button>
+            <a href="{{ route('reports.sales-item.export', request()->query()) }}" class="btn btn-outline-success btn-sm">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
             <a href="{{ request()->fullUrlWithQuery(['print' => 1]) }}" target="_blank" class="btn btn-outline-danger btn-sm">
                 <i class="bi bi-file-earmark-pdf"></i> Cetak / PDF
             </a>

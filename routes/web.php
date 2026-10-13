@@ -58,9 +58,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('customer-product/export', [\App\Http\Controllers\Report\CustomerProductReportController::class, 'exportExcel'])->name('customer-product.export');
         
         Route::get('sales-detail', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'index'])->name('sales-detail');
+        Route::get('sales-detail/export', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'exportExcel'])->name('sales-detail.export');
         Route::post('sales-detail/import', [\App\Http\Controllers\Report\SalesDetailReportController::class, 'import'])->name('sales-detail.import');
 
         Route::get('sales-item', [\App\Http\Controllers\Report\SalesItemReportController::class, 'index'])->name('sales-item');
+        Route::get('sales-item/export', [\App\Http\Controllers\Report\SalesItemReportController::class, 'exportExcel'])->name('sales-item.export');
         Route::post('sales-item/import', [\App\Http\Controllers\Report\SalesItemReportController::class, 'import'])->name('sales-item.import');
     });
 });

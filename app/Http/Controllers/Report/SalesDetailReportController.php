@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Report;
 
 use App\Http\Controllers\Controller;
+use App\Exports\SalesDetailExport;
 use App\Imports\OlseraSalesImport;
 use App\Models\MposOutlet;
 use App\Models\MposSalesH;
@@ -43,6 +44,64 @@ class SalesDetailReportController extends Controller
 
         $outlets = MposOutlet::orderBy('cname')->get();
 
+        $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId);
+        $transactions = $query->paginate(10)->withQueryString();
+
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId)->first();
+        $netSales = $summary->net_sales ?? 0;
+
+        return view('reports.sales_detail.index', compact(
+            'transactions',
+            'startDate',
+            'endDate',
+            'status',
+            'outletId',
+            'outlets',
+            'isCashierOnly',
+            'summary',
+            'netSales'
+        ));
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $startDate = $request->input('start_date', Carbon::now()->format('Y-m-d'));
+        $endDate = $request->input('end_date', Carbon::now()->format('Y-m-d'));
+        $endDateParsed = Carbon::parse($endDate)->endOfDay();
+        
+        $status = $request->input('status', '');
+        $outletId = $request->input('outlet_id', '');
+
+        $user = Auth::user();
+        $mposUser = null;
+        if ($user) {
+            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
+        }
+        
+        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
+        if ($isCashierOnly) {
+            $outletId = $mposUser->nid_outlet;
+        }
+
+        $outletName = 'Semua Outlet';
+        if (!empty($outletId)) {
+            $outlet = MposOutlet::find($outletId);
+            if ($outlet) {
+                $outletName = $outlet->cname;
+            }
+        }
+
+        $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId)->get();
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId)->first();
+        $dateSuffix = $startDate === $endDate
+            ? Carbon::parse($startDate)->format('d-m-Y')
+            : Carbon::parse($startDate)->format('d-m-Y') . '_sd_' . Carbon::parse($endDate)->format('d-m-Y');
+
+        return Excel::download(new SalesDetailExport($transactions, $summary, $startDate, $endDate, $outletName), "laporan_penjualan_{$dateSuffix}.xlsx");
+    }
+
+    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId)
+    {
         $query = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
             ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
@@ -59,13 +118,11 @@ class SalesDetailReportController extends Controller
             $query->where('mpos_sales_h.nid_outlet', $outletId);
         }
 
-        // Subquery for Modal & Valid Void/Refund per transaction
-        // To avoid N+1 and complex looping in blade.
         $itemDeductions = DB::table('mpos_sales_d')
             ->select('nid_transaction', 
                 DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund'),
                 DB::raw('SUM(ncost * (nqty - nqty_void - nqty_refund)) as total_cost'),
-                DB::raw('MIN(ncost) as min_cost') // if < 0, cost is invalid
+                DB::raw('MIN(ncost) as min_cost')
             )
             ->groupBy('nid_transaction');
 
@@ -85,9 +142,11 @@ class SalesDetailReportController extends Controller
 
         $query->orderBy('mpos_sales_h.dtransaction', 'desc');
 
-        $transactions = $query->paginate(10)->withQueryString();
+        return $query;
+    }
 
-        // Calculate Summary for PAID transactions only
+    private function buildSummaryQuery($startDate, $endDateParsed, $outletId)
+    {
         $summaryQuery = DB::table('mpos_sales_h')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
             ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
@@ -97,12 +156,19 @@ class SalesDetailReportController extends Controller
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
         }
 
+        $itemDeductions = DB::table('mpos_sales_d')
+            ->select('nid_transaction', 
+                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund'),
+                DB::raw('SUM(ncost * (nqty - nqty_void - nqty_refund)) as total_cost'),
+                DB::raw('MIN(ncost) as min_cost')
+            )
+            ->groupBy('nid_transaction');
+
         $summaryQuery->leftJoinSub($itemDeductions, 'items', function ($join) {
             $join->on('mpos_sales_h.nid', '=', 'items.nid_transaction');
         });
 
-        // Summary metrics: strictly preserve POS calculations and cleanly map Olsera fields
-        $summary = $summaryQuery->select(
+        return $summaryQuery->select(
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.nsubtotal ELSE mpos_sales_h.ngrandtotal END) as gross_sales"),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal ELSE (mpos_sales_h.ngrandtotal - COALESCE(items.total_void_refund, 0)) END) as net_sales"),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 ELSE COALESCE(items.total_void_refund, 0) END) as total_void_refund"),
@@ -135,21 +201,7 @@ class SalesDetailReportController extends Controller
                 WHEN (mpos_sales_h.csource IS NULL OR mpos_sales_h.csource != 'OLSERA') AND items.min_cost < 0 THEN 1
                 ELSE 0 
             END) as invalid_profit_count")
-        )->first();
-
-        $netSales = $summary->net_sales ?? 0;
-
-        return view('reports.sales_detail.index', compact(
-            'transactions',
-            'startDate',
-            'endDate',
-            'status',
-            'outletId',
-            'outlets',
-            'isCashierOnly',
-            'summary',
-            'netSales'
-        ));
+        );
     }
 
     /**
