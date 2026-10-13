@@ -92,6 +92,7 @@ class MposSalesH extends Model
         'nrounding',
         'ntotal_cost',
         'ntotal_profit',
+        'pdf_url',
         'dcreated',
     ];
 

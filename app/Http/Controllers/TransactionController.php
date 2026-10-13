@@ -196,6 +196,7 @@ class TransactionController extends Controller
 
             'ccancel_note' => 'nullable|string|max:1000',
             'cstatus' => 'nullable|string|max:50',
+            'pdf_url' => 'nullable|string|max:500',
         ]);
 
         $authUser = $request->user() ?? Auth::user();
@@ -427,6 +428,13 @@ class TransactionController extends Controller
             }
 
             if ($existingDraft) {
+                $pdfUrl = $validated['pdf_url'] ?? $existingDraft->pdf_url;
+                if (!$pdfUrl) {
+                    $cleanTrxNo = str_replace('#', '', $existingDraft->cnotransaction);
+                    $datePart = $existingDraft->dtransaction ? \Carbon\Carbon::parse($existingDraft->dtransaction)->format('Ymd') : now()->format('Ymd');
+                    $pdfUrl = "https://pos.matahaticafe.com/pos/invoice/invoice_{$cleanTrxNo}_{$datePart}.pdf";
+                }
+
                 $existingDraft->update([
                     'nid_customer' => $validated['nid_customer'] ?? null,
                     'nid_user' => $nidUser,
@@ -448,6 +456,7 @@ class TransactionController extends Controller
                     'cnote' => $validated['cnote'] ?? null,
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
+                    'pdf_url' => $pdfUrl,
                 ]);
                 $salesH = $existingDraft;
 
@@ -478,7 +487,15 @@ class TransactionController extends Controller
                     'cnote' => $validated['cnote'] ?? null,
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
+                    'pdf_url' => $validated['pdf_url'] ?? null,
                 ]);
+
+                if (empty($salesH->pdf_url)) {
+                    $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
+                    $datePart = $salesH->dtransaction ? \Carbon\Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');
+                    $salesH->pdf_url = "https://pos.matahaticafe.com/pos/invoice/invoice_{$cleanTrxNo}_{$datePart}.pdf";
+                    $salesH->save();
+                }
             }
 
             foreach ($detailsToInsert as &$detail) {
@@ -492,6 +509,18 @@ class TransactionController extends Controller
             }
 
             DB::commit();
+
+            // Trigger generate invoice PDF saat transaksi PAID
+            if ($salesH->cstatus === MposSalesH::STATUS_PAID) {
+                try {
+                    app(\App\Services\InvoicePdfService::class)->generate($salesH);
+                } catch (\Throwable $e) {
+                    Log::error('Gagal generate invoice PDF setelah commit: ' . $e->getMessage(), [
+                        'exception' => $e,
+                        'cnotransaction' => $salesH->cnotransaction,
+                    ]);
+                }
+            }
 
             $salesH->load(['details', 'outlet', 'posUser.user']);
 
