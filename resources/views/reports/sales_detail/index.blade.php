@@ -533,9 +533,10 @@
             });
         }
 
-        @if(request()->has('print'))
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('print')) {
             window.print();
-        @endif
+        }
     });
 </script>
 @endpush
