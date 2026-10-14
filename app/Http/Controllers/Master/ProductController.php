@@ -37,11 +37,10 @@ class ProductController extends Controller
     {
         $query = MposProduct::with('category')->where('cstatus', 'ACTIVE');
 
-        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        if (!empty($selectedOutletId)) {
-            $query->where('nid_outlet', $selectedOutletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $query->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
+        if ($request->filled('nid_outlet')) {
+            $query->where('nid_outlet', $request->input('nid_outlet'));
+        } elseif ($request->filled('outlet_id')) {
+            $query->where('nid_outlet', $request->input('outlet_id'));
         }
 
         $customerId = $request->input('nid_customer') ?? $request->input('customer_id');
