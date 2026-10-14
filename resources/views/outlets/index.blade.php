@@ -15,18 +15,16 @@
             <table class="table table-hover table-borderless align-middle mb-0">
                 <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
                     <tr>
-                        <th width="10%" class="py-3 ps-4">ID</th>
-                        <th>Nama Outlet</th>
-                        <th>Departemen</th>
+                        <th class="py-3 ps-4">Nama Outlet</th>
+                        <th class="py-3">Departemen</th>
                         <th width="15%" class="text-center py-3 pe-4">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($outlets as $outlet)
                     <tr style="border-bottom: 1px solid #f8f9fa;">
-                        <td class="ps-4 fw-bold text-muted">#{{ $outlet->nid }}</td>
                         <td>
-                            <div class="d-flex align-items-center py-1">
+                            <div class=" ps-4 d-flex align-items-center py-1">
                                 <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
                                     <i class="bi bi-shop fs-5"></i>
                                 </div>
@@ -35,9 +33,9 @@
                         </td>
                         <td>
                             @if($outlet->department)
-                                <span class="badge bg-light text-dark border">{{ $outlet->department->cname }}</span>
+                            <span class="badge bg-light text-dark border">{{ $outlet->department->cname }}</span>
                             @else
-                                -
+                            -
                             @endif
                         </td>
                         <td class="text-center pe-4">
@@ -75,9 +73,9 @@
                                             <select class="form-select @if(old('modal_id') == $outlet->nid) @error('nid_dept') is-invalid @enderror @endif" id="nid_dept_{{ $outlet->nid }}" name="nid_dept">
                                                 <option value="">Tidak ada departemen</option>
                                                 @foreach($departments as $dept)
-                                                    <option value="{{ $dept->nid }}" {{ (old('modal_id') == $outlet->nid ? old('nid_dept') : $outlet->nid_dept) == $dept->nid ? 'selected' : '' }}>
-                                                        {{ $dept->cname }}
-                                                    </option>
+                                                <option value="{{ $dept->nid }}" {{ (old('modal_id') == $outlet->nid ? old('nid_dept') : $outlet->nid_dept) == $dept->nid ? 'selected' : '' }}>
+                                                    {{ $dept->cname }}
+                                                </option>
                                                 @endforeach
                                             </select>
                                             @if(old('modal_id') == $outlet->nid) @error('nid_dept') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
@@ -152,9 +150,9 @@
                         <select class="form-select @if(old('modal_id') == 'create') @error('nid_dept') is-invalid @enderror @endif" id="nid_dept" name="nid_dept">
                             <option value="">Tidak ada departemen</option>
                             @foreach($departments as $dept)
-                                <option value="{{ $dept->nid }}" {{ (old('modal_id') == 'create' ? old('nid_dept') : '') == $dept->nid ? 'selected' : '' }}>
-                                    {{ $dept->cname }}
-                                </option>
+                            <option value="{{ $dept->nid }}" {{ (old('modal_id') == 'create' ? old('nid_dept') : '') == $dept->nid ? 'selected' : '' }}>
+                                {{ $dept->cname }}
+                            </option>
                             @endforeach
                         </select>
                         @if(old('modal_id') == 'create') @error('nid_dept') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
@@ -175,7 +173,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
         var modalId = "{{ old('modal_id') }}";
-        
+
         if (hasErrors && modalId) {
             if (modalId === 'create') {
                 var myModal = new bootstrap.Modal(document.getElementById('createModal'));
