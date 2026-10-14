@@ -354,13 +354,15 @@
 
                     <div class="mb-3">
                         <label class="form-label">Outlet</label>
-                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="Semua Outlet" {{ $isCashierOnly ? 'disabled' : '' }}>
-                            <option value="">Semua Outlet</option>
+                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="Semua Outlet" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
+                            @if(!($isCashierOnly ?? false))
+                                <option value="">Semua Outlet</option>
+                            @endif
                             @foreach($outlets as $outlet)
-                                <option value="{{ $outlet->nid }}" {{ $outletId == $outlet->nid ? 'selected' : '' }}>{{ $outlet->cname }}</option>
+                                <option value="{{ $outlet->nid }}" {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'selected' : '' }}>{{ $outlet->cname }}</option>
                             @endforeach
                         </select>
-                        @if($isCashierOnly)
+                        @if($isCashierOnly ?? false)
                             <input type="hidden" name="outlet_id" value="{{ $outletId }}">
                         @endif
                     </div>

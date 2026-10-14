@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MposCust;
 use App\Models\MposCustType;
 use App\Models\MposOutlet;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -14,6 +15,8 @@ use App\Imports\CustomersImport;
 
 class CustomerController extends Controller
 {
+    use ResolvesOutletScope;
+
     // ==========================================
     // API METHODS
     // ==========================================
@@ -31,8 +34,9 @@ class CustomerController extends Controller
             });
         }
         
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
         }
 
         $customers = $query->orderBy('cname', 'asc')->get();
@@ -210,7 +214,10 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $outlets = MposOutlet::orderBy('cname')->get();
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $isCashierOnly = $this->isCashierOnlyUser();
+        $outlets = $this->getAvailableOutlets();
+
         $customerTypes = MposCustType::whereIn('nid', function($q) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_cust_type')
@@ -219,8 +226,8 @@ class CustomerController extends Controller
         
         $query = MposCust::query();
         
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
         }
 
         if ($request->has('nid_type') && $request->nid_type != '') {
@@ -253,7 +260,7 @@ class CustomerController extends Controller
                              ->paginate(10)
                              ->withQueryString();
                              
-        return view('customers.index', compact('customers', 'customerTypes', 'outlets'));
+        return view('customers.index', compact('customers', 'customerTypes', 'outlets', 'selectedOutletId', 'isCashierOnly'));
     }
 
     public function import(Request $request)

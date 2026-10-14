@@ -8,6 +8,7 @@ use App\Imports\OlseraSalesImport;
 use App\Models\MposOutlet;
 use App\Models\MposSalesH;
 use App\Models\MposUser;
+use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class SalesDetailReportController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function index(Request $request)
     {
         $startDate = $request->input('start_date', Carbon::now()->format('Y-m-d'));
@@ -26,23 +29,13 @@ class SalesDetailReportController extends Controller
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
         
         $status = $request->input('status', '');
-        $outletId = $request->input('outlet_id', '');
-
-        // Handle authorization for outlet
-        $user = Auth::user();
-        $mposUser = null;
-        if ($user) {
-            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
-        }
-        
-        // If cashier and not owner/captain, force their outlet
-        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
-        
-        if ($isCashierOnly) {
-            $outletId = $mposUser->nid_outlet;
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
         }
 
-        $outlets = MposOutlet::orderBy('cname')->get();
+        $isCashierOnly = $this->isCashierOnlyUser();
+        $outlets = $this->getAvailableOutlets();
 
         $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId);
         $transactions = $query->paginate(10)->withQueryString();
@@ -70,17 +63,9 @@ class SalesDetailReportController extends Controller
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
         
         $status = $request->input('status', '');
-        $outletId = $request->input('outlet_id', '');
-
-        $user = Auth::user();
-        $mposUser = null;
-        if ($user) {
-            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
-        }
-        
-        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
-        if ($isCashierOnly) {
-            $outletId = $mposUser->nid_outlet;
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
         }
 
         $outletName = 'Semua Outlet';
