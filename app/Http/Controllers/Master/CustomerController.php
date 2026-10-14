@@ -34,11 +34,8 @@ class CustomerController extends Controller
             });
         }
         
-        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        if (!empty($selectedOutletId)) {
-            $query->where('nid_outlet', $selectedOutletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $query->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
+        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
+            $query->where('nid_outlet', $request->nid_outlet);
         }
 
         $customers = $query->orderBy('cname', 'asc')->get();
