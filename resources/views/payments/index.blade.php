@@ -15,16 +15,14 @@
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th width="10%">ID</th>
-                        <th>Nama Metode</th>
+                        <th class="ps-4">Nama Metode</th>
                         <th width="20%" class="text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($payments as $payment)
                     <tr>
-                        <td>{{ $payment->nid }}</td>
-                        <td>{{ $payment->cname }}</td>
+                        <td class="ps-4">{{ $payment->cname }}</td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#editModal{{ $payment->nid }}">
                                 <i class="bi bi-pencil"></i> Edit
@@ -134,7 +132,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
         var modalId = "{{ old('modal_id') }}";
-        
+
         if (hasErrors && modalId) {
             if (modalId === 'create') {
                 var myModal = new bootstrap.Modal(document.getElementById('createModal'));
