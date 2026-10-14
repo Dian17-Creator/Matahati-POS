@@ -35,8 +35,8 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
             <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="width: 160px;" id="outletFilter" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if(!($isCashierOnly ?? false))
+                <select name="nid_outlet" class="form-select form-select-sm" style="width: 160px;" id="outletFilter" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+                    @if($isSuperAdmin ?? false)
                     <option value="">Semua Outlet</option>
                     @endif
                     @foreach($outlets as $outlet)
@@ -45,7 +45,7 @@
                         </option>
                     @endforeach
                 </select>
-                @if($isCashierOnly ?? false)
+                @if($isOutletLocked ?? $isCashierOnly ?? false)
                     <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
                 @endif
                 <select name="nid_category" class="form-select form-select-sm" style="width: 160px;" id="categoryFilter">
@@ -117,18 +117,26 @@
                         <td>{{ $product->cname }}</td>
                         <td>{{ $product->category->cname ?? '-' }}</td>
                         <td>
-                            @php
-                                $productOutlets = \App\Models\MposProduct::where('cname', $product->cname)->with('outlet')->get();
-                                $hasOutlets = false;
-                            @endphp
-                            @foreach($productOutlets as $po)
-                                @if($po->outlet)
-                                    <span class="badge bg-light text-dark border mb-1">{{ $po->outlet->cname }}</span><br>
-                                    @php $hasOutlets = true; @endphp
+                            @if(!empty($selectedOutletId) && $product->outlet)
+                                <span class="badge bg-light text-dark border">{{ $product->outlet->cname }}</span>
+                            @else
+                                @php
+                                    $productOutletsQuery = \App\Models\MposProduct::where('cname', $product->cname);
+                                    if (!($isSuperAdmin ?? false) && !empty($allowedOutletIds)) {
+                                        $productOutletsQuery->whereIn('nid_outlet', $allowedOutletIds);
+                                    }
+                                    $productOutlets = $productOutletsQuery->with('outlet')->get();
+                                    $hasOutlets = false;
+                                @endphp
+                                @foreach($productOutlets as $po)
+                                    @if($po->outlet)
+                                        <span class="badge bg-light text-dark border mb-1">{{ $po->outlet->cname }}</span><br>
+                                        @php $hasOutlets = true; @endphp
+                                    @endif
+                                @endforeach
+                                @if(!$hasOutlets)
+                                    <span class="text-muted">-</span>
                                 @endif
-                            @endforeach
-                            @if(!$hasOutlets)
-                                <span class="text-muted">-</span>
                             @endif
                         </td>
                         <td>

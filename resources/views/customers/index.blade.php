@@ -19,8 +19,8 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
             <form action="{{ route('customers.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if(!($isCashierOnly ?? false))
+                <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+                    @if($isSuperAdmin ?? false)
                     <option value="">Semua Outlet</option>
                     @endif
                     @foreach($outlets as $outlet)
@@ -29,7 +29,7 @@
                     </option>
                     @endforeach
                 </select>
-                @if($isCashierOnly ?? false)
+                @if($isOutletLocked ?? $isCashierOnly ?? false)
                     <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
                 @endif
                 <select name="nid_type" class="form-select form-select-sm" style="max-width: 150px;" id="typeFilter">
@@ -96,20 +96,27 @@
                             </div>
                         </td>
                         <td>
-                            @php
-                            $customerOutlets = \App\Models\MposCust::where('cphone', $customer->cphone)
-                                ->where('cname', $customer->cname)
-                                ->with('outlet')->get();
-                            $hasOutlets = false;
-                            @endphp
-                            @foreach($customerOutlets as $co)
-                            @if($co->outlet)
-                            <span class="badge bg-light text-dark border mb-1">{{ $co->outlet->cname }}</span><br>
-                            @php $hasOutlets = true; @endphp
-                            @endif
-                            @endforeach
-                            @if(!$hasOutlets)
-                            <span class="text-muted">-</span>
+                            @if(!empty($selectedOutletId) && $customer->outlet)
+                                <span class="badge bg-light text-dark border">{{ $customer->outlet->cname }}</span>
+                            @else
+                                @php
+                                $customerOutletsQuery = \App\Models\MposCust::where('cphone', $customer->cphone)
+                                    ->where('cname', $customer->cname);
+                                if (!($isSuperAdmin ?? false) && !empty($allowedOutletIds)) {
+                                    $customerOutletsQuery->whereIn('nid_outlet', $allowedOutletIds);
+                                }
+                                $customerOutlets = $customerOutletsQuery->with('outlet')->get();
+                                $hasOutlets = false;
+                                @endphp
+                                @foreach($customerOutlets as $co)
+                                @if($co->outlet)
+                                <span class="badge bg-light text-dark border mb-1">{{ $co->outlet->cname }}</span><br>
+                                @php $hasOutlets = true; @endphp
+                                @endif
+                                @endforeach
+                                @if(!$hasOutlets)
+                                <span class="text-muted">-</span>
+                                @endif
                             @endif
                         </td>
                         <td>

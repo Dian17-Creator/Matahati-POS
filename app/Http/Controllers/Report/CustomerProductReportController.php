@@ -32,11 +32,11 @@ class CustomerProductReportController extends Controller
         $productId = $request->input('product_id');
 
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
-        $isCashierOnly = $this->isCashierOnlyUser();
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
 
         $sortCol = $request->input('sort_col', 'customer_name');
         $sortDir = $request->input('sort_dir', 'asc');
@@ -52,6 +52,8 @@ class CustomerProductReportController extends Controller
         $customersQuery = MposCust::select('cname')->whereNotNull('cname');
         if (!empty($outletId)) {
             $customersQuery->where('nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $customersQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
         $customers = $customersQuery->distinct()->orderBy('cname')->get();
 
@@ -59,6 +61,8 @@ class CustomerProductReportController extends Controller
         $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
         if (!empty($outletId)) {
             $productsQuery->where('nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $productsQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
         if ($categoryId) {
             $productsQuery->whereHas('category', function($q) use ($categoryId) {
@@ -175,7 +179,10 @@ class CustomerProductReportController extends Controller
             'isSummary',
             'outletId',
             'outlets',
-            'isCashierOnly'
+            'isCashierOnly',
+            'isSuperAdmin',
+            'isOutletLocked',
+            'allowedOutletIds'
         ));
     }
 
@@ -183,13 +190,12 @@ class CustomerProductReportController extends Controller
     {
         $categoryId = $request->input('category_id');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
 
         $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
         if (!empty($outletId)) {
             $productsQuery->where('nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $productsQuery->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         if (!empty($categoryId)) {
@@ -223,9 +229,6 @@ class CustomerProductReportController extends Controller
         $sortDir = strtolower($sortDir) === 'desc' ? 'desc' : 'asc';
 
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
 
         $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId);
         
@@ -325,6 +328,8 @@ class CustomerProductReportController extends Controller
 
         if (!empty($outletId)) {
             $query->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         if ($customerId) {

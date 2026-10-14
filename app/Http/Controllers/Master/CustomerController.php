@@ -37,6 +37,8 @@ class CustomerController extends Controller
         $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         $customers = $query->orderBy('cname', 'asc')->get();
@@ -215,8 +217,11 @@ class CustomerController extends Controller
     public function index(Request $request)
     {
         $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        $isCashierOnly = $this->isCashierOnlyUser();
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
 
         $customerTypes = MposCustType::whereIn('nid', function($q) {
             $q->select(DB::raw('MIN(nid)'))
@@ -228,6 +233,8 @@ class CustomerController extends Controller
         
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
         if ($request->has('nid_type') && $request->nid_type != '') {
@@ -253,14 +260,14 @@ class CustomerController extends Controller
                                    ->groupBy('cname', 'cphone')
                                    ->pluck('nid');
                                    
-        $customers = MposCust::with('type')
+        $customers = MposCust::with(['type', 'outlet'])
                              ->withMax('sales', 'dtransaction')
                              ->whereIn('nid', $uniqueCustomerIds)
                              ->orderBy('cname')
                              ->paginate(10)
                              ->withQueryString();
                              
-        return view('customers.index', compact('customers', 'customerTypes', 'outlets', 'selectedOutletId', 'isCashierOnly'));
+        return view('customers.index', compact('customers', 'customerTypes', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
     }
 
     public function import(Request $request)
