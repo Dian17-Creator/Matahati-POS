@@ -36,19 +36,20 @@ class SalesItemReportController extends Controller
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
 
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
-
         $productId = $request->input('product_id', '');
         $search = trim($request->input('search', ''));
 
-        $isCashierOnly = $this->isCashierOnlyUser();
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
 
         $productsQuery = MposProduct::select('nid', 'cname')->whereNotNull('cname');
         if (!empty($outletId)) {
             $productsQuery->where('nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $productsQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
         $products = $productsQuery->distinct()->orderBy('cname')->get();
 
@@ -66,6 +67,9 @@ class SalesItemReportController extends Controller
             'outlets',
             'products',
             'isCashierOnly',
+            'isSuperAdmin',
+            'isOutletLocked',
+            'allowedOutletIds',
             'summary'
         ));
     }
@@ -81,9 +85,6 @@ class SalesItemReportController extends Controller
 
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
         $productId = $request->input('product_id', '');
         $search = trim($request->input('search', ''));
 
@@ -121,6 +122,8 @@ class SalesItemReportController extends Controller
 
         if (!empty($outletId)) {
             $baseQuery->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $baseQuery->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         if (!empty($productId)) {

@@ -37,15 +37,11 @@ class ProductController extends Controller
     {
         $query = MposProduct::with('category')->where('cstatus', 'ACTIVE');
 
-        if ($request->filled('nid_outlet')) {
-            $query->where('nid_outlet', $request->input('nid_outlet'));
-        } elseif ($request->filled('outlet_id')) {
-            $query->where('nid_outlet', $request->input('outlet_id'));
-        } else {
-            $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-            if (!empty($selectedOutletId)) {
-                $query->where('nid_outlet', $selectedOutletId);
-            }
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         $customerId = $request->input('nid_customer') ?? $request->input('customer_id');
@@ -101,13 +97,18 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        $isCashierOnly = $this->isCashierOnlyUser();
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
 
         $query = MposProduct::with(['category', 'recipes.ingredient', 'outlet']);
 
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
         if ($request->has('nid_category') && $request->nid_category != '') {
@@ -120,13 +121,15 @@ class ProductController extends Controller
         }
 
         // Group by cname so we only show 1 row per product name
-        $query->whereIn('nid', function($q) use ($request, $selectedOutletId) {
+        $query->whereIn('nid', function($q) use ($request, $selectedOutletId, $allowedOutletIds) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_product')
               ->groupBy('cname');
 
             if (!empty($selectedOutletId)) {
                 $q->where('nid_outlet', $selectedOutletId);
+            } elseif (!$this->isSuperAdminUser()) {
+                $q->whereIn('nid_outlet', $allowedOutletIds);
             }
             if ($request->has('nid_category') && $request->nid_category != '') {
                 $q->where('nid_category', $request->nid_category);
@@ -143,7 +146,7 @@ class ProductController extends Controller
 
         $ingredients = MposIngredients::all();
 
-        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly'));
+        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
     }
 
     public function show(string $id)

@@ -30,12 +30,11 @@ class SalesDetailReportController extends Controller
         
         $status = $request->input('status', '');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
-
-        $isCashierOnly = $this->isCashierOnlyUser();
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
 
         $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId);
         $transactions = $query->paginate(10)->withQueryString();
@@ -51,6 +50,9 @@ class SalesDetailReportController extends Controller
             'outletId',
             'outlets',
             'isCashierOnly',
+            'isSuperAdmin',
+            'isOutletLocked',
+            'allowedOutletIds',
             'summary',
             'netSales'
         ));
@@ -64,9 +66,6 @@ class SalesDetailReportController extends Controller
         
         $status = $request->input('status', '');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        if (empty($outletId) && $request->has('nid_outlet')) {
-            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        }
 
         $outletName = 'Semua Outlet';
         if (!empty($outletId)) {
@@ -101,6 +100,8 @@ class SalesDetailReportController extends Controller
 
         if (!empty($outletId)) {
             $query->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         $itemDeductions = DB::table('mpos_sales_d')
@@ -139,6 +140,8 @@ class SalesDetailReportController extends Controller
 
         if (!empty($outletId)) {
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $summaryQuery->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
         }
 
         $itemDeductions = DB::table('mpos_sales_d')

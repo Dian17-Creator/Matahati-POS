@@ -354,15 +354,15 @@
 
                     <div class="mb-3">
                         <label class="form-label">Outlet</label>
-                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="Semua Outlet" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
-                            @if(!($isCashierOnly ?? false))
+                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="{{ ($isSuperAdmin ?? false) ? 'Semua Outlet' : 'Pilih Outlet' }}" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+                            @if($isSuperAdmin ?? false)
                                 <option value="">Semua Outlet</option>
                             @endif
                             @foreach($outlets as $outlet)
                                 <option value="{{ $outlet->nid }}" {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'selected' : '' }}>{{ $outlet->cname }}</option>
                             @endforeach
                         </select>
-                        @if($isCashierOnly ?? false)
+                        @if($isOutletLocked ?? $isCashierOnly ?? false)
                             <input type="hidden" name="outlet_id" value="{{ $outletId }}">
                         @endif
                     </div>
@@ -405,15 +405,15 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="import_outlet_id" class="form-label">Pilih Outlet <span class="text-danger">*</span></label>
-                        <select class="form-select @error('outlet_id') is-invalid @enderror" id="import_outlet_id" name="outlet_id" required {{ $isCashierOnly ? 'disabled' : '' }}>
-                            @if(!$isCashierOnly)
+                        <select class="form-select @error('outlet_id') is-invalid @enderror" id="import_outlet_id" name="outlet_id" required {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+                            @if(!($isOutletLocked ?? $isCashierOnly ?? false))
                                 <option value="">-- Pilih Outlet --</option>
                             @endif
                             @foreach($outlets as $outlet)
                                 <option value="{{ $outlet->nid }}" {{ ($outletId == $outlet->nid || (count($outlets) == 1)) ? 'selected' : '' }}>{{ $outlet->cname }}</option>
                             @endforeach
                         </select>
-                        @if($isCashierOnly)
+                        @if($isOutletLocked ?? $isCashierOnly ?? false)
                             <input type="hidden" name="outlet_id" value="{{ $outletId }}">
                         @endif
                         @error('outlet_id')
