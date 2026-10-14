@@ -13,10 +13,14 @@ use App\Models\MposGrpProduct;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\CustomerProductExport;
+use App\Models\MposOutlet;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Support\Facades\Auth;
 
 class CustomerProductReportController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function index(Request $request)
     {
         // Default to this month if no dates provided
@@ -26,6 +30,13 @@ class CustomerProductReportController extends Controller
         $customerId = $request->input('customer_id');
         $categoryId = $request->input('category_id');
         $productId = $request->input('product_id');
+
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        }
+        $isCashierOnly = $this->isCashierOnlyUser();
+        $outlets = $this->getAvailableOutlets();
 
         $sortCol = $request->input('sort_col', 'customer_name');
         $sortDir = $request->input('sort_dir', 'asc');
@@ -38,19 +49,29 @@ class CustomerProductReportController extends Controller
         $sortDir = strtolower($sortDir) === 'desc' ? 'desc' : 'asc';
 
         // Get filter data for dropdowns, grouped by name to avoid duplicates across outlets
-        $customers = MposCust::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
-        $categories = MposGrpProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
-        $products = [];
-        
-        if ($categoryId) {
-            $products = MposProduct::whereHas('category', function($q) use ($categoryId) {
-                $q->where('cname', $categoryId);
-            })->select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
-        } else {
-            $products = MposProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
+        $customersQuery = MposCust::select('cname')->whereNotNull('cname');
+        if (!empty($outletId)) {
+            $customersQuery->where('nid_outlet', $outletId);
         }
+        $customers = $customersQuery->distinct()->orderBy('cname')->get();
 
-        $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId);
+        $categories = MposGrpProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
+        $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
+        if (!empty($outletId)) {
+            $productsQuery->where('nid_outlet', $outletId);
+        }
+        if ($categoryId) {
+            $productsQuery->whereHas('category', function($q) use ($categoryId) {
+                if (is_array($categoryId)) {
+                    $q->whereIn('cname', $categoryId);
+                } else {
+                    $q->where('cname', $categoryId);
+                }
+            });
+        }
+        $products = $productsQuery->distinct()->orderBy('cname')->get();
+
+        $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId);
 
         // Calculate Grand Totals (ignoring pagination)
         $summaryQuery = clone $query;
@@ -151,25 +172,37 @@ class CustomerProductReportController extends Controller
             'productId',
             'sortCol',
             'sortDir',
-            'isSummary'
+            'isSummary',
+            'outletId',
+            'outlets',
+            'isCashierOnly'
         ));
     }
 
     public function getProductsByCategory(Request $request)
     {
         $categoryId = $request->input('category_id');
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        }
+
+        $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
+        if (!empty($outletId)) {
+            $productsQuery->where('nid_outlet', $outletId);
+        }
+
         if (!empty($categoryId)) {
-            $products = MposProduct::whereHas('category', function($q) use ($categoryId) {
+            $productsQuery->whereHas('category', function($q) use ($categoryId) {
                 if (is_array($categoryId)) {
                     $q->whereIn('cname', $categoryId);
                 } else {
                     $q->where('cname', $categoryId);
                 }
-            })->select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
-        } else {
-            $products = MposProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
+            });
         }
         
+        $products = $productsQuery->distinct()->orderBy('cname')->get();
         return response()->json($products);
     }
 
@@ -189,7 +222,12 @@ class CustomerProductReportController extends Controller
         }
         $sortDir = strtolower($sortDir) === 'desc' ? 'desc' : 'asc';
 
-        $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId);
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        }
+
+        $query = $this->buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId);
         
         // Calculate Grand Totals
         $summaryQuery = clone $query;
@@ -272,7 +310,7 @@ class CustomerProductReportController extends Controller
         return Excel::download(new CustomerProductExport($summaryData, $detailData, $grandTotals, $startDate, $endDate), 'laporan_pelanggan_produk.xlsx');
     }
 
-    private function buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId)
+    private function buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId = null)
     {
         $query = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
@@ -285,11 +323,9 @@ class CustomerProductReportController extends Controller
             ->whereDate('mpos_sales_h.dtransaction', '>=', $startDate)
             ->whereDate('mpos_sales_h.dtransaction', '<=', $endDate);
 
-        // Optional Outlet filtering - assuming user has outlet access checking, 
-        // if not implemented globally we can skip or use session outlet
-        // if (Auth::check() && session('outlet_id')) {
-        //     $query->where('mpos_sales_h.nid_outlet', session('outlet_id'));
-        // }
+        if (!empty($outletId)) {
+            $query->where('mpos_sales_h.nid_outlet', $outletId);
+        }
 
         if ($customerId) {
             $query->where('mpos_cust.cname', $customerId);

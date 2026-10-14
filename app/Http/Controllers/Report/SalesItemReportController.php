@@ -9,6 +9,7 @@ use App\Models\MposOutlet;
 use App\Models\MposProduct;
 use App\Models\MposSalesH;
 use App\Models\MposUser;
+use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class SalesItemReportController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function index(Request $request)
     {
         $startDate = $request->input('start_date', Carbon::now()->format('Y-m-d'));
@@ -32,24 +35,22 @@ class SalesItemReportController extends Controller
 
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
 
-        $outletId = $request->input('outlet_id', '');
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        }
+
         $productId = $request->input('product_id', '');
         $search = trim($request->input('search', ''));
 
-        // Handle authorization for outlet (cashier-only restriction)
-        $user = Auth::user();
-        $mposUser = null;
-        if ($user) {
-            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
-        }
+        $isCashierOnly = $this->isCashierOnlyUser();
+        $outlets = $this->getAvailableOutlets();
 
-        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
-        if ($isCashierOnly) {
-            $outletId = $mposUser->nid_outlet;
+        $productsQuery = MposProduct::select('nid', 'cname')->whereNotNull('cname');
+        if (!empty($outletId)) {
+            $productsQuery->where('nid_outlet', $outletId);
         }
-
-        $outlets = MposOutlet::orderBy('cname')->get();
-        $products = MposProduct::select('nid', 'cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
+        $products = $productsQuery->distinct()->orderBy('cname')->get();
 
         $baseQuery = $this->buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search);
         $summary = $this->buildSummaryQuery($baseQuery)->first();
@@ -79,20 +80,12 @@ class SalesItemReportController extends Controller
         }
 
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
-        $outletId = $request->input('outlet_id', '');
+        $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
+        if (empty($outletId) && $request->has('nid_outlet')) {
+            $outletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        }
         $productId = $request->input('product_id', '');
         $search = trim($request->input('search', ''));
-
-        $user = Auth::user();
-        $mposUser = null;
-        if ($user) {
-            $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
-        }
-
-        $isCashierOnly = $mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier;
-        if ($isCashierOnly) {
-            $outletId = $mposUser->nid_outlet;
-        }
 
         $outletName = 'Semua Outlet';
         if (!empty($outletId)) {

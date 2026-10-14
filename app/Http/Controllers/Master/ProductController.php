@@ -9,12 +9,14 @@ use App\Models\MposRecipe;
 use App\Models\MposIngredients;
 use App\Models\MposOutlet;
 use App\Models\MposCustType;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
+    use ResolvesOutletScope;
     public function import(Request $request)
     {
         $request->validate([
@@ -39,6 +41,11 @@ class ProductController extends Controller
             $query->where('nid_outlet', $request->input('nid_outlet'));
         } elseif ($request->filled('outlet_id')) {
             $query->where('nid_outlet', $request->input('outlet_id'));
+        } else {
+            $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+            if (!empty($selectedOutletId)) {
+                $query->where('nid_outlet', $selectedOutletId);
+            }
         }
 
         $customerId = $request->input('nid_customer') ?? $request->input('customer_id');
@@ -93,10 +100,14 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $isCashierOnly = $this->isCashierOnlyUser();
+        $outlets = $this->getAvailableOutlets();
+
         $query = MposProduct::with(['category', 'recipes.ingredient', 'outlet']);
 
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
         }
 
         if ($request->has('nid_category') && $request->nid_category != '') {
@@ -109,13 +120,13 @@ class ProductController extends Controller
         }
 
         // Group by cname so we only show 1 row per product name
-        $query->whereIn('nid', function($q) use ($request) {
+        $query->whereIn('nid', function($q) use ($request, $selectedOutletId) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_product')
               ->groupBy('cname');
 
-            if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-                $q->where('nid_outlet', $request->nid_outlet);
+            if (!empty($selectedOutletId)) {
+                $q->where('nid_outlet', $selectedOutletId);
             }
             if ($request->has('nid_category') && $request->nid_category != '') {
                 $q->where('nid_category', $request->nid_category);
@@ -131,9 +142,8 @@ class ProductController extends Controller
         })->orderBy('cname')->get();
 
         $ingredients = MposIngredients::all();
-        $outlets = MposOutlet::orderBy('cname')->get();
 
-        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets'));
+        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly'));
     }
 
     public function show(string $id)

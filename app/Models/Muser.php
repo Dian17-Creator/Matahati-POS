@@ -76,4 +76,14 @@ class Muser extends Authenticatable
     {
         return $this->fsenior == 1;
     }
+
+    public function posUser()
+    {
+        return $this->hasOne(MposUser::class, 'nid_user', 'nid');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Mdepartment::class, 'niddept', 'nid');
+    }
 }

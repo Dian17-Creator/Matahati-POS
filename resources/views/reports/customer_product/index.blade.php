@@ -195,10 +195,15 @@
         </div>
         <div class="text-end">
             @php
-                $mposUser = auth()->check() ? \App\Models\MposUser::with('outlet')->where('nid_user', auth()->id())->first() : null;
-                $outletName = $mposUser?->outlet?->cname ?? 'Matahati POS';
+                $activeOutletName = 'Semua Outlet';
+                if (!empty($outletId)) {
+                    $activeOutletName = collect($outlets)->firstWhere('nid', $outletId)?->cname ?? 'Outlet #' . $outletId;
+                } else {
+                    $mposUser = auth()->check() ? \App\Models\MposUser::with('outlet')->where('nid_user', auth()->id())->first() : null;
+                    $activeOutletName = $mposUser?->outlet?->cname ?? 'Matahati POS';
+                }
             @endphp
-            <div style="color: #000; font-weight: 700; font-size: 0.8rem;">{{ $outletName }}</div>
+            <div style="color: #000; font-weight: 700; font-size: 0.8rem;">{{ $activeOutletName }}</div>
         </div>
     </div>
 </div>
@@ -210,7 +215,7 @@
         </div>
         <div class="d-flex gap-2">
             @php
-                $isAnyFilterActive = !empty($customerId) || !empty($categoryId) || !empty($productId);
+                $isAnyFilterActive = !empty($customerId) || !empty($categoryId) || !empty($productId) || !empty($outletId);
             @endphp
             <button type="button" class="btn {{ $isAnyFilterActive ? 'btn-primary' : 'btn-outline-primary' }} btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
                 <i class="bi bi-funnel"></i> Filter
@@ -230,7 +235,16 @@
             <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">Filter Aktif:</span>
             <span class="filter-chip filter-chip-date"><i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</span>
         
-        @if($customerId)
+            @if(!empty($outletId))
+                @php
+                    $outletNameDisplay = collect($outlets)->firstWhere('nid', $outletId)?->cname ?? 'Outlet #' . $outletId;
+                @endphp
+                <span class="filter-chip filter-chip-active"><i class="bi bi-shop"></i> {{ $outletNameDisplay }}</span>
+            @else
+                <span class="filter-chip filter-chip-inactive"><i class="bi bi-shop"></i> Semua Outlet</span>
+            @endif
+
+            @if($customerId)
             <span class="filter-chip filter-chip-active"><i class="bi bi-person"></i> {{ $customerId }}</span>
         @else
             <span class="filter-chip filter-chip-inactive"><i class="bi bi-person"></i> Semua Pelanggan</span>
@@ -402,6 +416,21 @@
                                 <input type="date" name="end_date" class="form-control" value="{{ $endDate }}" required>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Outlet</label>
+                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="Semua Outlet" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
+                            @if(!($isCashierOnly ?? false))
+                                <option value="">Semua Outlet</option>
+                            @endif
+                            @foreach($outlets as $outlet)
+                                <option value="{{ $outlet->nid }}" {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'selected' : '' }}>{{ $outlet->cname }}</option>
+                            @endforeach
+                        </select>
+                        @if($isCashierOnly ?? false)
+                            <input type="hidden" name="outlet_id" value="{{ $outletId }}">
+                        @endif
                     </div>
 
                     <div class="mb-3">

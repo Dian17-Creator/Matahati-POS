@@ -19,14 +19,19 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
             <form action="{{ route('customers.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter">
+                <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter" {{ ($isCashierOnly ?? false) ? 'disabled' : '' }}>
+                    @if(!($isCashierOnly ?? false))
                     <option value="">Semua Outlet</option>
+                    @endif
                     @foreach($outlets as $outlet)
-                    <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
+                    <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? request('nid_outlet')) === (string)$outlet->nid ? 'selected' : '' }}>
                         {{ $outlet->cname }}
                     </option>
                     @endforeach
                 </select>
+                @if($isCashierOnly ?? false)
+                    <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                @endif
                 <select name="nid_type" class="form-select form-select-sm" style="max-width: 150px;" id="typeFilter">
                     <option value="">Semua Tipe</option>
                     @foreach($customerTypes as $type)
@@ -372,7 +377,7 @@
                                     @foreach($outlets as $outlet)
                                     <li>
                                         <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (old('modal_id') == 'create' ? (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids'))) : false) ? 'checked' : '' }}>
+                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ (old('modal_id') == 'create' ? (is_array(old('outlet_ids')) && in_array($outlet->nid, old('outlet_ids'))) : (!empty($selectedOutletId) && (string)$selectedOutletId === (string)$outlet->nid)) ? 'checked' : '' }}>
                                             <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
                                                 {{ $outlet->cname }}
                                             </label>
@@ -492,9 +497,11 @@
                     <div class="mb-3">
                         <label for="import_outlet_id" class="form-label">Pilih Outlet</label>
                         <select class="form-select @error('outlet_id') is-invalid @enderror" id="import_outlet_id" name="outlet_id" required>
+                            @if(!($isCashierOnly ?? false))
                             <option value="">-- Pilih Outlet --</option>
+                            @endif
                             @foreach($outlets as $outlet)
-                                <option value="{{ $outlet->nid }}">{{ $outlet->cname }}</option>
+                                <option value="{{ $outlet->nid }}" {{ ((string)($selectedOutletId ?? '') === (string)$outlet->nid || count($outlets) == 1) ? 'selected' : '' }}>{{ $outlet->cname }}</option>
                             @endforeach
                         </select>
                         @error('outlet_id')
