@@ -39,11 +39,29 @@
     </div>
 </div>
 
-<h5 class="mb-3 text-secondary fw-semibold">Ringkasan Sistem</h5>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h5 class="mb-0 text-secondary fw-semibold">Ringkasan Sistem</h5>
+    <form action="{{ route('dashboard') }}" method="GET" class="d-flex align-items-center gap-2" id="filterForm">
+        <label for="outletFilter" class="form-label mb-0 text-muted small fw-semibold">Outlet:</label>
+        <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 170px;" id="outletFilter" onchange="this.form.submit()" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+            @if($isSuperAdmin ?? false)
+            <option value="">Semua Outlet</option>
+            @endif
+            @foreach($outlets as $outlet)
+                <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? request('nid_outlet')) === (string)$outlet->nid ? 'selected' : '' }}>
+                    {{ $outlet->cname }}
+                </option>
+            @endforeach
+        </select>
+        @if($isOutletLocked ?? $isCashierOnly ?? false)
+            <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+        @endif
+    </form>
+</div>
 <div class="row g-4">
     <!-- Card Kategori -->
     <div class="col-md-3">
-        <a href="{{ route('categories.index') }}" class="text-decoration-none">
+        <a href="{{ route('categories.index', !empty($selectedOutletId) ? ['nid_outlet' => $selectedOutletId] : []) }}" class="text-decoration-none">
             <div class="card shadow-sm border h-100 hover-lift" style="border-color: #b63352 !important;">
                 <div class="card-body p-4 d-flex flex-column justify-content-between">
                     <div class="d-flex align-items-center mb-3">
@@ -65,7 +83,7 @@
 
     <!-- Card Produk -->
     <div class="col-md-3">
-        <a href="{{ route('products.index') }}" class="text-decoration-none">
+        <a href="{{ route('products.index', !empty($selectedOutletId) ? ['nid_outlet' => $selectedOutletId] : []) }}" class="text-decoration-none">
             <div class="card shadow-sm border h-100 hover-lift" style="border-color: #b63352 !important;">
                 <div class="card-body p-4 d-flex flex-column justify-content-between">
                     <div class="d-flex align-items-center mb-3">
@@ -88,7 +106,7 @@
 
     <!-- Card Pelanggan -->
     <div class="col-md-3">
-        <a href="{{ route('customers.index') }}" class="text-decoration-none">
+        <a href="{{ route('customers.index', !empty($selectedOutletId) ? ['nid_outlet' => $selectedOutletId] : []) }}" class="text-decoration-none">
             <div class="card shadow-sm border h-100 hover-lift" style="border-color: #b63352 !important;">
                 <div class="card-body p-4 d-flex flex-column justify-content-between">
                     <div class="d-flex align-items-center mb-3">
@@ -136,7 +154,7 @@
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-clock-history me-2"></i>Produk Terakhir Ditambahkan</h6>
-                <a href="{{ route('products.index') }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
+                <a href="{{ route('products.index', !empty($selectedOutletId) ? ['nid_outlet' => $selectedOutletId] : []) }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">

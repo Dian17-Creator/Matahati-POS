@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\MposGrpProduct;
 use App\Models\MposOutlet;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function apiIndex(Request $request)
     {
         $query = MposGrpProduct::query();
@@ -25,26 +28,44 @@ class CategoryController extends Controller
 
     public function index(Request $request)
     {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $isCashierOnly = !$this->isSuperAdminUser();
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isOutletLocked = $this->isOutletLocked();
+        $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+
         $query = MposGrpProduct::with('outlet');
 
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        $query->whereIn('nid', function($q) use ($request) {
+        $query->whereIn('nid', function($q) use ($selectedOutletId, $allowedOutletIds) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_grp_product')
               ->groupBy('cname');
               
-            if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-                $q->where('nid_outlet', $request->nid_outlet);
+            if (!empty($selectedOutletId)) {
+                $q->where('nid_outlet', $selectedOutletId);
+            } elseif (!$this->isSuperAdminUser()) {
+                $q->whereIn('nid_outlet', $allowedOutletIds);
             }
         });
 
         $categories = $query->paginate(10)->withQueryString();
-        $outlets = MposOutlet::orderBy('cname')->get();
 
-        return view('categories.index', compact('categories', 'outlets'));
+        return view('categories.index', compact(
+            'categories',
+            'outlets',
+            'selectedOutletId',
+            'isCashierOnly',
+            'isSuperAdmin',
+            'isOutletLocked',
+            'allowedOutletIds'
+        ));
     }
 
     public function create()
