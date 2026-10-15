@@ -7,15 +7,20 @@
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Kategori</h5>
-            <form action="{{ route('categories.index') }}" method="GET" class="d-flex">
-                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
+            <form action="{{ route('categories.index') }}" method="GET" class="d-flex" id="filterForm">
+                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
+                    @if($isSuperAdmin ?? false)
                     <option value="">Semua Outlet</option>
+                    @endif
                     @foreach($outlets as $outlet)
-                    <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
+                    <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? request('nid_outlet')) === (string)$outlet->nid ? 'selected' : '' }}>
                         {{ $outlet->cname }}
                     </option>
                     @endforeach
                 </select>
+                @if($isOutletLocked ?? $isCashierOnly ?? false)
+                    <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                @endif
             </form>
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">

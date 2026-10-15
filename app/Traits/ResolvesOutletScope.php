@@ -112,12 +112,31 @@ trait ResolvesOutletScope
 
     /**
      * Resolve the default outlet ID for the currently logged-in user.
-     * Returns the first assigned outlet ID.
+     * Prioritizes:
+     * 1. The outlet explicitly assigned to the user in mpos_user.
+     * 2. The outlet matching the user's department in mpos_outlet.
+     * 3. The first allowed outlet ID.
      */
     public function resolveUserDefaultOutletId(): ?int
     {
+        // 1. Check mpos_user for explicitly assigned outlet
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser && !empty($mposUser->nid_outlet)) {
+            return (int) $mposUser->nid_outlet;
+        }
+
+        // 2. Fallback to mpos_outlet matching user's department
+        $user = $this->getAuthenticatedUser();
+        if ($user && !empty($user->niddept)) {
+            $deptOutletId = MposOutlet::where('nid_dept', $user->niddept)->value('nid');
+            if ($deptOutletId) {
+                return (int) $deptOutletId;
+            }
+        }
+
+        // 3. Fallback to first allowed outlet ID
         $allowed = $this->getUserAllowedOutletIds();
-        return !empty($allowed) ? $allowed[0] : null;
+        return !empty($allowed) ? (int) $allowed[0] : null;
     }
 
     /**

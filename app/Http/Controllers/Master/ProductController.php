@@ -137,11 +137,25 @@ class ProductController extends Controller
 
         $products = $query->paginate(10)->withQueryString();
 
-        $categories = MposGrpProduct::whereIn('nid', function($q) {
+        $categoriesQuery = MposGrpProduct::whereIn('nid', function($q) use ($selectedOutletId, $allowedOutletIds) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_grp_product')
               ->groupBy('cname');
-        })->orderBy('cname')->get();
+
+            if (!empty($selectedOutletId)) {
+                $q->where('nid_outlet', $selectedOutletId);
+            } elseif (!$this->isSuperAdminUser()) {
+                $q->whereIn('nid_outlet', $allowedOutletIds);
+            }
+        });
+
+        if (!empty($selectedOutletId)) {
+            $categoriesQuery->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $categoriesQuery->whereIn('nid_outlet', $allowedOutletIds);
+        }
+
+        $categories = $categoriesQuery->orderBy('cname')->get();
 
         $ingredients = MposIngredients::all();
 
