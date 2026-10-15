@@ -15,19 +15,53 @@
         }
 
         .sidebar {
-            min-height: 100vh;
             background-color: #b63352;
             color: white;
+            width: 250px;
+        }
+
+        /* Desktop Sticky & Scroll */
+        @media (min-width: 768px) {
+            .sidebar {
+                position: sticky;
+                top: 0;
+                height: 100vh;
+                overflow-y: auto;
+            }
+        }
+
+        /* Mobile Offcanvas Drawer from Side */
+        @media (max-width: 767.98px) {
+            .sidebar.offcanvas-md {
+                width: 270px;
+                max-width: 80vw;
+            }
+            .sidebar .offcanvas-body {
+                overflow-y: auto;
+                height: 100%;
+            }
+        }
+
+        .sidebar::-webkit-scrollbar,
+        .sidebar .offcanvas-body::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb,
+        .sidebar .offcanvas-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 4px;
         }
 
         .sidebar a {
-            color: rgba(255, 255, 255, 0.7);
+            color: rgba(255, 255, 255, 0.75);
             text-decoration: none;
-            padding: 10px 15px;
+            padding: 9px 14px;
             display: flex;
             align-items: flex-start;
-            border-radius: 4px;
-            margin-bottom: 5px;
+            border-radius: 6px;
+            margin-bottom: 3px;
+            font-size: 0.925rem;
             transition: all 0.2s ease-in-out;
         }
 
@@ -44,15 +78,16 @@
         .sidebar a:hover,
         .sidebar a.active {
             color: #fff;
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: rgba(255, 255, 255, 0.18);
         }
 
         .sidebar .nav-category {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            color: rgba(255, 255, 255, 0.5);
-            margin: 15px 15px 5px;
+            color: rgba(255, 255, 255, 0.55);
+            margin: 14px 14px 4px;
+            font-weight: 600;
         }
 
         .main-content {
@@ -135,12 +170,16 @@
 </head>
 
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-2 p-0 sidebar">
-                <div class="p-3">
-                    <h4 class="text-center text-white mb-4">MATAHATI POS</h4>
+    <div class="d-flex" style="min-height: 100vh;">
+        <!-- Sidebar -->
+        <div class="sidebar offcanvas-md offcanvas-start text-white flex-shrink-0" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel">
+            <div class="offcanvas-header d-md-none p-3 justify-content-between align-items-center" style="border-bottom: 1px solid rgba(255,255,255,0.15);">
+                <h5 class="offcanvas-title text-white fw-bold mb-0" id="sidebarMenuLabel">MATAHATI POS</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body p-0 flex-column">
+                <div class="p-3 w-100">
+                    <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
 
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
                         <i class="bi bi-house me-2"></i>
@@ -207,45 +246,50 @@
                     </a>
                 </div>
             </div>
+        </div>
 
-            <!-- Content Area -->
-            <div class="col-md-10 p-0">
-                <!-- Navbar -->
-                <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4">
-                    <div class="container-fluid">
-                        <span class="navbar-brand mb-0 h1">@yield('title')</span>
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="text-muted"><i class="bi bi-person-circle me-1"></i> {{ Auth::user()->cname ?? 'Sistem Admin' }}</span>
-                            <form action="{{ route('logout') }}" method="POST" class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
-                                    <i class="bi bi-box-arrow-right"></i> Logout
-                                </button>
-                            </form>
-                        </div>
+        <!-- Content Area -->
+        <div class="flex-grow-1 d-flex flex-column min-vh-100" style="min-width: 0;">
+            <!-- Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-3 px-md-4 py-2">
+                <div class="container-fluid p-0">
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-danger d-md-none me-2 px-2 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-label="Toggle navigation">
+                            <i class="bi bi-list fs-5"></i>
+                        </button>
+                        <span class="navbar-brand mb-0 h1 fs-5">@yield('title')</span>
                     </div>
-                </nav>
-
-                <div class="main-content">
-                    <!-- Alert Success -->
-                    @if (session('success'))
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        {{ session('success') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <div class="d-flex align-items-center gap-2 gap-md-3">
+                        <span class="text-muted small"><i class="bi bi-person-circle me-1"></i> {{ Auth::user()->cname ?? 'Sistem Admin' }}</span>
+                        <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-danger border-0">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </button>
+                        </form>
                     </div>
-                    @endif
-
-                    <!-- Alert Error -->
-                    @if (session('error'))
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        {{ session('error') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                    @endif
-
-                    <!-- Main Content -->
-                    @yield('content')
                 </div>
+            </nav>
+
+            <div class="main-content flex-grow-1">
+                <!-- Alert Success -->
+                @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+
+                <!-- Alert Error -->
+                @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
+
+                <!-- Main Content -->
+                @yield('content')
             </div>
         </div>
     </div>
