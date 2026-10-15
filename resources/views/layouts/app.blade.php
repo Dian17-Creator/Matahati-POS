@@ -14,9 +14,17 @@
             background-color: #f8f9fa;
         }
 
+        .sidebar,
+        .sidebar.offcanvas-md,
+        .sidebar.offcanvas,
+        .sidebar .offcanvas-header,
+        .sidebar .offcanvas-body {
+            background-color: #b63352 !important;
+            --bs-offcanvas-bg: #b63352 !important;
+            color: white !important;
+        }
+
         .sidebar {
-            background-color: #b63352;
-            color: white;
             width: 250px;
         }
 
@@ -172,12 +180,12 @@
 <body>
     <div class="d-flex" style="min-height: 100vh;">
         <!-- Sidebar -->
-        <div class="sidebar offcanvas-md offcanvas-start text-white flex-shrink-0" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel">
-            <div class="offcanvas-header d-md-none p-3 justify-content-between align-items-center" style="border-bottom: 1px solid rgba(255,255,255,0.15);">
+        <div class="sidebar offcanvas-md offcanvas-start text-white flex-shrink-0" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel" style="background-color: #b63352 !important; --bs-offcanvas-bg: #b63352 !important;">
+            <div class="offcanvas-header d-md-none p-3 justify-content-between align-items-center" style="background-color: #b63352 !important; border-bottom: 1px solid rgba(255,255,255,0.15);">
                 <h5 class="offcanvas-title text-white fw-bold mb-0" id="sidebarMenuLabel">MATAHATI POS</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
             </div>
-            <div class="offcanvas-body p-0 flex-column">
+            <div class="offcanvas-body p-0 flex-column" style="background-color: #b63352 !important;">
                 <div class="p-3 w-100">
                     <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
 
