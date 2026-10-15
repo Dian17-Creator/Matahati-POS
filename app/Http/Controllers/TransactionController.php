@@ -768,6 +768,39 @@ class TransactionController extends Controller
         }
     }
 
+    public function markFinished(string $id)
+    {
+        try {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+
+            if (! $transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan.',
+                ], 404);
+            }
+
+            $transaction->cstatus = MposSalesH::STATUS_COMPLETED;
+            $transaction->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil disajikan/selesai.',
+                'data' => $transaction,
+            ], 200);
+        } catch (\Throwable $e) {
+            Log::error('Gagal memperbarui status selesai transaksi: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui status transaksi.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
     public function voidItems(Request $request, string $id)
     {
         return $this->processItemAction($request, $id, 'VOID');

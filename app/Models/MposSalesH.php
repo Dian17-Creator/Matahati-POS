@@ -35,6 +35,8 @@ class MposSalesH extends Model
 
     public const STATUS_REFUND = 'REFUND';
 
+    public const STATUS_COMPLETED = 'COMPLETED';
+
     public const STATUSES = [
         self::STATUS_DRAFT,
         self::STATUS_PENDING,
@@ -42,6 +44,7 @@ class MposSalesH extends Model
         self::STATUS_CANCELLED,
         self::STATUS_VOID,
         self::STATUS_REFUND,
+        self::STATUS_COMPLETED,
     ];
 
     protected $table = 'mpos_sales_h';
