@@ -22,8 +22,20 @@ class PosDashboardController extends Controller
         $dateTo = $validated['date_to'];
         $nidOutlet = $validated['nid_outlet'] ?? null;
 
-        // 1. Base Query untuk transaksi yang PAID
-        $paidQuery = MposSalesH::where('cstatus', MposSalesH::STATUS_PAID)
+        // 1. Base Query untuk transaksi yang terjual / lunas
+        $paidQuery = MposSalesH::where(function ($q) {
+                $q->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('nid_payment');
+                });
+            })
             ->whereDate('dtransaction', '>=', $dateFrom)
             ->whereDate('dtransaction', '<=', $dateTo);
 
@@ -46,7 +58,19 @@ class PosDashboardController extends Controller
         // 3. Menghitung partial Void & Refund dari item pada transaksi PAID
         $itemDeductionsQuery = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID)
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            })
             ->whereDate('mpos_sales_h.dtransaction', '>=', $dateFrom)
             ->whereDate('mpos_sales_h.dtransaction', '<=', $dateTo);
 

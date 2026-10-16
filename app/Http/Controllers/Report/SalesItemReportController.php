@@ -115,7 +115,19 @@ class SalesItemReportController extends Controller
             ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
             ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
             ->leftJoin('mpos_outlet', 'mpos_sales_h.nid_outlet', '=', 'mpos_outlet.nid')
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID)
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            })
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
             ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
             ->whereRaw('(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0');
