@@ -53,12 +53,12 @@ class DashboardController extends Controller
         $activeOutletName = 'Semua Outlet';
         if (!empty($selectedOutletId)) {
             $matched = collect($outlets)->firstWhere('nid', $selectedOutletId);
+            if (!$matched) {
+                $matched = \App\Models\MposOutlet::find($selectedOutletId);
+            }
             $activeOutletName = $matched ? $matched->cname : ('Outlet #' . $selectedOutletId);
         } else {
-            $mposUser = auth()->check() ? MposUser::with('outlet')->where('nid_user', auth()->id())->first() : null;
-            if ($mposUser && $mposUser->outlet) {
-                $activeOutletName = $mposUser->outlet->cname;
-            }
+            $activeOutletName = 'Semua Outlet';
         }
 
         // 3. Date Label formatting (matching Olsera pill format)
