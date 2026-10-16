@@ -96,6 +96,24 @@ class Muser extends Authenticatable
         return $this->posUsers()->where('fowner', 1)->exists();
     }
 
+    public function spvOutlets()
+    {
+        return $this->hasMany(MposUserSpv::class, 'nid_user', 'nid');
+    }
+
+    public function isSpv()
+    {
+        if ($this->posUser && (bool) $this->posUser->fspv) {
+            return true;
+        }
+
+        if ($this->spvOutlets()->exists()) {
+            return true;
+        }
+
+        return $this->posUsers()->where('fspv', 1)->exists();
+    }
+
     public function department()
     {
         return $this->belongsTo(Mdepartment::class, 'niddept', 'nid');

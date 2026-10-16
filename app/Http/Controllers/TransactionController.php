@@ -221,7 +221,7 @@ class TransactionController extends Controller
             ], 401);
         }
 
-        if (! $loggedInMposUser->fowner && ! $loggedInMposUser->fcashier && ! $loggedInMposUser->fcaptain) {
+        if (! $loggedInMposUser->fowner && ! $loggedInMposUser->fspv && ! $loggedInMposUser->fcashier && ! $loggedInMposUser->fcaptain) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengguna tidak memiliki hak akses kasir/POS.',
@@ -237,7 +237,7 @@ class TransactionController extends Controller
             $servedByMposUser = MposUser::where('nid', $requestedNidUser)->first();
 
             if ($servedByMposUser) {
-                if (! $servedByMposUser->fowner && ! $servedByMposUser->fcashier && ! $servedByMposUser->fcaptain) {
+                if (! $servedByMposUser->fowner && ! $servedByMposUser->fspv && ! $servedByMposUser->fcashier && ! $servedByMposUser->fcaptain) {
                     return response()->json([
                         'success' => false,
                         'message' => 'User "Dilayani Oleh" tidak memiliki hak akses kasir/POS.',

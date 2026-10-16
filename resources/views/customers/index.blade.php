@@ -20,7 +20,7 @@
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
             <form action="{{ route('customers.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
                 <select name="nid_outlet" class="form-select form-select-sm" style="max-width: 150px;" id="outletFilter" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if($isSuperAdmin ?? false)
+                    @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
                     <option value="">Semua Outlet</option>
                     @endif
                     @foreach($outlets as $outlet)

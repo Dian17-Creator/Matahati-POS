@@ -44,7 +44,7 @@
     <form action="{{ route('dashboard') }}" method="GET" class="d-flex align-items-center gap-2" id="filterForm">
         <label for="outletFilter" class="form-label mb-0 text-muted small fw-semibold">Outlet:</label>
         <select name="nid_outlet" class="form-select form-select-sm" style="min-width: 170px;" id="outletFilter" onchange="this.form.submit()" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-            @if($isSuperAdmin ?? false)
+            @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
             <option value="">Semua Outlet</option>
             @endif
             @foreach($outlets as $outlet)

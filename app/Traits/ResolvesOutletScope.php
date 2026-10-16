@@ -55,7 +55,34 @@ trait ResolvesOutletScope
     }
 
     /**
-     * Check if the authenticated user is a Super Admin or Owner.
+     * Check if the authenticated user is an SPV (Supervisor).
+     */
+    public function isSpvUser(): bool
+    {
+        $user = $this->getAuthenticatedUser();
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSpv') && $user->isSpv()) {
+            return true;
+        }
+
+        $userId = $user->nid ?? $user->id;
+        if (\App\Models\MposUserSpv::where('nid_user', $userId)->exists()) {
+            return true;
+        }
+
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser && (bool) $mposUser->fspv) {
+            return true;
+        }
+
+        return MposUser::where('nid_user', $userId)->where('fspv', 1)->exists();
+    }
+
+    /**
+     * Check if the authenticated user is a Super Admin, Admin, or Owner.
      */
     public function isSuperAdminUser(): bool
     {
@@ -67,6 +94,8 @@ trait ResolvesOutletScope
         return (bool) (
             (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) ||
             (!empty($user->fsuper) && (int)$user->fsuper === 1) ||
+            (method_exists($user, 'isAdmin') && $user->isAdmin()) ||
+            (!empty($user->fadmin) && (int)$user->fadmin === 1) ||
             $this->isOwnerUser()
         );
     }
@@ -74,6 +103,7 @@ trait ResolvesOutletScope
     /**
      * Determine all outlet IDs that the authenticated user is allowed to access.
      * Super Admin has access to all outlets.
+     * SPV has access to their assigned outlet(s) via mpos_user_spv and mpos_user.
      * Non-superadmins only have access to their assigned outlet(s) via mpos_user or department.
      *
      * @return int[]
@@ -91,7 +121,16 @@ trait ResolvesOutletScope
 
         $outletIds = [];
 
-        // 1. From mpos_user
+        // 1. From mpos_user_spv (for SPV multi-outlet assignments)
+        $spvOutlets = \App\Models\MposUserSpv::where('nid_user', $user->nid ?? $user->id)
+            ->pluck('nid_outlet')
+            ->filter()
+            ->toArray();
+        foreach ($spvOutlets as $id) {
+            $outletIds[] = (int) $id;
+        }
+
+        // 2. From mpos_user
         $posOutlets = MposUser::where('nid_user', $user->nid ?? $user->id)
             ->pluck('nid_outlet')
             ->filter()
@@ -100,7 +139,7 @@ trait ResolvesOutletScope
             $outletIds[] = (int) $id;
         }
 
-        // 2. From mpos_outlet where nid_dept matches user's department
+        // 3. From mpos_outlet where nid_dept matches user's department
         if (!empty($user->niddept)) {
             $deptOutlets = MposOutlet::where('nid_dept', $user->niddept)
                 ->pluck('nid')
@@ -119,7 +158,7 @@ trait ResolvesOutletScope
      */
     public function isOutletLocked(): bool
     {
-        if ($this->isSuperAdminUser()) {
+        if ($this->isSuperAdminUser() || $this->isSpvUser()) {
             return false;
         }
 
@@ -132,15 +171,20 @@ trait ResolvesOutletScope
      */
     public function isCashierOnlyUser(): bool
     {
-        return !$this->isSuperAdminUser();
+        if ($this->isSuperAdminUser() || $this->isSpvUser()) {
+            return false;
+        }
+
+        return count($this->getUserAllowedOutletIds()) <= 1;
     }
 
     /**
      * Resolve the default outlet ID for the currently logged-in user.
      * Prioritizes:
      * 1. The outlet explicitly assigned to the user in mpos_user.
-     * 2. The outlet matching the user's department in mpos_outlet.
-     * 3. The first allowed outlet ID.
+     * 2. The first outlet in mpos_user_spv.
+     * 3. The outlet matching the user's department in mpos_outlet.
+     * 4. The first allowed outlet ID.
      */
     public function resolveUserDefaultOutletId(): ?int
     {
@@ -150,8 +194,16 @@ trait ResolvesOutletScope
             return (int) $mposUser->nid_outlet;
         }
 
-        // 2. Fallback to mpos_outlet matching user's department
+        // 2. Check mpos_user_spv
         $user = $this->getAuthenticatedUser();
+        if ($user) {
+            $spvFirstOutlet = \App\Models\MposUserSpv::where('nid_user', $user->nid ?? $user->id)->value('nid_outlet');
+            if ($spvFirstOutlet) {
+                return (int) $spvFirstOutlet;
+            }
+        }
+
+        // 3. Fallback to mpos_outlet matching user's department
         if ($user && !empty($user->niddept)) {
             $deptOutletId = MposOutlet::where('nid_dept', $user->niddept)->value('nid');
             if ($deptOutletId) {
@@ -159,57 +211,23 @@ trait ResolvesOutletScope
             }
         }
 
-        // 3. Fallback to first allowed outlet ID
+        // 4. Fallback to first allowed outlet ID
         $allowed = $this->getUserAllowedOutletIds();
         return !empty($allowed) ? (int) $allowed[0] : null;
     }
 
     /**
      * Resolve the active outlet ID for a request:
-     * - If NOT Super Admin:
-     *     - Strictly enforce that the user can ONLY view an outlet within their allowed outlets.
-     *     - If user provided an outlet ID that they are allowed to see, return it.
-     *     - Otherwise (including trying to view "Semua Outlet" or an unauthorized outlet),
-     *       override and force to their default allowed outlet ID.
-     * - If Super Admin:
-     *     - If parameter exists:
-     *         - Non-empty value => specific outlet ID.
-     *         - Empty string ('') => null ("Semua Outlet").
-     *     - If parameter is omitted: default to their assigned outlet or null.
+     * - If parameter exists:
+     *     - Non-empty value => specific outlet ID (validated against allowed outlets for non-superadmin).
+     *     - Empty string ('') => null ("Semua Outlet").
+     * - If parameter is omitted: default to null ("Semua Outlet") so all allowed data is shown by default.
      */
     public function resolveOutletIdFromRequest(Request $request, string $paramName = 'nid_outlet'): ?int
     {
         $allowedIds = $this->getUserAllowedOutletIds();
-        $defaultOutletId = $this->resolveUserDefaultOutletId();
 
-        // Non-superadmin: strictly locked to allowed outlet(s)
-        if (!$this->isSuperAdminUser()) {
-            if (empty($allowedIds)) {
-                return null;
-            }
-
-            // Check if request provided an outlet parameter (check both nid_outlet and outlet_id)
-            $inputVal = null;
-            if ($request->has($paramName)) {
-                $inputVal = $request->input($paramName);
-            } elseif ($paramName === 'nid_outlet' && $request->has('outlet_id')) {
-                $inputVal = $request->input('outlet_id');
-            } elseif ($paramName === 'outlet_id' && $request->has('nid_outlet')) {
-                $inputVal = $request->input('nid_outlet');
-            }
-
-            if ($inputVal !== null && $inputVal !== '') {
-                $intVal = (int) $inputVal;
-                if (in_array($intVal, $allowedIds, true)) {
-                    return $intVal;
-                }
-            }
-
-            // Fallback: force default allowed outlet
-            return $defaultOutletId;
-        }
-
-        // Super Admin & Owner: full access to all outlets and "Semua Outlet"
+        // Check if request provided an outlet parameter (check both nid_outlet and outlet_id)
         $inputVal = null;
         if ($request->has($paramName)) {
             $inputVal = $request->input($paramName);
@@ -219,6 +237,25 @@ trait ResolvesOutletScope
             $inputVal = $request->input('nid_outlet');
         }
 
+        // Non-superadmin: strictly locked to allowed outlet(s)
+        if (!$this->isSuperAdminUser()) {
+            if (empty($allowedIds)) {
+                return null;
+            }
+
+            if ($inputVal !== null && $inputVal !== '') {
+                $intVal = (int) $inputVal;
+                if (in_array($intVal, $allowedIds, true)) {
+                    return $intVal;
+                }
+            }
+
+            // If empty string ("Semua Outlet") or omitted (default view): return null
+            // so queries filter across all user's allowed outlets (whereIn)
+            return null;
+        }
+
+        // Super Admin, Admin & Owner: full access to all outlets and "Semua Outlet"
         if ($inputVal !== null) {
             return ($inputVal !== '') ? (int) $inputVal : null;
         }

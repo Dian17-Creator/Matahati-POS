@@ -19,6 +19,7 @@ class MposUser extends Model
         'nid_user',
         'nid_outlet',
         'fowner',
+        'fspv',
         'fcashier',
         'fcaptain',
     ];
@@ -27,6 +28,7 @@ class MposUser extends Model
     {
         return [
             'fowner' => 'boolean',
+            'fspv' => 'boolean',
             'fcashier' => 'boolean',
             'fcaptain' => 'boolean',
         ];
@@ -38,6 +40,15 @@ class MposUser extends Model
             Muser::class,
             'nid_user',
             'nid'
+        );
+    }
+
+    public function spvOutlets()
+    {
+        return $this->hasMany(
+            MposUserSpv::class,
+            'nid_user',
+            'nid_user'
         );
     }
 

@@ -9,7 +9,7 @@
             <h5 class="mb-0 me-3">Daftar Kategori</h5>
             <form action="{{ route('categories.index') }}" method="GET" class="d-flex" id="filterForm">
                 <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if($isSuperAdmin ?? false)
+                    @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
                     <option value="">Semua Outlet</option>
                     @endif
                     @foreach($outlets as $outlet)
