@@ -19,10 +19,13 @@ class AuthController extends Controller
         if (Auth::attempt(['cemail' => $request->cemail, 'password' => $request->cpassword])) {
             $user = Auth::user();
 
-            // Check mpos_user
+            // Check mpos_user or mpos_user_spv
             $mposUser = MposUser::where('nid_user', $user->nid)->first();
+            $hasSpvAccess = \App\Models\MposUserSpv::where('nid_user', $user->nid)->exists();
 
-            if ($mposUser && ($mposUser->fowner || $mposUser->fcashier || $mposUser->fcaptain)) {
+            if (($mposUser && ($mposUser->fowner || $mposUser->fspv || $mposUser->fcashier || $mposUser->fcaptain)) || $hasSpvAccess) {
+                $isSpv = ($mposUser && $mposUser->fspv) || $hasSpvAccess;
+
                 // Return login success without needing personal_access_tokens table
                 return response()->json([
                     'success' => true,
@@ -33,11 +36,12 @@ class AuthController extends Controller
                             'id' => $user->nid,
                             'name' => $user->cname,
                             'email' => $user->cemail,
-                            'nid_outlet' => $mposUser->nid_outlet,
+                            'nid_outlet' => $mposUser->nid_outlet ?? \App\Models\MposUserSpv::where('nid_user', $user->nid)->value('nid_outlet'),
                             'outlet_name' => $mposUser->outlet->cname ?? null,
-                            'role_owner' => $mposUser->fowner,
-                            'role_cashier' => $mposUser->fcashier,
-                            'role_captain' => $mposUser->fcaptain ?? $mposUser->fcashier,
+                            'role_owner' => (bool) ($mposUser->fowner ?? false),
+                            'role_spv' => (bool) $isSpv,
+                            'role_cashier' => (bool) ($mposUser->fcashier ?? false),
+                            'role_captain' => (bool) ($mposUser->fcaptain ?? false),
                         ]
                     ]
                 ], 200);
@@ -48,7 +52,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Anda tidak memiliki hak akses ke POS (Hanya Owner, Cashier, atau Captain).',
+                'message' => 'Anda tidak memiliki hak akses ke POS (Hanya Owner, SPV, Cashier, atau Captain).',
             ], 403);
         }
 

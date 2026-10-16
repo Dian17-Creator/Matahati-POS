@@ -96,7 +96,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
-        $isCashierOnly = !$this->isSuperAdminUser();
+        $isCashierOnly = $this->isCashierOnlyUser();
         $isSuperAdmin = $this->isSuperAdminUser();
         $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();

@@ -39,7 +39,7 @@ class SalesItemReportController extends Controller
         $productId = $request->input('product_id', '');
         $search = trim($request->input('search', ''));
 
-        $isCashierOnly = !$this->isSuperAdminUser();
+        $isCashierOnly = $this->isCashierOnlyUser();
         $isSuperAdmin = $this->isSuperAdminUser();
         $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();

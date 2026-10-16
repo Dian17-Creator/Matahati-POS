@@ -420,15 +420,13 @@
 
                     <div class="mb-3">
                         <label class="form-label">Outlet</label>
-                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="{{ ($isSuperAdmin ?? false) ? 'Semua Outlet' : 'Pilih Outlet' }}" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                            @if($isSuperAdmin ?? false)
-                                <option value="">Semua Outlet</option>
-                            @endif
+                        <select name="outlet_id" id="outlet_id" class="form-select tom-select-filter" placeholder="Semua Outlet" {{ ($isOutletLocked ?? false) ? 'disabled' : '' }}>
+                            <option value="" {{ empty($outletId) ? 'selected' : '' }}>Semua Outlet</option>
                             @foreach($outlets as $outlet)
                                 <option value="{{ $outlet->nid }}" {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'selected' : '' }}>{{ $outlet->cname }}</option>
                             @endforeach
                         </select>
-                        @if($isOutletLocked ?? $isCashierOnly ?? false)
+                        @if($isOutletLocked ?? false)
                             <input type="hidden" name="outlet_id" value="{{ $outletId }}">
                         @endif
                     </div>

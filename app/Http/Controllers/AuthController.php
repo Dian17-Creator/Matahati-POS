@@ -23,10 +23,11 @@ class AuthController extends Controller
         if (Auth::attempt(['cemail' => $request->cemail, 'password' => $request->cpassword])) {
             $user = Auth::user();
             
-            // Check mpos_user
+            // Check mpos_user or mpos_user_spv
             $mposUser = MposUser::where('nid_user', $user->nid)->first();
+            $hasSpvAccess = \App\Models\MposUserSpv::where('nid_user', $user->nid)->exists();
 
-            if ($mposUser && ($mposUser->fowner || $mposUser->fcashier || $mposUser->fcaptain)) {
+            if (($mposUser && ($mposUser->fowner || $mposUser->fspv || $mposUser->fcashier || $mposUser->fcaptain)) || $hasSpvAccess) {
                 $request->session()->regenerate();
                 return redirect()->intended('dashboard');
             }
@@ -37,7 +38,7 @@ class AuthController extends Controller
             $request->session()->regenerateToken();
 
             return back()->withErrors([
-                'cemail' => 'Anda tidak memiliki hak akses ke POS (Hanya Owner, Cashier, atau Captain).',
+                'cemail' => 'Anda tidak memiliki hak akses ke POS (Hanya Owner, SPV, Cashier, atau Captain).',
             ]);
         }
 

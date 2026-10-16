@@ -30,7 +30,7 @@ class SalesDetailReportController extends Controller
         
         $status = $request->input('status', '');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        $isCashierOnly = !$this->isSuperAdminUser();
+        $isCashierOnly = $this->isCashierOnlyUser();
         $isSuperAdmin = $this->isSuperAdminUser();
         $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();

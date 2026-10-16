@@ -36,7 +36,7 @@
             <h5 class="mb-0 me-3">Daftar Produk</h5>
             <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
                 <select name="nid_outlet" class="form-select form-select-sm" style="width: 160px;" id="outletFilter" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if($isSuperAdmin ?? false)
+                    @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
                     <option value="">Semua Outlet</option>
                     @endif
                     @foreach($outlets as $outlet)
