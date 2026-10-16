@@ -82,12 +82,46 @@ trait ResolvesOutletScope
     }
 
     /**
+     * Check if the authenticated user is a Captain (fcaptain = 1 in mpos_user).
+     */
+    public function isCaptainUser(): bool
+    {
+        $mposUser = $this->getAuthenticatedMposUser();
+        return (bool) ($mposUser && (int) $mposUser->fcaptain === 1);
+    }
+
+    /**
+     * Check if the authenticated user is a Cashier (fcashier = 1 in mpos_user).
+     */
+    public function isCashierUser(): bool
+    {
+        $mposUser = $this->getAuthenticatedMposUser();
+        return (bool) ($mposUser && (int) $mposUser->fcashier === 1);
+    }
+
+    /**
      * Check if the authenticated user is a Super Admin, Admin, or Owner.
      */
     public function isSuperAdminUser(): bool
     {
         $user = $this->getAuthenticatedUser();
         if (!$user) {
+            return false;
+        }
+
+        // If user is explicitly defined as Captain, Cashier, or SPV in POS,
+        // they are NOT Super Admin in POS, even if muser.fadmin or muser.fsuper is set in absensi.
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser) {
+            if ((int) $mposUser->fowner === 1) {
+                return true;
+            }
+            if ((int) $mposUser->fcaptain === 1 || (int) $mposUser->fcashier === 1 || (int) $mposUser->fspv === 1) {
+                return false;
+            }
+        }
+
+        if ($this->isSpvUser()) {
             return false;
         }
 
@@ -104,6 +138,7 @@ trait ResolvesOutletScope
      * Determine all outlet IDs that the authenticated user is allowed to access.
      * Super Admin has access to all outlets.
      * SPV has access to their assigned outlet(s) via mpos_user_spv and mpos_user.
+     * Captain & Cashier are strictly locked to their single assigned outlet in mpos_user.
      * Non-superadmins only have access to their assigned outlet(s) via mpos_user or department.
      *
      * @return int[]
@@ -119,9 +154,16 @@ trait ResolvesOutletScope
             return [];
         }
 
+        $mposUser = $this->getAuthenticatedMposUser();
+
+        // 1. If user is Captain or Cashier (strictly assigned to 1 outlet in mpos_user)
+        if ($mposUser && !$mposUser->fowner && !$mposUser->fspv && ($mposUser->fcaptain || $mposUser->fcashier)) {
+            return !empty($mposUser->nid_outlet) ? [(int) $mposUser->nid_outlet] : [];
+        }
+
         $outletIds = [];
 
-        // 1. From mpos_user_spv (for SPV multi-outlet assignments)
+        // 2. From mpos_user_spv (for SPV multi-outlet assignments)
         $spvOutlets = \App\Models\MposUserSpv::where('nid_user', $user->nid ?? $user->id)
             ->pluck('nid_outlet')
             ->filter()
@@ -130,7 +172,7 @@ trait ResolvesOutletScope
             $outletIds[] = (int) $id;
         }
 
-        // 2. From mpos_user
+        // 3. From mpos_user
         $posOutlets = MposUser::where('nid_user', $user->nid ?? $user->id)
             ->pluck('nid_outlet')
             ->filter()
@@ -139,8 +181,8 @@ trait ResolvesOutletScope
             $outletIds[] = (int) $id;
         }
 
-        // 3. From mpos_outlet where nid_dept matches user's department
-        if (!empty($user->niddept)) {
+        // 4. From mpos_outlet where nid_dept matches user's department ONLY if no explicit POS assignment
+        if (empty($outletIds) && !empty($user->niddept)) {
             $deptOutlets = MposOutlet::where('nid_dept', $user->niddept)
                 ->pluck('nid')
                 ->filter()
@@ -158,7 +200,16 @@ trait ResolvesOutletScope
      */
     public function isOutletLocked(): bool
     {
-        if ($this->isSuperAdminUser() || $this->isSpvUser()) {
+        if ($this->isSuperAdminUser()) {
+            return false;
+        }
+
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser && ((int) $mposUser->fcaptain === 1 || (int) $mposUser->fcashier === 1)) {
+            return true;
+        }
+
+        if ($this->isSpvUser()) {
             return false;
         }
 
@@ -171,7 +222,16 @@ trait ResolvesOutletScope
      */
     public function isCashierOnlyUser(): bool
     {
-        if ($this->isSuperAdminUser() || $this->isSpvUser()) {
+        if ($this->isSuperAdminUser()) {
+            return false;
+        }
+
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser && ((int) $mposUser->fcaptain === 1 || (int) $mposUser->fcashier === 1)) {
+            return true;
+        }
+
+        if ($this->isSpvUser()) {
             return false;
         }
 
@@ -222,6 +282,7 @@ trait ResolvesOutletScope
      *     - Non-empty value => specific outlet ID (validated against allowed outlets for non-superadmin).
      *     - Empty string ('') => null ("Semua Outlet").
      * - If parameter is omitted: default to null ("Semua Outlet") so all allowed data is shown by default.
+     *   *NOTE*: For single-outlet locked users (e.g., Captain / Cashier), always return their assigned outlet ID!
      */
     public function resolveOutletIdFromRequest(Request $request, string $paramName = 'nid_outlet'): ?int
     {
@@ -243,6 +304,12 @@ trait ResolvesOutletScope
                 return null;
             }
 
+            // If user only has access to exactly 1 outlet (e.g. Captain, Cashier, single outlet user),
+            // ALWAYS lock them to that outlet! Never return null ("Semua Outlet").
+            if (count($allowedIds) === 1) {
+                return (int) $allowedIds[0];
+            }
+
             if ($inputVal !== null && $inputVal !== '') {
                 $intVal = (int) $inputVal;
                 if (in_array($intVal, $allowedIds, true)) {
@@ -250,8 +317,8 @@ trait ResolvesOutletScope
                 }
             }
 
-            // If empty string ("Semua Outlet") or omitted (default view): return null
-            // so queries filter across all user's allowed outlets (whereIn)
+            // If empty string ("Semua Outlet") or omitted (default view) for multi-outlet users (like SPV):
+            // return null so queries filter across all user's allowed outlets (whereIn)
             return null;
         }
 

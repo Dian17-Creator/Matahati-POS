@@ -224,7 +224,7 @@ class SalesDetailReportController extends Controller
         $mposUser = null;
         if ($user) {
             $mposUser = MposUser::where('nid_user', $user->id ?? $user->nid)->first();
-            if ($mposUser && !$mposUser->fowner && !$mposUser->fcaptain && $mposUser->fcashier) {
+            if ($mposUser && !$mposUser->fowner && !$mposUser->fspv && ($mposUser->fcashier || $mposUser->fcaptain)) {
                 if ((int)$request->outlet_id !== (int)$mposUser->nid_outlet) {
                     return redirect()->back()->with('error', 'Anda hanya memiliki hak akses untuk mengimpor transaksi ke outlet Anda sendiri.');
                 }
