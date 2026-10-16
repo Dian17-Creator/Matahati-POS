@@ -82,6 +82,20 @@ class Muser extends Authenticatable
         return $this->hasOne(MposUser::class, 'nid_user', 'nid');
     }
 
+    public function posUsers()
+    {
+        return $this->hasMany(MposUser::class, 'nid_user', 'nid');
+    }
+
+    public function isOwner()
+    {
+        if ($this->posUser && (bool) $this->posUser->fowner) {
+            return true;
+        }
+
+        return $this->posUsers()->where('fowner', 1)->exists();
+    }
+
     public function department()
     {
         return $this->belongsTo(Mdepartment::class, 'niddept', 'nid');

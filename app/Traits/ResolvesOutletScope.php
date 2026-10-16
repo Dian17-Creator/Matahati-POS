@@ -31,7 +31,31 @@ trait ResolvesOutletScope
     }
 
     /**
-     * Check if the authenticated user is a Super Admin.
+     * Check if the authenticated user is an Owner (fowner = 1 in mpos_user).
+     */
+    public function isOwnerUser(): bool
+    {
+        $user = $this->getAuthenticatedUser();
+        if (!$user) {
+            return false;
+        }
+
+        if (method_exists($user, 'isOwner') && $user->isOwner()) {
+            return true;
+        }
+
+        $mposUser = $this->getAuthenticatedMposUser();
+        if ($mposUser && (int) $mposUser->fowner === 1) {
+            return true;
+        }
+
+        return MposUser::where('nid_user', $user->nid ?? $user->id)
+            ->where('fowner', 1)
+            ->exists();
+    }
+
+    /**
+     * Check if the authenticated user is a Super Admin or Owner.
      */
     public function isSuperAdminUser(): bool
     {
@@ -42,7 +66,8 @@ trait ResolvesOutletScope
 
         return (bool) (
             (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) ||
-            (!empty($user->fsuper) && (int)$user->fsuper === 1)
+            (!empty($user->fsuper) && (int)$user->fsuper === 1) ||
+            $this->isOwnerUser()
         );
     }
 
@@ -184,7 +209,7 @@ trait ResolvesOutletScope
             return $defaultOutletId;
         }
 
-        // Super Admin
+        // Super Admin & Owner: full access to all outlets and "Semua Outlet"
         $inputVal = null;
         if ($request->has($paramName)) {
             $inputVal = $request->input($paramName);
@@ -198,7 +223,8 @@ trait ResolvesOutletScope
             return ($inputVal !== '') ? (int) $inputVal : null;
         }
 
-        return $defaultOutletId;
+        // When no outlet parameter is specified, default to null ("Semua Outlet") so all data is shown
+        return null;
     }
 
     /**
