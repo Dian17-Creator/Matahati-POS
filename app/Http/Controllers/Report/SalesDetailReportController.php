@@ -136,7 +136,19 @@ class SalesDetailReportController extends Controller
         $summaryQuery = DB::table('mpos_sales_h')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
             ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID);
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            });
 
         if (!empty($outletId)) {
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);

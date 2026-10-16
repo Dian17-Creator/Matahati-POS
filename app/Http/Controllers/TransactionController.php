@@ -391,12 +391,35 @@ class TransactionController extends Controller
             $npaid = (float) ($validated['npaid'] ?? 0);
             $reqStatus = $validated['cstatus'] ?? null;
 
+            // Cek apakah metode pembayaran adalah non-tunai (seperti QRIS, Transfer, Debit, dll.)
+            $isNonCash = false;
+            if (!empty($validated['nid_payment'])) {
+                $payment = \App\Models\MposPayment::find($validated['nid_payment']);
+                if ($payment) {
+                    $pName = strtoupper(trim($payment->cname));
+                    $isNonCash = !in_array($pName, ['CASH', 'TUNAI', 'UANG TUNAI']);
+                }
+            }
+
             if ($reqStatus === MposSalesH::STATUS_CANCELLED) {
                 $nchange = 0;
                 $status = MposSalesH::STATUS_CANCELLED;
             } elseif ($reqStatus === MposSalesH::STATUS_DRAFT) {
                 $nchange = 0;
                 $status = MposSalesH::STATUS_DRAFT;
+            } elseif ($reqStatus === MposSalesH::STATUS_PAID || $reqStatus === MposSalesH::STATUS_COMPLETED) {
+                $status = $reqStatus;
+                if ($npaid < $ngrandtotal) {
+                    $npaid = $ngrandtotal;
+                }
+                $nchange = max(0, $npaid - $ngrandtotal);
+            } elseif ($isNonCash) {
+                // Untuk transaksi non-tunai (QRIS dll.), pembayaran adalah pas/lunas langsung
+                if ($npaid < $ngrandtotal) {
+                    $npaid = $ngrandtotal;
+                }
+                $nchange = 0;
+                $status = MposSalesH::STATUS_PAID;
             } else {
                 if ($npaid >= $ngrandtotal) {
                     $nchange = $npaid - $ngrandtotal;

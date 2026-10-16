@@ -42,8 +42,19 @@ class PosReportController extends Controller
         $query = DB::table('mpos_sales_d as sd')
             ->join('mpos_sales_h as sh', 'sd.nid_transaction', '=', 'sh.nid')
             ->leftJoin('mpos_product as p', 'sd.nid_product', '=', 'p.nid')
-            ->leftJoin('mpos_grp_product as gp', 'p.nid_category', '=', 'gp.nid')
-            ->where('sh.cstatus', MposSalesH::STATUS_PAID) // Only successful/paid transactions
+            ->where(function ($q) {
+                $q->whereIn('sh.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('sh.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('sh.nid_payment');
+                });
+            })
             ->whereDate('sh.dtransaction', '>=', $dateFrom)
             ->whereDate('sh.dtransaction', '<=', $dateTo);
 

@@ -319,8 +319,19 @@ class CustomerProductReportController extends Controller
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
             ->join('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
             ->join('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
-            ->leftJoin('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID)
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            })
             // ensure valid items
             ->whereRaw('(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0')
             ->whereDate('mpos_sales_h.dtransaction', '>=', $startDate)
