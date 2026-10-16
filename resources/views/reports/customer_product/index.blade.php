@@ -54,6 +54,12 @@
         margin-bottom: 8px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.02);
         transition: all 0.2s ease;
+        cursor: pointer;
+        user-select: none;
+    }
+    .filter-chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(14, 165, 233, 0.25);
     }
     .filter-chip i {
         margin-right: 6px;
@@ -63,6 +69,11 @@
         color: white;
         border: 1px solid #0ea5e9;
     }
+    .filter-chip-active:hover {
+        background-color: #0284c7;
+        border-color: #0284c7;
+        color: white;
+    }
     .filter-chip-active i {
         color: white;
     }
@@ -71,16 +82,50 @@
         color: #0ea5e9;
         border: 1px solid #0ea5e9;
     }
+    .filter-chip-inactive:hover {
+        background-color: #f0f9ff;
+        color: #0284c7;
+    }
     .filter-chip-inactive i {
         color: #0ea5e9;
     }
     .filter-chip-date {
         background: #f1f5f9;
         color: #334155;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #cbd5e1;
+    }
+    .filter-chip-date:hover {
+        background: #e2e8f0;
     }
     .filter-chip-date i {
         color: #b63352;
+    }
+    .filter-chip.dropdown-toggle::after {
+        display: none !important;
+    }
+    .filter-dropdown-menu {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        font-size: 0.85rem;
+        z-index: 1050;
+    }
+    .filter-dropdown-menu .dropdown-item {
+        padding: 7px 14px;
+        font-weight: 500;
+        color: #334155;
+        display: flex;
+        align-items: center;
+        transition: background 0.15s ease;
+    }
+    .filter-dropdown-menu .dropdown-item:hover, .filter-dropdown-menu .dropdown-item:focus {
+        background-color: #f1f5f9;
+        color: #0ea5e9;
+    }
+    .filter-dropdown-menu .dropdown-item.active, .filter-dropdown-menu .dropdown-item:active {
+        background-color: #e0f2fe;
+        color: #0284c7;
+        font-weight: 600;
     }
     
     /* Modernizing the Card / Table */
@@ -233,37 +278,177 @@
         <!-- Active Filters -->
         <div class="px-4 py-3 bg-light d-print-none order-1" style="border-bottom: 2px solid #f1f5f9;">
             <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">Filter Aktif:</span>
-            <span class="filter-chip filter-chip-date"><i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</span>
-        
-            @if(!empty($outletId))
+
+            <!-- Dropdown Periode Tanggal -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip filter-chip-date dropdown-toggle border-0" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Ubah Periode Tanggal">
+                    <i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-2" style="min-width: 260px;">
+                    <div class="px-2 py-1 text-muted small fw-semibold">Pilih Cepat</div>
+                    @php
+                        $today = \Carbon\Carbon::today()->format('Y-m-d');
+                        $thisMonthStart = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
+                        $thisMonthEnd = \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d');
+                        $lastMonthStart = \Carbon\Carbon::now()->subMonth()->startOfMonth()->format('Y-m-d');
+                        $lastMonthEnd = \Carbon\Carbon::now()->subMonth()->endOfMonth()->format('Y-m-d');
+                    @endphp
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['start_date' => $today, 'end_date' => $today])) }}">
+                        <i class="bi bi-calendar-event me-2 text-muted"></i> Hari Ini
+                    </a>
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['start_date' => $thisMonthStart, 'end_date' => $thisMonthEnd])) }}">
+                        <i class="bi bi-calendar-month me-2 text-muted"></i> Bulan Ini
+                    </a>
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['start_date' => $lastMonthStart, 'end_date' => $lastMonthEnd])) }}">
+                        <i class="bi bi-calendar-range me-2 text-muted"></i> Bulan Lalu
+                    </a>
+                    <hr class="dropdown-divider my-2">
+                    <form action="{{ route('reports.customer-product') }}" method="GET" class="px-1">
+                        @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
+                        @if(!empty($customerId)) <input type="hidden" name="customer_id" value="{{ $customerId }}"> @endif
+                        @if(!empty($categoryId))
+                            @if(is_array($categoryId))
+                                @foreach($categoryId as $catVal) <input type="hidden" name="category_id[]" value="{{ $catVal }}"> @endforeach
+                            @else
+                                <input type="hidden" name="category_id[]" value="{{ $categoryId }}">
+                            @endif
+                        @endif
+                        @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
+                        @if(!empty($sortCol)) <input type="hidden" name="sort_col" value="{{ $sortCol }}"> <input type="hidden" name="sort_dir" value="{{ $sortDir }}"> @endif
+
+                        <div class="mb-2">
+                            <label class="form-label small text-muted mb-1">Dari</label>
+                            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ $startDate }}" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-muted mb-1">Sampai</label>
+                            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ $endDate }}" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 py-1">Terapkan Tanggal</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Dropdown Outlet -->
+            <div class="dropdown d-inline-block">
                 @php
-                    $outletNameDisplay = collect($outlets)->firstWhere('nid', $outletId)?->cname ?? 'Outlet #' . $outletId;
+                    $outletNameDisplay = !empty($outletId) ? (collect($outlets)->firstWhere('nid', $outletId)?->cname ?? 'Outlet #' . $outletId) : 'Semua Outlet';
                 @endphp
-                <span class="filter-chip filter-chip-active"><i class="bi bi-shop"></i> {{ $outletNameDisplay }}</span>
-            @else
-                <span class="filter-chip filter-chip-inactive"><i class="bi bi-shop"></i> Semua Outlet</span>
-            @endif
+                <button type="button" class="filter-chip {{ !empty($outletId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Outlet" {{ ($isOutletLocked ?? false) ? 'disabled' : '' }}>
+                    <i class="bi bi-shop"></i> {{ $outletNameDisplay }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 220px; max-height: 280px; overflow-y: auto;">
+                    <a class="dropdown-item {{ empty($outletId) ? 'active' : '' }}" href="{{ route('reports.customer-product', request()->except(['outlet_id', 'page'])) }}">
+                        Semua Outlet
+                        @if(empty($outletId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                    </a>
+                    @foreach($outlets as $outlet)
+                        <a class="dropdown-item {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'active' : '' }}" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['outlet_id' => $outlet->nid])) }}">
+                            {{ $outlet->cname }}
+                            @if((string)($outletId ?? '') === (string)$outlet->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                    @endforeach
+                </div>
+            </div>
 
-            @if($customerId)
-            <span class="filter-chip filter-chip-active"><i class="bi bi-person"></i> {{ $customerId }}</span>
-        @else
-            <span class="filter-chip filter-chip-inactive"><i class="bi bi-person"></i> Semua Pelanggan</span>
-        @endif
+            <!-- Dropdown Pelanggan -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip {{ $customerId ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Pelanggan">
+                    <i class="bi bi-person"></i> {{ $customerId ? $customerId : 'Semua Pelanggan' }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 240px;">
+                    <div class="p-2 border-bottom">
+                        <input type="text" class="form-control form-control-sm quick-dropdown-search" placeholder="Cari pelanggan...">
+                    </div>
+                    <div class="py-1" style="max-height: 250px; overflow-y: auto;">
+                        <a class="dropdown-item filter-list-item {{ empty($customerId) ? 'active' : '' }}" href="{{ route('reports.customer-product', request()->except(['customer_id', 'page'])) }}">
+                            Semua Pelanggan
+                            @if(empty($customerId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                        @foreach($customers as $c)
+                            <a class="dropdown-item filter-list-item {{ $customerId == $c->cname ? 'active' : '' }}" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['customer_id' => $c->cname])) }}">
+                                <span>{{ $c->cname }}</span>
+                                @if($customerId == $c->cname) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
 
-        @if(!empty($categoryId))
-            @php 
-                $catDisplay = is_array($categoryId) ? implode(', ', $categoryId) : $categoryId; 
-            @endphp
-            <span class="filter-chip filter-chip-active"><i class="bi bi-tags"></i> {{ $catDisplay }}</span>
-        @else
-            <span class="filter-chip filter-chip-inactive"><i class="bi bi-tags"></i> Semua Kategori</span>
-        @endif
+            <!-- Dropdown Kategori (Multi Checkbox) -->
+            <div class="dropdown d-inline-block">
+                @php 
+                    $catDisplay = !empty($categoryId) ? (is_array($categoryId) ? implode(', ', $categoryId) : $categoryId) : 'Semua Kategori'; 
+                @endphp
+                <button type="button" class="filter-chip {{ !empty($categoryId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Kategori">
+                    <i class="bi bi-tags"></i> {{ $catDisplay }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 270px;">
+                    <form action="{{ route('reports.customer-product') }}" method="GET">
+                        <input type="hidden" name="start_date" value="{{ $startDate }}">
+                        <input type="hidden" name="end_date" value="{{ $endDate }}">
+                        @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
+                        @if(!empty($customerId)) <input type="hidden" name="customer_id" value="{{ $customerId }}"> @endif
+                        @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
+                        @if(!empty($sortCol)) <input type="hidden" name="sort_col" value="{{ $sortCol }}"> <input type="hidden" name="sort_dir" value="{{ $sortDir }}"> @endif
 
-        @if($productId)
-            <span class="filter-chip filter-chip-active"><i class="bi bi-cup-hot"></i> {{ $productId }}</span>
-        @else
-            <span class="filter-chip filter-chip-inactive"><i class="bi bi-cup-hot"></i> Semua Produk</span>
-        @endif
+                        <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
+                            <span class="small fw-semibold text-secondary">Kategori Produk</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary py-0 px-2" style="font-size: 0.72rem;" id="quickCatSelectAll">Semua</button>
+                                <button type="button" class="btn btn-outline-secondary py-0 px-2" style="font-size: 0.72rem;" id="quickCatClearAll">Kosongkan</button>
+                            </div>
+                        </div>
+                        <div class="p-2 border-bottom">
+                            <input type="text" class="form-control form-control-sm quick-cat-search" placeholder="Cari kategori...">
+                        </div>
+                        <div class="p-2" style="max-height: 220px; overflow-y: auto;">
+                            @foreach($categories as $cat)
+                                @php
+                                    $isSelected = is_array($categoryId) ? in_array($cat->cname, $categoryId) : $categoryId == $cat->cname;
+                                @endphp
+                                <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2 rounded cat-filter-item" style="cursor: pointer;">
+                                    <input class="form-check-input mt-0 quick-cat-cb" type="checkbox" name="category_id[]" value="{{ $cat->cname }}" {{ $isSelected ? 'checked' : '' }}>
+                                    <span class="small text-dark">{{ $cat->cname }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div class="p-2 border-top bg-light rounded-bottom text-end">
+                            <button type="submit" class="btn btn-primary btn-sm px-3 py-1">Terapkan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Dropdown Produk -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip {{ $productId ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Produk">
+                    <i class="bi bi-cup-hot"></i> {{ $productId ? $productId : 'Semua Produk' }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 250px;">
+                    <div class="p-2 border-bottom">
+                        <input type="text" class="form-control form-control-sm quick-dropdown-search" placeholder="Cari produk...">
+                    </div>
+                    <div class="py-1" style="max-height: 250px; overflow-y: auto;">
+                        <a class="dropdown-item filter-list-item {{ empty($productId) ? 'active' : '' }}" href="{{ route('reports.customer-product', request()->except(['product_id', 'page'])) }}">
+                            Semua Produk
+                            @if(empty($productId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                        @foreach($products as $p)
+                            <a class="dropdown-item filter-list-item {{ $productId == $p->cname ? 'active' : '' }}" href="{{ route('reports.customer-product', array_merge(request()->except(['page']), ['product_id' => $p->cname])) }}">
+                                <span>{{ $p->cname }}</span>
+                                @if($productId == $p->cname) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Table -->
@@ -480,6 +665,50 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        
+        // Quick Category Checkbox Select All / Clear All
+        const catSelectAll = document.getElementById('quickCatSelectAll');
+        const catClearAll = document.getElementById('quickCatClearAll');
+        if (catSelectAll && catClearAll) {
+            catSelectAll.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('.quick-cat-cb').forEach(cb => cb.checked = true);
+            });
+            catClearAll.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('.quick-cat-cb').forEach(cb => cb.checked = false);
+            });
+        }
+
+        // Live Search for Dropdown Items (Customer, Product)
+        document.querySelectorAll('.quick-dropdown-search').forEach(input => {
+            input.addEventListener('input', function(e) {
+                e.stopPropagation();
+                const filter = this.value.toLowerCase().trim();
+                const menu = this.closest('.dropdown-menu');
+                menu.querySelectorAll('.filter-list-item').forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(filter) ? '' : 'none';
+                });
+            });
+            input.addEventListener('click', function(e) { e.stopPropagation(); });
+            input.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        });
+
+        // Live Search for Category Dropdown Checkboxes
+        document.querySelectorAll('.quick-cat-search').forEach(input => {
+            input.addEventListener('input', function(e) {
+                e.stopPropagation();
+                const filter = this.value.toLowerCase().trim();
+                const menu = this.closest('.dropdown-menu');
+                menu.querySelectorAll('.cat-filter-item').forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(filter) ? 'flex' : 'none';
+                });
+            });
+            input.addEventListener('click', function(e) { e.stopPropagation(); });
+            input.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        });
         
         // Initialize Tom Select
         const tomSelects = {};

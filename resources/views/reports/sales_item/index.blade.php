@@ -15,6 +15,13 @@
         margin-bottom: 8px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.02);
         transition: all 0.2s ease;
+        cursor: pointer;
+        user-select: none;
+    }
+    .filter-chip:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        filter: brightness(0.96);
     }
     .filter-chip i {
         margin-right: 6px;
@@ -38,10 +45,40 @@
     .filter-chip-date {
         background: #f1f5f9;
         color: #334155;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #cbd5e1;
+    }
+    .filter-chip-date:hover {
+        background: #e2e8f0;
     }
     .filter-chip-date i {
         color: #b63352;
+    }
+    .filter-chip.dropdown-toggle::after {
+        display: none !important;
+    }
+    .filter-dropdown-menu {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        font-size: 0.85rem;
+        z-index: 1050;
+    }
+    .filter-dropdown-menu .dropdown-item {
+        padding: 7px 14px;
+        font-weight: 500;
+        color: #334155;
+        display: flex;
+        align-items: center;
+        transition: background 0.15s ease;
+    }
+    .filter-dropdown-menu .dropdown-item:hover, .filter-dropdown-menu .dropdown-item:focus {
+        background-color: #f1f5f9;
+        color: #0ea5e9;
+    }
+    .filter-dropdown-menu .dropdown-item.active, .filter-dropdown-menu .dropdown-item:active {
+        background-color: #e0f2fe;
+        color: #0284c7;
+        font-weight: 600;
     }
     
     .table-card {
@@ -195,29 +232,128 @@
         <!-- Active Filters -->
         <div class="px-4 py-3 bg-light d-print-none order-1" style="border-bottom: 2px solid #f1f5f9;">
             <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">Filter Aktif:</span>
-            <span class="filter-chip filter-chip-date"><i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}</span>
-        
-            @if($outletId)
-                @php
-                    $outletName = collect($outlets)->firstWhere('nid', $outletId)?->cname ?? $outletId;
-                @endphp
-                <span class="filter-chip filter-chip-active"><i class="bi bi-shop"></i> {{ $outletName }}</span>
-            @else
-                <span class="filter-chip filter-chip-inactive"><i class="bi bi-shop"></i> Semua Outlet</span>
-            @endif
 
-            @if($productId)
-                @php
-                    $productName = collect($products)->firstWhere('nid', $productId)?->cname ?? $productId;
-                @endphp
-                <span class="filter-chip filter-chip-active"><i class="bi bi-cup-hot"></i> {{ $productName }}</span>
-            @else
-                <span class="filter-chip filter-chip-inactive"><i class="bi bi-cup-hot"></i> Semua Produk</span>
-            @endif
+            <!-- Dropdown Periode Tanggal -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip filter-chip-date dropdown-toggle border-0" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Ubah Periode Tanggal">
+                    <i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-2" style="min-width: 260px;">
+                    <div class="px-2 py-1 text-muted small fw-semibold">Pilih Cepat</div>
+                    @php
+                        $today = \Carbon\Carbon::today()->format('Y-m-d');
+                        $thisMonthStart = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
+                        $thisMonthEnd = \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d');
+                        $lastMonthStart = \Carbon\Carbon::now()->subMonth()->startOfMonth()->format('Y-m-d');
+                        $lastMonthEnd = \Carbon\Carbon::now()->subMonth()->endOfMonth()->format('Y-m-d');
+                    @endphp
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $today, 'end_date' => $today])) }}">
+                        <i class="bi bi-calendar-event me-2 text-muted"></i> Hari Ini
+                    </a>
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $thisMonthStart, 'end_date' => $thisMonthEnd])) }}">
+                        <i class="bi bi-calendar-month me-2 text-muted"></i> Bulan Ini
+                    </a>
+                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $lastMonthStart, 'end_date' => $lastMonthEnd])) }}">
+                        <i class="bi bi-calendar-range me-2 text-muted"></i> Bulan Lalu
+                    </a>
+                    <hr class="dropdown-divider my-2">
+                    <form action="{{ route('reports.sales-item') }}" method="GET" class="px-1">
+                        @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
+                        @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
+                        @if(!empty($search)) <input type="hidden" name="search" value="{{ $search }}"> @endif
 
-            @if($search)
-                <span class="filter-chip filter-chip-active"><i class="bi bi-search"></i> "{{ $search }}"</span>
-            @endif
+                        <div class="mb-2">
+                            <label class="form-label small text-muted mb-1">Dari</label>
+                            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ $startDate }}" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-muted mb-1">Sampai</label>
+                            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ $endDate }}" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 py-1">Terapkan Tanggal</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Dropdown Outlet -->
+            <div class="dropdown d-inline-block">
+                @php
+                    $outletNameDisplay = !empty($outletId) ? (collect($outlets)->firstWhere('nid', $outletId)?->cname ?? $outletId) : 'Semua Outlet';
+                @endphp
+                <button type="button" class="filter-chip {{ !empty($outletId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Outlet" {{ ($isOutletLocked ?? false) ? 'disabled' : '' }}>
+                    <i class="bi bi-shop"></i> {{ $outletNameDisplay }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 220px; max-height: 280px; overflow-y: auto;">
+                    <a class="dropdown-item {{ empty($outletId) ? 'active' : '' }}" href="{{ route('reports.sales-item', request()->except(['outlet_id', 'page'])) }}">
+                        Semua Outlet
+                        @if(empty($outletId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                    </a>
+                    @foreach($outlets as $outlet)
+                        <a class="dropdown-item {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'active' : '' }}" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['outlet_id' => $outlet->nid])) }}">
+                            {{ $outlet->cname }}
+                            @if((string)($outletId ?? '') === (string)$outlet->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Dropdown Produk -->
+            <div class="dropdown d-inline-block">
+                @php
+                    $productNameDisplay = !empty($productId) ? (collect($products)->firstWhere('nid', $productId)?->cname ?? $productId) : 'Semua Produk';
+                @endphp
+                <button type="button" class="filter-chip {{ $productId ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Produk">
+                    <i class="bi bi-cup-hot"></i> {{ $productNameDisplay }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 250px;">
+                    <div class="p-2 border-bottom">
+                        <input type="text" class="form-control form-control-sm quick-dropdown-search" placeholder="Cari produk...">
+                    </div>
+                    <div class="py-1" style="max-height: 250px; overflow-y: auto;">
+                        <a class="dropdown-item filter-list-item {{ empty($productId) ? 'active' : '' }}" href="{{ route('reports.sales-item', request()->except(['product_id', 'page'])) }}">
+                            Semua Produk
+                            @if(empty($productId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                        @foreach($products as $product)
+                            <a class="dropdown-item filter-list-item {{ (string)$productId === (string)$product->nid ? 'active' : '' }}" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['product_id' => $product->nid])) }}">
+                                <span>{{ $product->cname }}</span>
+                                @if((string)$productId === (string)$product->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dropdown Pencarian -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip {{ $search ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pencarian Item">
+                    <i class="bi bi-search"></i> {{ $search ? '"' . $search . '"' : 'Cari Item...' }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-2" style="min-width: 260px;">
+                    <form action="{{ route('reports.sales-item') }}" method="GET">
+                        <input type="hidden" name="start_date" value="{{ $startDate }}">
+                        <input type="hidden" name="end_date" value="{{ $endDate }}">
+                        @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
+                        @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
+
+                        <label class="form-label small text-muted mb-1">Cari No. Pesanan / Item / Pelanggan:</label>
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" name="search" class="form-control" value="{{ $search }}" placeholder="Ketik kata kunci...">
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+                        </div>
+                        @if($search)
+                            <a href="{{ route('reports.sales-item', request()->except(['search', 'page'])) }}" class="btn btn-outline-secondary btn-sm w-100 py-1" style="font-size: 0.75rem;">
+                                Hapus Filter Pencarian
+                            </a>
+                        @endif
+                    </form>
+                </div>
+            </div>
+
         </div>
 
         <!-- Grand Total Summary Bar -->
@@ -434,12 +570,30 @@
         </div>
     </div>
 </div>
+
+
+
 @endsection
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Live Search for Dropdown Items (Product)
+        document.querySelectorAll('.quick-dropdown-search').forEach(input => {
+            input.addEventListener('input', function(e) {
+                e.stopPropagation();
+                const filter = this.value.toLowerCase().trim();
+                const menu = this.closest('.dropdown-menu');
+                menu.querySelectorAll('.filter-list-item').forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    item.style.display = text.includes(filter) ? '' : 'none';
+                });
+            });
+            input.addEventListener('click', function(e) { e.stopPropagation(); });
+            input.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        });
+
         document.querySelectorAll('.tom-select-filter').forEach((el) => {
             if (!el.disabled) {
                 new TomSelect(el, {
