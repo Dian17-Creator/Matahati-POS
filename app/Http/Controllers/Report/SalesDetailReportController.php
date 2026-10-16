@@ -39,7 +39,7 @@ class SalesDetailReportController extends Controller
         $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId);
         $transactions = $query->paginate(10)->withQueryString();
 
-        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId)->first();
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status)->first();
         $netSales = $summary->net_sales ?? 0;
 
         return view('reports.sales_detail.index', compact(
@@ -76,7 +76,7 @@ class SalesDetailReportController extends Controller
         }
 
         $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId)->get();
-        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId)->first();
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status)->first();
         $dateSuffix = $startDate === $endDate
             ? Carbon::parse($startDate)->format('d-m-Y')
             : Carbon::parse($startDate)->format('d-m-Y') . '_sd_' . Carbon::parse($endDate)->format('d-m-Y');
@@ -131,12 +131,16 @@ class SalesDetailReportController extends Controller
         return $query;
     }
 
-    private function buildSummaryQuery($startDate, $endDateParsed, $outletId)
+    private function buildSummaryQuery($startDate, $endDateParsed, $outletId, $status = '')
     {
         $summaryQuery = DB::table('mpos_sales_h')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
-            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
-            ->where(function ($q) {
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed);
+
+        if (!empty($status)) {
+            $summaryQuery->where('mpos_sales_h.cstatus', $status);
+        } else {
+            $summaryQuery->where(function ($q) {
                 $q->whereIn('mpos_sales_h.cstatus', [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
@@ -149,6 +153,7 @@ class SalesDetailReportController extends Controller
                     ])->whereNotNull('mpos_sales_h.nid_payment');
                 });
             });
+        }
 
         if (!empty($outletId)) {
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
@@ -169,6 +174,7 @@ class SalesDetailReportController extends Controller
         });
 
         return $summaryQuery->select(
+            DB::raw('COUNT(mpos_sales_h.nid) as total_transaksi'),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.nsubtotal ELSE mpos_sales_h.ngrandtotal END) as gross_sales"),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal ELSE (mpos_sales_h.ngrandtotal - COALESCE(items.total_void_refund, 0)) END) as net_sales"),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 ELSE COALESCE(items.total_void_refund, 0) END) as total_void_refund"),
