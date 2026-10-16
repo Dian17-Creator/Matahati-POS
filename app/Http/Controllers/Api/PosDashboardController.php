@@ -92,10 +92,13 @@ class PosDashboardController extends Controller
 
         // 5. Sales By Date
         $dailySalesQuery = DB::table('mpos_sales_h')
-            ->where('cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
+            ])
             ->whereDate('dtransaction', '>=', $dateFrom)
             ->whereDate('dtransaction', '<=', $dateTo);
-            
+
         if ($nidOutlet) {
             $dailySalesQuery->where('nid_outlet', $nidOutlet);
         }
@@ -107,7 +110,10 @@ class PosDashboardController extends Controller
 
         $dailyDeductionsQuery = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('mpos_sales_h.cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
+            ])
             ->whereDate('mpos_sales_h.dtransaction', '>=', $dateFrom)
             ->whereDate('mpos_sales_h.dtransaction', '<=', $dateTo);
 
@@ -138,7 +144,10 @@ class PosDashboardController extends Controller
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
             ->join('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
             ->join('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
-            ->where('mpos_sales_h.cstatus', MposSalesH::STATUS_PAID)
+            ->whereIn('mpos_sales_h.cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
+            ])
             ->whereDate('mpos_sales_h.dtransaction', '>=', $dateFrom)
             ->whereDate('mpos_sales_h.dtransaction', '<=', $dateTo);
 
@@ -147,11 +156,11 @@ class PosDashboardController extends Controller
         }
 
         $topProductGroups = $topProductGroupsQuery
-            ->selectRaw('mpos_grp_product.nid')
-            ->selectRaw('mpos_grp_product.cname as name')
+            ->selectRaw('MIN(mpos_grp_product.nid) as nid')
+            ->selectRaw('UPPER(TRIM(mpos_grp_product.cname)) as name')
             ->selectRaw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty')
             ->selectRaw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total')
-            ->groupBy('mpos_grp_product.nid', 'mpos_grp_product.cname')
+            ->groupBy(DB::raw('UPPER(TRIM(mpos_grp_product.cname))'))
             ->havingRaw('qty > 0')
             ->orderBy('total', 'desc')
             ->limit(5)
