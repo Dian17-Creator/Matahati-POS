@@ -318,6 +318,41 @@
 
         </div>
 
+        <!-- Grand Total Summary Bar -->
+        <div class="px-4 py-3 print-grand-total order-2 order-print-3" style="background-color: #1e293b; color: #fff;">
+            <div class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #94a3b8;">Grand Total</div>
+            <div class="row w-100 m-0 g-3">
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Total Penjualan</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #34d399;">Rp {{ number_format($summary->gross_sales ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Void / Refund</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #f87171;">Rp {{ number_format($summary->total_void_refund ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Total Diskon</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #f87171;">Rp {{ number_format($summary->total_discount ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Penjualan Nett</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #38bdf8;">Rp {{ number_format($summary->net_sales ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Modal Produk</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #fbbf24;">Rp {{ number_format($summary->valid_total_cost ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Total Laba</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem; color: #60a5fa;">Rp {{ number_format($summary->valid_total_laba ?? 0, 0, ',', '.') }}</span>
+                </div>
+                <div class="col px-0 d-flex flex-column">
+                    <span style="font-size: 0.75rem; color: #cbd5e1;">Jml Transaksi</span>
+                    <span class="fw-bold print-text-black" style="font-size: 0.95rem;">{{ number_format($summary->total_transaksi ?? 0, 0, ',', '.') }}</span>
+                </div>
+            </div>
+        </div>
+
         <div class="table-responsive order-3 order-print-2">
             <table class="table table-hover table-borderless align-middle mb-0 text-nowrap" style="min-width: 1500px;">
                 <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
@@ -611,6 +646,21 @@
                     width: 100% !important;
                     font-size: 0.65rem !important;
                     border-collapse: collapse !important;
+                }
+                .print-grand-total {
+                    border: 1px solid #e5e7eb !important;
+                    background-color: transparent !important;
+                    color: #000 !important;
+                    margin-top: 15px !important;
+                }
+                .print-grand-total * {
+                    color: #000 !important;
+                    font-size: 0.65rem !important;
+                }
+                .print-text-black {
+                    color: #000 !important;
+                    white-space: nowrap !important;
+                    font-size: 0.75rem !important;
                 }
                 .d-print-block {
                     display: block !important;
