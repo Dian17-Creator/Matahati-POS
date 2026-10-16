@@ -18,7 +18,7 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        // 1. Date Range Handling (Default 7 hari yang lalu)
+        // 1. Date Range Handling (Default Hari Ini)
         $today = Carbon::today()->format('Y-m-d');
         $yesterday = Carbon::yesterday()->format('Y-m-d');
         $thisMonthStart = Carbon::now()->startOfMonth()->format('Y-m-d');
@@ -27,7 +27,7 @@ class DashboardController extends Controller
         $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth()->format('Y-m-d');
         $sevenDaysAgo = Carbon::now()->subDays(6)->format('Y-m-d');
 
-        $defaultStartDate = $sevenDaysAgo;
+        $defaultStartDate = $today;
         $defaultEndDate = $today;
 
         $startDate = $request->input('start_date', $defaultStartDate);
