@@ -29,6 +29,12 @@ class CustomerProductReportController extends Controller
         
         $customerId = $request->input('customer_id');
         $categoryId = $request->input('category_id');
+        if (is_array($categoryId)) {
+            $categoryId = array_values(array_filter($categoryId, fn($v) => !is_null($v) && $v !== ''));
+            if (empty($categoryId)) {
+                $categoryId = null;
+            }
+        }
         $productId = $request->input('product_id');
 
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
@@ -218,6 +224,12 @@ class CustomerProductReportController extends Controller
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth()->format('Y-m-d'));
         $customerId = $request->input('customer_id');
         $categoryId = $request->input('category_id');
+        if (is_array($categoryId)) {
+            $categoryId = array_values(array_filter($categoryId, fn($v) => !is_null($v) && $v !== ''));
+            if (empty($categoryId)) {
+                $categoryId = null;
+            }
+        }
         $productId = $request->input('product_id');
 
         $sortCol = $request->input('sort_col', 'customer_name');
@@ -319,6 +331,7 @@ class CustomerProductReportController extends Controller
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
             ->join('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
             ->join('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
+            ->leftJoin('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
             ->where(function ($q) {
                 $q->whereIn('mpos_sales_h.cstatus', [
                     MposSalesH::STATUS_PAID,

@@ -96,6 +96,7 @@ class ShiftController extends Controller
         $totalSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_CANCELLED,
                 MposSalesH::STATUS_REFUND,
@@ -105,6 +106,7 @@ class ShiftController extends Controller
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_CANCELLED,
                 MposSalesH::STATUS_REFUND,
@@ -311,6 +313,7 @@ class ShiftController extends Controller
             $totalSales = MposSalesH::where('nid_shift', $shift->nid)
                 ->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
                     MposSalesH::STATUS_VOID,
                     MposSalesH::STATUS_CANCELLED,
                     MposSalesH::STATUS_REFUND,
@@ -321,6 +324,7 @@ class ShiftController extends Controller
             $cashSales = MposSalesH::where('nid_shift', $shift->nid)
                 ->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
                     MposSalesH::STATUS_VOID,
                     MposSalesH::STATUS_CANCELLED,
                     MposSalesH::STATUS_REFUND,
@@ -445,6 +449,7 @@ class ShiftController extends Controller
         $totalSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_CANCELLED,
                 MposSalesH::STATUS_REFUND,
@@ -454,6 +459,7 @@ class ShiftController extends Controller
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_CANCELLED,
                 MposSalesH::STATUS_REFUND,
@@ -486,6 +492,7 @@ class ShiftController extends Controller
     {
         $validStatuses = [
             MposSalesH::STATUS_PAID,
+            MposSalesH::STATUS_COMPLETED,
             MposSalesH::STATUS_VOID,
             MposSalesH::STATUS_CANCELLED,
             MposSalesH::STATUS_REFUND,
