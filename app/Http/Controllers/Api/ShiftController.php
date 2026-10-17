@@ -514,10 +514,17 @@ class ShiftController extends Controller
             ->whereIn('cstatus', $validStatuses)
             ->sum('ndiscount');
 
+        $cashSales = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal');
+
         $data['total_receipts'] = $totalReceipts;
         $data['total_pax'] = $totalPax > 0 ? $totalPax : $totalReceipts;
         $data['subtotal'] = $subtotal;
         $data['discount_amount'] = $discount;
+        $data['cash_sales'] = $cashSales;
 
         return $data;
     }
