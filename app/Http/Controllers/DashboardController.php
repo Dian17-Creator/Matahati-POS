@@ -225,37 +225,46 @@ class DashboardController extends Controller
             $salesDetailQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
         }
 
-        // Top Product Groups
-        $topGroups = (clone $salesDetailQuery)
+        // Base Item Sales Query for aggregation
+        $itemSalesBase = (clone $salesDetailQuery)
             ->select(
-                'mpos_product.nid_category as category_id',
-                DB::raw("COALESCE(NULLIF(TRIM(MAX(mpos_grp_product.cname)), ''), 'Tanpa Kategori') as category_name"),
-                DB::raw("SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as total_qty")
+                DB::raw("UPPER(TRIM(COALESCE(NULLIF(TRIM(mpos_grp_product.cname), ''), 'Tanpa Kategori'))) as category_name"),
+                DB::raw("COALESCE(NULLIF(TRIM(mpos_sales_d.cname), ''), 'Produk') as product_name"),
+                DB::raw("(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as net_qty")
+            );
+
+        // Top Product Groups
+        $topGroups = DB::query()
+            ->fromSub($itemSalesBase, 'sub')
+            ->select(
+                'category_name',
+                DB::raw("SUM(net_qty) as total_qty")
             )
-            ->groupBy('mpos_product.nid_category')
-            ->havingRaw("SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0")
+            ->groupBy('category_name')
+            ->havingRaw("SUM(net_qty) > 0")
             ->orderBy('total_qty', 'desc')
             ->get()
             ->map(function ($item) {
-                $item->category_id = (int) ($item->category_id ?? 0);
+                $item->category_id = $item->category_name;
                 return $item;
             });
 
         $maxGroupQty = $topGroups->max('total_qty') ?: 1;
 
         // Breakdown Products per Group (sorted ascending to match Olsera view)
-        $productsByGroupRaw = (clone $salesDetailQuery)
+        $productsByGroupRaw = DB::query()
+            ->fromSub($itemSalesBase, 'sub')
             ->select(
-                'mpos_product.nid_category as category_id',
-                DB::raw("COALESCE(NULLIF(TRIM(mpos_sales_d.cname), ''), 'Produk') as product_name"),
-                DB::raw("SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as total_qty")
+                'category_name',
+                'product_name',
+                DB::raw("SUM(net_qty) as total_qty")
             )
-            ->groupBy('mpos_product.nid_category', 'mpos_sales_d.cname')
-            ->havingRaw("SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0")
+            ->groupBy('category_name', 'product_name')
+            ->havingRaw("SUM(net_qty) > 0")
             ->orderBy('total_qty', 'asc')
             ->get()
             ->map(function ($item) {
-                $item->category_id = (int) ($item->category_id ?? 0);
+                $item->category_id = $item->category_name;
                 return $item;
             });
 
