@@ -520,11 +520,37 @@ class ShiftController extends Controller
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
+        $paymentBreakdown = DB::table('mpos_sales_h')
+            ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
+            ->where('mpos_sales_h.nid_shift', $shiftId)
+            ->whereIn('mpos_sales_h.cstatus', $validStatuses)
+            ->select(
+                DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
+                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('PAID', 'COMPLETED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
+                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN mpos_sales_h.ngrandtotal ELSE 0 END) as refund"),
+                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as void")
+            )
+            ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
+            ->get()
+            ->map(function ($row) {
+                $sales = (float) $row->sales;
+                $refund = (float) $row->refund;
+                $void = (float) $row->void;
+                return [
+                    'name' => $row->payment_name,
+                    'sales' => $sales,
+                    'refund' => $refund,
+                    'void' => $void,
+                    'net' => max(0, $sales - $refund - $void),
+                ];
+            });
+
         $data['total_receipts'] = $totalReceipts;
         $data['total_pax'] = $totalPax > 0 ? $totalPax : $totalReceipts;
         $data['subtotal'] = $subtotal;
         $data['discount_amount'] = $discount;
         $data['cash_sales'] = $cashSales;
+        $data['payment_breakdown'] = $paymentBreakdown;
 
         return $data;
     }
