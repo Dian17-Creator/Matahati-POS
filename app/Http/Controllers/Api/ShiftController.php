@@ -520,13 +520,29 @@ class ShiftController extends Controller
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
+        $cashRefund = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->where('cstatus', MposSalesH::STATUS_REFUND)
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal');
+
+        $cashCancellation = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal');
+
+        $totalCancellation = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+            ->sum('ngrandtotal');
+
         $paymentBreakdown = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
             ->where('mpos_sales_h.nid_shift', $shiftId)
             ->whereIn('mpos_sales_h.cstatus', $validStatuses)
             ->select(
                 DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('PAID', 'COMPLETED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
+                DB::raw("SUM(mpos_sales_h.ngrandtotal) as sales"),
                 DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN mpos_sales_h.ngrandtotal ELSE 0 END) as refund"),
                 DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as void")
             )
@@ -550,6 +566,9 @@ class ShiftController extends Controller
         $data['subtotal'] = $subtotal;
         $data['discount_amount'] = $discount;
         $data['cash_sales'] = $cashSales;
+        $data['cash_refund'] = $cashRefund;
+        $data['cash_cancellation'] = $cashCancellation;
+        $data['total_cancellation'] = $totalCancellation;
         $data['payment_breakdown'] = $paymentBreakdown;
 
         return $data;
