@@ -114,6 +114,34 @@ class Muser extends Authenticatable
         return $this->posUsers()->where('fspv', 1)->exists();
     }
 
+    public function isOwnerLevel(): bool
+    {
+        // 1. Direct Owner in POS (fowner = 1)
+        if ($this->isOwner()) {
+            return true;
+        }
+
+        // 2. If user is assigned as SPV, Captain, or Cashier in POS without owner, they are below owner level
+        if ($this->isSpv()) {
+            return false;
+        }
+
+        $hasLowerPosRole = $this->posUsers()
+            ->where(function ($q) {
+                $q->where('fcaptain', 1)
+                  ->orWhere('fcashier', 1)
+                  ->orWhere('fspv', 1);
+            })
+            ->exists();
+
+        if ($hasLowerPosRole) {
+            return false;
+        }
+
+        // 3. Super Admin or Admin from muser
+        return (bool) ($this->isSuperAdmin() || $this->isAdmin());
+    }
+
     public function department()
     {
         return $this->belongsTo(Mdepartment::class, 'niddept', 'nid');

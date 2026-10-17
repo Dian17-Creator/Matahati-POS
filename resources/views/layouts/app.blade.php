@@ -222,6 +222,7 @@
                         <i class="bi bi-people me-2"></i>
                         <span>Pelanggan</span>
                     </a>
+                    @if(Auth::user()?->isOwnerLevel())
                     <a href="{{ route('outlets.index') }}" class="{{ request()->routeIs('outlets.*') ? 'active' : '' }}">
                         <i class="bi bi-shop me-2"></i>
                         <span>Outlet</span>
@@ -230,6 +231,7 @@
                         <i class="bi bi-person-badge me-2"></i>
                         <span>Pengguna POS</span>
                     </a>
+                    @endif
                     <a href="{{ route('payments.index') }}" class="{{ request()->routeIs('payments.*') ? 'active' : '' }}">
                         <i class="bi bi-credit-card me-2"></i>
                         <span>Metode Pembayaran</span>
