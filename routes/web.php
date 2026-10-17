@@ -87,10 +87,19 @@ Route::middleware(['auth'])->group(function () {
     // POS Management Routes
     Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');
     Route::resource('customers', CustomerController::class);
-    Route::resource('outlets', OutletController::class);
-    Route::resource('pos-users', PosUserController::class);
     Route::resource('payments', PaymentController::class);
     Route::resource('vouchers', VoucherController::class);
+
+    // Routes khusus level Owner / Super Admin
+    Route::middleware(function ($request, $next) {
+        if (!auth()->user()?->isOwnerLevel()) {
+            abort(403, 'Akses ditolak. Menu ini hanya dapat diakses oleh level Owner.');
+        }
+        return $next($request);
+    })->group(function () {
+        Route::resource('outlets', OutletController::class);
+        Route::resource('pos-users', PosUserController::class);
+    });
 
     // Report Routes
     Route::prefix('reports')->name('reports.')->group(function () {
