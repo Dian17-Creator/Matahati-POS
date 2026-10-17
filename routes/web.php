@@ -91,12 +91,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('vouchers', VoucherController::class);
 
     // Routes khusus level Owner / Super Admin
-    Route::middleware(function ($request, $next) {
-        if (!auth()->user()?->isOwnerLevel()) {
-            abort(403, 'Akses ditolak. Menu ini hanya dapat diakses oleh level Owner.');
-        }
-        return $next($request);
-    })->group(function () {
+    Route::middleware(['owner'])->group(function () {
         Route::resource('outlets', OutletController::class);
         Route::resource('pos-users', PosUserController::class);
     });
