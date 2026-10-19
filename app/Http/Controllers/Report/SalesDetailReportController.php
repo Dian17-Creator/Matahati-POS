@@ -92,11 +92,8 @@ class SalesDetailReportController extends Controller
             ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
             ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
-            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed);
-
-        if (!empty($status)) {
-            $query->where('mpos_sales_h.cstatus', $status);
-        }
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction');
 
         if (!empty($outletId)) {
             $query->where('mpos_sales_h.nid_outlet', $outletId);
@@ -106,24 +103,71 @@ class SalesDetailReportController extends Controller
 
         $itemDeductions = DB::table('mpos_sales_d')
             ->select('nid_transaction', 
-                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund'),
+                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as item_void_refund'),
                 DB::raw('SUM(ncost * (nqty - nqty_void - nqty_refund)) as total_cost'),
                 DB::raw('MIN(ncost) as min_cost')
             )
             ->groupBy('nid_transaction');
 
+        $reversals = DB::table('mpos_sales_h')
+            ->select('nid_parent_transaction',
+                DB::raw('SUM(ABS(ngrandtotal)) as reversal_amount'),
+                DB::raw("SUM(CASE WHEN cstatus = 'VOID' THEN ABS(ngrandtotal) ELSE 0 END) as reversal_void"),
+                DB::raw("SUM(CASE WHEN cstatus = 'REFUND' THEN ABS(ngrandtotal) ELSE 0 END) as reversal_refund")
+            )
+            ->whereNotNull('nid_parent_transaction')
+            ->groupBy('nid_parent_transaction');
+
         $query->leftJoinSub($itemDeductions, 'items', function ($join) {
             $join->on('mpos_sales_h.nid', '=', 'items.nid_transaction');
         });
+
+        $query->leftJoinSub($reversals, 'rev', function ($join) {
+            $join->on('mpos_sales_h.nid', '=', 'rev.nid_parent_transaction');
+        });
+
+        if (!empty($status)) {
+            if ($status === 'VOID') {
+                $query->where(function ($q) {
+                    $q->where('mpos_sales_h.cstatus', 'VOID')
+                      ->orWhereRaw('COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0');
+                });
+            } elseif ($status === 'REFUND') {
+                $query->where(function ($q) {
+                    $q->where('mpos_sales_h.cstatus', 'REFUND')
+                      ->orWhere('rev.reversal_refund', '>', 0);
+                });
+            } else {
+                $query->where('mpos_sales_h.cstatus', $status)
+                      ->whereRaw('COALESCE(rev.reversal_amount, 0) < mpos_sales_h.ngrandtotal');
+            }
+        }
 
         $query->select(
             'mpos_sales_h.*',
             'mpos_payment.cname as payment_name',
             'muser.cname as cashier_name',
             DB::raw('COALESCE(mpos_sales_h.cname_customer, mpos_cust.cname, \'Umum\') as final_customer_name'),
-            DB::raw('COALESCE(items.total_void_refund, 0) as total_void_refund'),
-            DB::raw('COALESCE(items.total_cost, 0) as total_cost'),
-            'items.min_cost'
+            DB::raw("CASE 
+                WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN ABS(mpos_sales_h.ngrandtotal)
+                ELSE GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) 
+            END as total_void_refund"),
+            DB::raw("CASE 
+                WHEN mpos_sales_h.csource = 'OLSERA' THEN 
+                    CASE WHEN mpos_sales_h.ntotal_cost IS NOT NULL THEN mpos_sales_h.ntotal_cost ELSE 0 END
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0
+                WHEN GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) >= mpos_sales_h.ngrandtotal THEN 0
+                WHEN items.min_cost >= 0 THEN 
+                    items.total_cost 
+                ELSE 0 
+            END as total_cost"),
+            'items.min_cost',
+            DB::raw("CASE 
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN mpos_sales_h.cstatus
+                WHEN COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0 THEN 'VOID'
+                ELSE mpos_sales_h.cstatus 
+            END as display_status")
         );
 
         $query->orderBy('mpos_sales_h.dtransaction', 'desc');
@@ -135,25 +179,8 @@ class SalesDetailReportController extends Controller
     {
         $summaryQuery = DB::table('mpos_sales_h')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
-            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed);
-
-        if (!empty($status)) {
-            $summaryQuery->where('mpos_sales_h.cstatus', $status);
-        } else {
-            $summaryQuery->where(function ($q) {
-                $q->whereIn('mpos_sales_h.cstatus', [
-                    MposSalesH::STATUS_PAID,
-                    MposSalesH::STATUS_COMPLETED,
-                ])->orWhere(function ($sub) {
-                    $sub->whereNotIn('mpos_sales_h.cstatus', [
-                        MposSalesH::STATUS_CANCELLED,
-                        MposSalesH::STATUS_DRAFT,
-                        MposSalesH::STATUS_VOID,
-                        MposSalesH::STATUS_REFUND,
-                    ])->whereNotNull('mpos_sales_h.nid_payment');
-                });
-            });
-        }
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction');
 
         if (!empty($outletId)) {
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
@@ -163,21 +190,73 @@ class SalesDetailReportController extends Controller
 
         $itemDeductions = DB::table('mpos_sales_d')
             ->select('nid_transaction', 
-                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund'),
+                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as item_void_refund'),
                 DB::raw('SUM(ncost * (nqty - nqty_void - nqty_refund)) as total_cost'),
                 DB::raw('MIN(ncost) as min_cost')
             )
             ->groupBy('nid_transaction');
 
+        $reversals = DB::table('mpos_sales_h')
+            ->select('nid_parent_transaction',
+                DB::raw('SUM(ABS(ngrandtotal)) as reversal_amount'),
+                DB::raw("SUM(CASE WHEN cstatus = 'VOID' THEN ABS(ngrandtotal) ELSE 0 END) as reversal_void"),
+                DB::raw("SUM(CASE WHEN cstatus = 'REFUND' THEN ABS(ngrandtotal) ELSE 0 END) as reversal_refund")
+            )
+            ->whereNotNull('nid_parent_transaction')
+            ->groupBy('nid_parent_transaction');
+
         $summaryQuery->leftJoinSub($itemDeductions, 'items', function ($join) {
             $join->on('mpos_sales_h.nid', '=', 'items.nid_transaction');
         });
 
+        $summaryQuery->leftJoinSub($reversals, 'rev', function ($join) {
+            $join->on('mpos_sales_h.nid', '=', 'rev.nid_parent_transaction');
+        });
+
+        if (!empty($status)) {
+            if ($status === 'VOID') {
+                $summaryQuery->where(function ($q) {
+                    $q->where('mpos_sales_h.cstatus', 'VOID')
+                      ->orWhereRaw('COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0');
+                });
+            } elseif ($status === 'REFUND') {
+                $summaryQuery->where(function ($q) {
+                    $q->where('mpos_sales_h.cstatus', 'REFUND')
+                      ->orWhere('rev.reversal_refund', '>', 0);
+                });
+            } else {
+                $summaryQuery->where('mpos_sales_h.cstatus', $status)
+                             ->whereRaw('COALESCE(rev.reversal_amount, 0) < mpos_sales_h.ngrandtotal');
+            }
+        } else {
+            $summaryQuery->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                    MposSalesH::STATUS_VOID,
+                    MposSalesH::STATUS_REFUND,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            });
+        }
+
         return $summaryQuery->select(
             DB::raw('COUNT(mpos_sales_h.nid) as total_transaksi'),
             DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.nsubtotal ELSE mpos_sales_h.ngrandtotal END) as gross_sales"),
-            DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal ELSE (mpos_sales_h.ngrandtotal - COALESCE(items.total_void_refund, 0)) END) as net_sales"),
-            DB::raw("SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 ELSE COALESCE(items.total_void_refund, 0) END) as total_void_refund"),
+            DB::raw("SUM(CASE 
+                WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal 
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0
+                ELSE (mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) 
+            END) as net_sales"),
+            DB::raw("SUM(CASE 
+                WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN ABS(mpos_sales_h.ngrandtotal)
+                ELSE GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) 
+            END) as total_void_refund"),
             DB::raw('SUM(mpos_sales_h.ndiscount) as total_discount'),
             DB::raw('SUM(mpos_sales_h.ntax) as total_tax'),
             DB::raw('SUM(mpos_sales_h.nservice_charge) as total_service'),
@@ -186,6 +265,8 @@ class SalesDetailReportController extends Controller
             DB::raw("SUM(CASE 
                 WHEN mpos_sales_h.csource = 'OLSERA' THEN 
                     CASE WHEN mpos_sales_h.ntotal_cost IS NOT NULL THEN mpos_sales_h.ntotal_cost ELSE 0 END
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0
+                WHEN GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) >= mpos_sales_h.ngrandtotal THEN 0
                 WHEN items.min_cost >= 0 THEN 
                     items.total_cost 
                 ELSE 0 
@@ -198,8 +279,10 @@ class SalesDetailReportController extends Controller
             DB::raw("SUM(CASE 
                 WHEN mpos_sales_h.csource = 'OLSERA' THEN 
                     CASE WHEN mpos_sales_h.ntotal_profit IS NOT NULL THEN mpos_sales_h.ntotal_profit ELSE 0 END
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0
+                WHEN GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) >= mpos_sales_h.ngrandtotal THEN 0
                 WHEN items.min_cost >= 0 THEN 
-                    (mpos_sales_h.ngrandtotal - COALESCE(items.total_void_refund, 0) - COALESCE(items.total_cost, 0))
+                    (mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) - COALESCE(items.total_cost, 0))
                 ELSE 0 
             END) as valid_total_laba"),
             DB::raw("SUM(CASE 

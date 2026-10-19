@@ -92,31 +92,36 @@ class ShiftController extends Controller
             ], 200);
         }
 
-        // Hitung real-time total gross sales & cash_sales
+        // Hitung real-time total gross sales & cash_sales (transaksi utama non-reversal)
         $totalSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
                 MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_CANCELLED,
-                MposSalesH::STATUS_REFUND,
             ])
+            ->whereNull('nid_parent_transaction')
             ->sum('ngrandtotal');
 
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
                 MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_CANCELLED,
-                MposSalesH::STATUS_REFUND,
             ])
+            ->whereNull('nid_parent_transaction')
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
-        $cashRefund = (float) ($shift->nrefund_cash ?? 0);
-        $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
+        $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+            ->where('cstatus', MposSalesH::STATUS_REFUND)
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal'));
+
+        $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal'));
 
         $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
 
@@ -124,6 +129,8 @@ class ShiftController extends Controller
         $data['nsales_cash'] = (float) $totalSales;
         $data['cash_sales'] = (float) $cashSales;
         $data['nexpected_cash'] = (float) $expectedCash;
+        $data['ncancellation_cash'] = (float) $cashCancellation;
+        $data['nrefund_cash'] = (float) $cashRefund;
         $data = $this->attachShiftMetrics($data, $shift->nid);
 
         return response()->json([
@@ -309,32 +316,37 @@ class ShiftController extends Controller
                 ], 422);
             }
 
-            // Hitung gross sales (seluruh metode pembayaran)
+            // Hitung gross sales (seluruh metode pembayaran transaksi utama non-reversal)
             $totalSales = MposSalesH::where('nid_shift', $shift->nid)
                 ->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
-                    MposSalesH::STATUS_VOID,
-                    MposSalesH::STATUS_CANCELLED,
-                    MposSalesH::STATUS_REFUND,
                 ])
+                ->whereNull('nid_parent_transaction')
                 ->sum('ngrandtotal');
 
-            // Hitung hanya cash sales
+            // Hitung hanya gross cash sales
             $cashSales = MposSalesH::where('nid_shift', $shift->nid)
                 ->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
-                    MposSalesH::STATUS_VOID,
-                    MposSalesH::STATUS_CANCELLED,
-                    MposSalesH::STATUS_REFUND,
                 ])
+                ->whereNull('nid_parent_transaction')
                 ->whereHas('payment', function ($query) {
                     $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
                 })->sum('ngrandtotal');
 
-            $cashRefund = (float) ($shift->nrefund_cash ?? 0);
-            $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
+            $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+                ->where('cstatus', MposSalesH::STATUS_REFUND)
+                ->whereHas('payment', function ($query) {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })->sum('ngrandtotal'));
+
+            $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+                ->whereHas('payment', function ($query) {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })->sum('ngrandtotal'));
 
             $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
             $actualCash = (float) $validated['nactual_cash'];
@@ -450,20 +462,16 @@ class ShiftController extends Controller
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
                 MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_CANCELLED,
-                MposSalesH::STATUS_REFUND,
             ])
+            ->whereNull('nid_parent_transaction')
             ->sum('ngrandtotal');
 
         $cashSales = MposSalesH::where('nid_shift', $shift->nid)
             ->whereIn('cstatus', [
                 MposSalesH::STATUS_PAID,
                 MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_CANCELLED,
-                MposSalesH::STATUS_REFUND,
             ])
+            ->whereNull('nid_parent_transaction')
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
@@ -474,8 +482,20 @@ class ShiftController extends Controller
 
         // expected cash and others are already in shift if closed, or calculated if open
         if ($shift->cstatus === 'OPEN') {
-            $cashRefund = (float) ($shift->nrefund_cash ?? 0);
-            $cashCancellation = (float) ($shift->ncancellation_cash ?? 0);
+            $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+                ->where('cstatus', MposSalesH::STATUS_REFUND)
+                ->whereHas('payment', function ($query) {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })->sum('ngrandtotal'));
+
+            $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
+                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+                ->whereHas('payment', function ($query) {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })->sum('ngrandtotal'));
+
+            $data['ncancellation_cash'] = $cashCancellation;
+            $data['nrefund_cash'] = $cashRefund;
             $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
         }
 
@@ -499,42 +519,47 @@ class ShiftController extends Controller
         ];
 
         $totalReceipts = MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', $validStatuses)
+            ->whereIn('cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+            ->whereNull('nid_parent_transaction')
             ->count();
 
         $totalPax = (int) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', $validStatuses)
+            ->whereIn('cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+            ->whereNull('nid_parent_transaction')
             ->sum('nvisitor');
 
         $subtotal = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', $validStatuses)
+            ->whereIn('cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+            ->whereNull('nid_parent_transaction')
             ->sum('nsubtotal');
 
         $discount = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', $validStatuses)
+            ->whereIn('cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+            ->whereNull('nid_parent_transaction')
             ->sum('ndiscount');
 
         $cashSales = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', $validStatuses)
+            ->whereIn('cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+            ->whereNull('nid_parent_transaction')
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
             })->sum('ngrandtotal');
 
-        $cashRefund = (float) MposSalesH::where('nid_shift', $shiftId)
+        $cashRefund = abs((float) MposSalesH::where('nid_shift', $shiftId)
             ->where('cstatus', MposSalesH::STATUS_REFUND)
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+            })->sum('ngrandtotal'));
 
-        $cashCancellation = (float) MposSalesH::where('nid_shift', $shiftId)
+        $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shiftId)
             ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
             ->whereHas('payment', function ($query) {
                 $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+            })->sum('ngrandtotal'));
 
-        $totalCancellation = (float) MposSalesH::where('nid_shift', $shiftId)
+        $totalCancellation = abs((float) MposSalesH::where('nid_shift', $shiftId)
             ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->sum('ngrandtotal');
+            ->sum('ngrandtotal'));
 
         $paymentBreakdown = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
@@ -542,9 +567,9 @@ class ShiftController extends Controller
             ->whereIn('mpos_sales_h.cstatus', $validStatuses)
             ->select(
                 DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
-                DB::raw("SUM(mpos_sales_h.ngrandtotal) as sales"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN mpos_sales_h.ngrandtotal ELSE 0 END) as refund"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as void")
+                DB::raw("SUM(CASE WHEN mpos_sales_h.nid_parent_transaction IS NULL AND mpos_sales_h.cstatus IN ('PAID', 'COMPLETED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
+                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as refund"),
+                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as void")
             )
             ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
             ->get()

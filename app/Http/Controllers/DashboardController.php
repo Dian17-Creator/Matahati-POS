@@ -119,6 +119,7 @@ class DashboardController extends Controller
         $salesBaseQuery = DB::table('mpos_sales_h')
             ->where('dtransaction', '>=', $startDate)
             ->where('dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction')
             ->where(function ($q) {
                 $q->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
@@ -149,13 +150,30 @@ class DashboardController extends Controller
             )
             ->groupBy('nid_transaction');
 
+        $reversals = DB::table('mpos_sales_h')
+            ->select(
+                'nid_parent_transaction',
+                DB::raw('SUM(ABS(ngrandtotal)) as reversal_amount')
+            )
+            ->whereNotNull('nid_parent_transaction')
+            ->groupBy('nid_parent_transaction');
+
         $salesSummary = (clone $salesBaseQuery)
             ->leftJoinSub($itemDeductions, 'items', function ($join) {
                 $join->on('mpos_sales_h.nid', '=', 'items.nid_transaction');
             })
+            ->leftJoinSub($reversals, 'rev', function ($join) {
+                $join->on('mpos_sales_h.nid', '=', 'rev.nid_parent_transaction');
+            })
             ->selectRaw("
-                SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal ELSE (mpos_sales_h.ngrandtotal - COALESCE(items.total_void_refund, 0)) END) as net_sales,
-                SUM(CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 ELSE COALESCE(items.total_void_refund, 0) END) as partial_void_refund
+                SUM(CASE 
+                    WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal 
+                    ELSE (mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0))) 
+                END) as net_sales,
+                SUM(CASE 
+                    WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 
+                    ELSE GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0)) 
+                END) as partial_void_refund
             ")
             ->first();
 
@@ -183,7 +201,8 @@ class DashboardController extends Controller
         $refundVoidQuery = DB::table('mpos_sales_h')
             ->where('dtransaction', '>=', $startDate)
             ->where('dtransaction', '<=', $endDateParsed)
-            ->whereIn('cstatus', [MposSalesH::STATUS_REFUND, MposSalesH::STATUS_VOID]);
+            ->whereNull('mpos_sales_h.nid_parent_transaction')
+            ->whereIn('cstatus', [MposSalesH::STATUS_REFUND, MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED]);
 
         if (!empty($selectedOutletId)) {
             $refundVoidQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
@@ -191,7 +210,7 @@ class DashboardController extends Controller
             $refundVoidQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
         }
 
-        $fullRefundVoidAmount = (float) $refundVoidQuery->sum('ngrandtotal');
+        $fullRefundVoidAmount = (float) $refundVoidQuery->sum(DB::raw('ABS(ngrandtotal)'));
         $partialVoidRefund = (float) ($salesSummary->partial_void_refund ?? 0);
         $totalPengembalian = $fullRefundVoidAmount + $partialVoidRefund;
 

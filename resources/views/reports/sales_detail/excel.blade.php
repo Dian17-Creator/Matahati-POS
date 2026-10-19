@@ -27,7 +27,8 @@
     <tbody>
         @foreach($transactions as $row)
             @php
-                $isVoid = in_array($row->cstatus, ['VOID', 'CANCELLED', 'REFUND']);
+                $effectiveStatus = $row->display_status ?? $row->cstatus;
+                $isVoid = in_array($effectiveStatus, ['VOID', 'CANCELLED', 'REFUND']);
 
                 if ($row->csource === 'OLSERA') {
                     $grossSalesRow = (float) $row->nsubtotal;
@@ -41,7 +42,10 @@
                     $voidRefundRow = (float) $row->total_void_refund;
                     $netSalesRow = $isVoid ? 0 : max(0, (float) $row->ngrandtotal - $voidRefundRow);
 
-                    if ($row->min_cost < 0) {
+                    if ($isVoid) {
+                        $modalValue = 0;
+                        $labaValue = 0;
+                    } elseif ($row->min_cost < 0) {
                         $modalValue = 0;
                         $labaValue = 0;
                     } else {
@@ -53,7 +57,7 @@
             <tr>
                 <td>{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                 <td>{{ $row->cnotransaction }}</td>
-                <td>{{ $row->cstatus }}</td>
+                <td>{{ $effectiveStatus }}</td>
                 <td>{{ $row->cashier_name ?? '-' }}</td>
                 <td>{{ $row->final_customer_name }}</td>
                 <td>{{ $grossSalesRow }}</td>

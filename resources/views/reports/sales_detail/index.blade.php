@@ -377,7 +377,8 @@
                 <tbody class="small">
                     @forelse($transactions as $row)
                         @php
-                            $isVoid = in_array($row->cstatus, ['VOID', 'CANCELLED', 'REFUND']);
+                            $effectiveStatus = $row->display_status ?? $row->cstatus;
+                            $isVoid = in_array($effectiveStatus, ['VOID', 'CANCELLED', 'REFUND']);
                             
                             if ($row->csource === 'OLSERA') {
                                 $grossSalesRow = $row->nsubtotal;
@@ -402,7 +403,12 @@
                                 $grossSalesRow = $row->ngrandtotal;
                                 $netSalesRow = $isVoid ? 0 : max(0, $row->ngrandtotal - $row->total_void_refund);
                                 
-                                if ($row->min_cost < 0) {
+                                if ($isVoid) {
+                                    $modalLabel = 'Rp 0';
+                                    $labaLabel = 'Rp 0';
+                                    $isModalMissing = false;
+                                    $isLabaMissing = false;
+                                } elseif ($row->min_cost < 0) {
                                     $modalLabel = '-';
                                     $labaLabel = '-';
                                     $isModalMissing = true;
@@ -425,12 +431,12 @@
                                 @endif
                             </td>
                             <td class="text-center">
-                                @if($row->cstatus === 'PAID')
+                                @if($effectiveStatus === 'PAID')
                                     <span class="badge bg-success">PAID</span>
                                 @elseif($isVoid)
-                                    <span class="badge bg-danger">{{ $row->cstatus }}</span>
+                                    <span class="badge bg-danger">{{ $effectiveStatus }}</span>
                                 @else
-                                    <span class="badge bg-secondary">{{ $row->cstatus }}</span>
+                                    <span class="badge bg-secondary">{{ $effectiveStatus }}</span>
                                 @endif
                             </td>
                             <td class="text-center">{{ $row->cashier_name ?? '-' }}</td>
