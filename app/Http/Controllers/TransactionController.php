@@ -25,6 +25,8 @@ class TransactionController extends Controller
                 'voucher',
                 'posUser.user',
                 'outlet',
+                'reversals',
+                'parentTransaction',
             ]);
 
             if ($request->filled('nid_outlet')) {
@@ -127,6 +129,8 @@ class TransactionController extends Controller
                 'voucher',
                 'posUser.user',
                 'outlet',
+                'reversals',
+                'parentTransaction',
             ])
                 ->where(function ($query) use ($id) {
                     if (is_numeric($id)) {
@@ -661,7 +665,7 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $transaction = MposSalesH::with('details')->where('nid', $id)->orWhere('cnotransaction', $id)->first();
 
             if (! $transaction) {
                 return response()->json([
@@ -670,43 +674,93 @@ class TransactionController extends Controller
                 ], 404);
             }
 
-            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+            if (!empty($transaction->nid_parent_transaction)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transaksi sudah dibatalkan atau di-refund.',
+                    'message' => 'Tidak dapat membatalkan transaksi pembatalan (Reversal).',
                 ], 422);
             }
 
-            $hasItemActions = MposSalesD::where('nid_transaction', $transaction->nid)
-                ->where(function ($q) {
-                    $q->where('nqty_void', '>', 0)->orWhere('nqty_refund', '>', 0);
-                })->exists();
-
-            if ($hasItemActions) {
+            $alreadyReversed = MposSalesH::where('nid_parent_transaction', $transaction->nid)->exists();
+            if ($alreadyReversed) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transaksi sudah memiliki proses Void/Refund per item dan tidak dapat diproses sebagai transaksi penuh.',
+                    'message' => 'Transaksi ini sudah memiliki transaksi pembatalan (Reversal).',
                 ], 422);
             }
 
+            // Update status transaksi asli dan tandai detail item sebagai void
             $transaction->cstatus = MposSalesH::STATUS_VOID;
             $transaction->cvoid_note = $request->cvoid_note;
             $transaction->save();
 
+            if ($transaction->details) {
+                foreach ($transaction->details as $detail) {
+                    $detail->nqty_void = $detail->nqty;
+                    $detail->save();
+                }
+            }
+
+            // Buat transaksi reversal baru
+            $reversalTrxNo = $transaction->cnotransaction . '-VOID';
+
+            $reversalTransaction = MposSalesH::create([
+                'cnotransaction' => $reversalTrxNo,
+                'dtransaction' => now(),
+                'nid_parent_transaction' => $transaction->nid,
+                'nid_customer' => $transaction->nid_customer,
+                'nid_user' => $transaction->nid_user,
+                'nid_shift' => $transaction->nid_shift,
+                'nid_outlet' => $transaction->nid_outlet,
+                'nid_voucher' => $transaction->nid_voucher,
+                'nid_payment' => $transaction->nid_payment,
+                'cname_customer' => $transaction->cname_customer,
+                'nqueue' => $transaction->nqueue,
+                'cordertype' => $transaction->cordertype,
+                'nvisitor' => $transaction->nvisitor,
+                'ctable' => $transaction->ctable,
+                'nsubtotal' => -1 * abs((float) $transaction->nsubtotal),
+                'ndiscount' => -1 * abs((float) $transaction->ndiscount),
+                'ntax' => -1 * abs((float) $transaction->ntax),
+                'ngrandtotal' => -1 * abs((float) $transaction->ngrandtotal),
+                'npaid' => -1 * abs((float) $transaction->npaid),
+                'nchange' => 0,
+                'nitem' => -1 * abs((int) $transaction->nitem),
+                'cnote' => $transaction->cnote,
+                'cstatus' => MposSalesH::STATUS_VOID,
+                'cvoid_note' => $request->cvoid_note,
+            ]);
+
+            if ($transaction->details) {
+                foreach ($transaction->details as $detail) {
+                    MposSalesD::create([
+                        'nid_transaction' => $reversalTransaction->nid,
+                        'nid_product' => $detail->nid_product,
+                        'cname' => $detail->cname,
+                        'nqty' => -1 * abs((int) $detail->nqty),
+                        'nprice' => $detail->nprice,
+                        'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
+                        'cnote' => $detail->cnote,
+                    ]);
+                }
+            }
+
             if ($transaction->nid_shift) {
                 $shift = MposShift::find($transaction->nid_shift);
                 if ($shift) {
-                    $shift->ncancellation_cash = $shift->ncancellation_cash + $transaction->ngrandtotal;
+                    $shift->ncancellation_cash = $shift->ncancellation_cash + abs((float) $transaction->ngrandtotal);
                     $shift->save();
                 }
             }
 
             DB::commit();
 
+            $reversalTransaction->load(['details', 'parentTransaction']);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Transaksi berhasil dibatalkan (VOID)',
-                'data' => $transaction,
+                'message' => 'Transaksi pembatalan (VOID) berhasil dibuat',
+                'data' => $reversalTransaction,
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -730,7 +784,7 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $transaction = MposSalesH::with('details')->where('nid', $id)->orWhere('cnotransaction', $id)->first();
 
             if (! $transaction) {
                 return response()->json([
@@ -739,43 +793,93 @@ class TransactionController extends Controller
                 ], 404);
             }
 
-            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+            if (!empty($transaction->nid_parent_transaction)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transaksi sudah dibatalkan atau di-refund.',
+                    'message' => 'Tidak dapat me-refund transaksi pembatalan (Reversal).',
                 ], 422);
             }
 
-            $hasItemActions = MposSalesD::where('nid_transaction', $transaction->nid)
-                ->where(function ($q) {
-                    $q->where('nqty_void', '>', 0)->orWhere('nqty_refund', '>', 0);
-                })->exists();
-
-            if ($hasItemActions) {
+            $alreadyReversed = MposSalesH::where('nid_parent_transaction', $transaction->nid)->exists();
+            if ($alreadyReversed) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transaksi sudah memiliki proses Void/Refund per item dan tidak dapat diproses sebagai transaksi penuh.',
+                    'message' => 'Transaksi ini sudah memiliki transaksi pembatalan (Reversal).',
                 ], 422);
             }
 
+            // Update status transaksi asli dan tandai detail item sebagai refund
             $transaction->cstatus = MposSalesH::STATUS_REFUND;
             $transaction->crefund_note = $request->crefund_note;
             $transaction->save();
 
+            if ($transaction->details) {
+                foreach ($transaction->details as $detail) {
+                    $detail->nqty_refund = $detail->nqty;
+                    $detail->save();
+                }
+            }
+
+            // Buat transaksi reversal refund baru
+            $reversalTrxNo = $transaction->cnotransaction . '-REFUND';
+
+            $reversalTransaction = MposSalesH::create([
+                'cnotransaction' => $reversalTrxNo,
+                'dtransaction' => now(),
+                'nid_parent_transaction' => $transaction->nid,
+                'nid_customer' => $transaction->nid_customer,
+                'nid_user' => $transaction->nid_user,
+                'nid_shift' => $transaction->nid_shift,
+                'nid_outlet' => $transaction->nid_outlet,
+                'nid_voucher' => $transaction->nid_voucher,
+                'nid_payment' => $transaction->nid_payment,
+                'cname_customer' => $transaction->cname_customer,
+                'nqueue' => $transaction->nqueue,
+                'cordertype' => $transaction->cordertype,
+                'nvisitor' => $transaction->nvisitor,
+                'ctable' => $transaction->ctable,
+                'nsubtotal' => -1 * abs((float) $transaction->nsubtotal),
+                'ndiscount' => -1 * abs((float) $transaction->ndiscount),
+                'ntax' => -1 * abs((float) $transaction->ntax),
+                'ngrandtotal' => -1 * abs((float) $transaction->ngrandtotal),
+                'npaid' => -1 * abs((float) $transaction->npaid),
+                'nchange' => 0,
+                'nitem' => -1 * abs((int) $transaction->nitem),
+                'cnote' => $transaction->cnote,
+                'cstatus' => MposSalesH::STATUS_REFUND,
+                'crefund_note' => $request->crefund_note,
+            ]);
+
+            if ($transaction->details) {
+                foreach ($transaction->details as $detail) {
+                    MposSalesD::create([
+                        'nid_transaction' => $reversalTransaction->nid,
+                        'nid_product' => $detail->nid_product,
+                        'cname' => $detail->cname,
+                        'nqty' => -1 * abs((int) $detail->nqty),
+                        'nprice' => $detail->nprice,
+                        'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
+                        'cnote' => $detail->cnote,
+                    ]);
+                }
+            }
+
             if ($transaction->nid_shift) {
                 $shift = MposShift::find($transaction->nid_shift);
                 if ($shift) {
-                    $shift->nrefund_cash = $shift->nrefund_cash + $transaction->ngrandtotal;
+                    $shift->nrefund_cash = $shift->nrefund_cash + abs((float) $transaction->ngrandtotal);
                     $shift->save();
                 }
             }
 
             DB::commit();
 
+            $reversalTransaction->load(['details', 'parentTransaction']);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Transaksi berhasil di-refund',
-                'data' => $transaction,
+                'message' => 'Transaksi refund (REFUND) berhasil dibuat',
+                'data' => $reversalTransaction,
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -864,8 +968,17 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            if (!empty($transaction->nid_parent_transaction)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak dapat melakukan pembatalan item pada transaksi Reversal.',
+                ], 422);
+            }
+
             $totalActionAmount = 0;
+            $totalActionQty = 0;
             $processedItems = [];
+            $reversalDetailsToCreate = [];
 
             foreach ($request->items as $itemReq) {
                 $detailId = $itemReq['detail_id'];
@@ -908,10 +1021,20 @@ class TransactionController extends Controller
                 }
                 $detail->save();
 
-                $nprice = $detail->nprice;
+                $nprice = (float) $detail->nprice;
                 $nsubtotal = $requestQty * $nprice;
 
                 $totalActionAmount += $nsubtotal;
+                $totalActionQty += $requestQty;
+
+                $reversalDetailsToCreate[] = [
+                    'nid_product' => $detail->nid_product,
+                    'cname' => $detail->cname,
+                    'nqty' => -1 * abs($requestQty),
+                    'nprice' => $nprice,
+                    'nsubtotal' => -1 * abs($nsubtotal),
+                    'cnote' => $detail->cnote,
+                ];
 
                 $processedItems[] = [
                     'detail_id' => $detail->nid,
@@ -920,6 +1043,46 @@ class TransactionController extends Controller
                     'qty_refund' => $detail->nqty_refund,
                     'qty_available' => $detail->nqty - $detail->nqty_void - $detail->nqty_refund,
                 ];
+            }
+
+            // Buat record Transaksi Partial Reversal Baru
+            $existingPartialCount = MposSalesH::where('nid_parent_transaction', $transaction->nid)->count();
+            $seq = $existingPartialCount + 1;
+            $reversalTrxNo = $transaction->cnotransaction . "-PARTIAL-{$seq}";
+
+            $statusToSet = $actionType === 'VOID' ? MposSalesH::STATUS_VOID : MposSalesH::STATUS_REFUND;
+
+            $reversalTransaction = MposSalesH::create([
+                'cnotransaction' => $reversalTrxNo,
+                'dtransaction' => now(),
+                'nid_parent_transaction' => $transaction->nid,
+                'nid_customer' => $transaction->nid_customer,
+                'nid_user' => $transaction->nid_user,
+                'nid_shift' => $transaction->nid_shift,
+                'nid_outlet' => $transaction->nid_outlet,
+                'nid_voucher' => $transaction->nid_voucher,
+                'nid_payment' => $transaction->nid_payment,
+                'cname_customer' => $transaction->cname_customer,
+                'nqueue' => $transaction->nqueue,
+                'cordertype' => $transaction->cordertype,
+                'nvisitor' => $transaction->nvisitor,
+                'ctable' => $transaction->ctable,
+                'nsubtotal' => -1 * abs($totalActionAmount),
+                'ndiscount' => 0,
+                'ntax' => 0,
+                'ngrandtotal' => -1 * abs($totalActionAmount),
+                'npaid' => -1 * abs($totalActionAmount),
+                'nchange' => 0,
+                'nitem' => -1 * abs($totalActionQty),
+                'cnote' => $transaction->cnote,
+                'cstatus' => $statusToSet,
+                'cvoid_note' => $actionType === 'VOID' ? $request->reason : null,
+                'crefund_note' => $actionType === 'REFUND' ? $request->reason : null,
+            ]);
+
+            foreach ($reversalDetailsToCreate as &$revDetail) {
+                $revDetail['nid_transaction'] = $reversalTransaction->nid;
+                MposSalesD::create($revDetail);
             }
 
             if ($transaction->nid_shift) {
@@ -939,6 +1102,7 @@ class TransactionController extends Controller
             DB::commit();
 
             $transaction->refresh();
+            $transaction->load(['details', 'reversals']);
             $actionWord = $actionType === 'VOID' ? 'dibatalkan' : 'dikembalikan';
 
             return response()->json([
@@ -946,6 +1110,8 @@ class TransactionController extends Controller
                 'message' => "Item berhasil {$actionWord}.",
                 'data' => [
                     'transaction_id' => $transaction->nid,
+                    'transaction' => $transaction,
+                    'reversal_transaction' => $reversalTransaction,
                     'status' => $transaction->cstatus,
                     'items' => $processedItems,
                 ]

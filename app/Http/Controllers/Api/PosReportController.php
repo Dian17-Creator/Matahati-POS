@@ -49,14 +49,9 @@ class PosReportController extends Controller
                     $q->whereIn('sh.cstatus', [
                         MposSalesH::STATUS_PAID,
                         MposSalesH::STATUS_COMPLETED,
-                    ])->orWhere(function ($sub) {
-                        $sub->whereNotIn('sh.cstatus', [
-                            MposSalesH::STATUS_CANCELLED,
-                            MposSalesH::STATUS_DRAFT,
-                            MposSalesH::STATUS_VOID,
-                            MposSalesH::STATUS_REFUND,
-                        ])->whereNotNull('sh.nid_payment');
-                    });
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ]);
                 })
                 ->whereDate('sh.dtransaction', '>=', $dateFrom)
                 ->whereDate('sh.dtransaction', '<=', $dateTo);

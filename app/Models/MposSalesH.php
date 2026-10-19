@@ -67,6 +67,7 @@ class MposSalesH extends Model
         'nid_outlet',
         'nid_voucher',
         'nid_payment',
+        'nid_parent_transaction',
 
         'cname_customer',
 
@@ -111,6 +112,7 @@ class MposSalesH extends Model
             'nid_outlet' => 'integer',
             'nid_voucher' => 'integer',
             'nid_payment' => 'integer',
+            'nid_parent_transaction' => 'integer',
 
             'nqueue' => 'integer',
             'nvisitor' => 'integer',
@@ -213,6 +215,24 @@ class MposSalesH extends Model
         return $this->belongsTo(
             MposShift::class,
             'nid_shift',
+            'nid'
+        );
+    }
+
+    public function parentTransaction()
+    {
+        return $this->belongsTo(
+            MposSalesH::class,
+            'nid_parent_transaction',
+            'nid'
+        );
+    }
+
+    public function reversals()
+    {
+        return $this->hasMany(
+            MposSalesH::class,
+            'nid_parent_transaction',
             'nid'
         );
     }

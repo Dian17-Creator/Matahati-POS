@@ -232,7 +232,7 @@
             <div class="sekilas-row">
                 <div class="sekilas-row-label">
                     <i class="bi bi-arrow-down-left-square"></i>
-                    <span>Pengembalian</span>
+                    <span>Pengembalian / Pembatalan</span>
                 </div>
                 <div class="sekilas-row-value">
                     IDR {{ number_format($totalPengembalian, 0, ',', '.') }}
