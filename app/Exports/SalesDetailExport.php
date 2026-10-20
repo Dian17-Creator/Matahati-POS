@@ -39,8 +39,8 @@ class SalesDetailExport implements FromView, ShouldAutoSize, WithStyles, WithTit
 
     public function styles(Worksheet $sheet): array
     {
-        // Filter otomatis pada baris header (Baris ke-3, kolom A sampai O)
-        $sheet->setAutoFilter('A3:O3');
+        // Filter otomatis pada baris header (Baris ke-3, kolom A sampai P)
+        $sheet->setAutoFilter('A3:P3');
 
         return [
             1 => ['font' => ['bold' => true]],

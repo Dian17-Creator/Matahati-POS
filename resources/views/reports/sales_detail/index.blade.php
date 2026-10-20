@@ -399,7 +399,8 @@
             <table class="table table-hover table-borderless align-middle mb-0 text-nowrap" style="min-width: 1500px;">
                 <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
                     <tr>
-                        <th class="py-3 text-center">TANGGAL</th>
+                        <th class="py-3 text-center">TANGGAL TRANSAKSI</th>
+                        <th class="py-3 text-center">WAKTU TRANSAKSI</th>
                         <th class="py-3 text-center">NO. PESANAN</th>
                         <th class="py-3 text-center">PAYMENT METHOD</th>
                         <th class="py-3 text-center">KASIR</th>
@@ -480,6 +481,7 @@
                             }
                         @endphp
                         <tr style="border-bottom: 1px solid #f8f9fa;">
+                            <td class="text-center">{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y') }}</td>
                             <td class="text-center">{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                             <td class="text-center">
                                 <strong>{{ $row->cnotransaction }}</strong>
@@ -511,7 +513,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="15" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
+                            <td colspan="16" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
                         </tr>
                     @endforelse
                 </tbody>
