@@ -18,6 +18,15 @@ class TransactionController extends Controller
     public function index(Request $request)
     {
         try {
+            // Perbaiki otomatis status transaksi induk di DB jika sebelumnya terubah menjadi VOID/REFUND
+            MposSalesH::whereIn('nid', function ($sub) {
+                $sub->select('nid_parent_transaction')
+                    ->from('mpos_sales_h')
+                    ->whereNotNull('nid_parent_transaction');
+            })
+            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_REFUND])
+            ->update(['cstatus' => MposSalesH::STATUS_COMPLETED]);
+
             $query = MposSalesH::with([
                 'details.product',
                 'payment',
@@ -689,17 +698,12 @@ class TransactionController extends Controller
                 ], 422);
             }
 
-            // Update status transaksi asli dan tandai detail item sebagai void
-            $transaction->cstatus = MposSalesH::STATUS_VOID;
+            // Catat alasan pembatalan pada transaksi asli (tanpa mengubah status cstatus)
             $transaction->cvoid_note = $request->cvoid_note;
-            $transaction->save();
-
-            if ($transaction->details) {
-                foreach ($transaction->details as $detail) {
-                    $detail->nqty_void = $detail->nqty;
-                    $detail->save();
-                }
+            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+                $transaction->cstatus = MposSalesH::STATUS_COMPLETED;
             }
+            $transaction->save();
 
             // Buat transaksi reversal baru
             $reversalTrxNo = $transaction->cnotransaction . '-VOID';
@@ -808,17 +812,12 @@ class TransactionController extends Controller
                 ], 422);
             }
 
-            // Update status transaksi asli dan tandai detail item sebagai refund
-            $transaction->cstatus = MposSalesH::STATUS_REFUND;
+            // Catat alasan refund pada transaksi asli (tanpa mengubah status cstatus)
             $transaction->crefund_note = $request->crefund_note;
-            $transaction->save();
-
-            if ($transaction->details) {
-                foreach ($transaction->details as $detail) {
-                    $detail->nqty_refund = $detail->nqty;
-                    $detail->save();
-                }
+            if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
+                $transaction->cstatus = MposSalesH::STATUS_COMPLETED;
             }
+            $transaction->save();
 
             // Buat transaksi reversal refund baru
             $reversalTrxNo = $transaction->cnotransaction . '-REFUND';
