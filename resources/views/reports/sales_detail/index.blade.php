@@ -254,7 +254,7 @@
                 <i class="bi bi-cloud-arrow-up"></i> Import Olsera
             </button>
             @php
-                $isAnyFilterActive = !empty($outletId) || !empty($status);
+                $isAnyFilterActive = !empty($outletId) || !empty($status) || !empty($paymentId);
             @endphp
             <button type="button" class="btn {{ $isAnyFilterActive ? 'btn-primary' : 'btn-outline-primary' }} btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
                 <i class="bi bi-funnel"></i> Filter
@@ -301,6 +301,7 @@
                     <form action="{{ route('reports.sales-detail') }}" method="GET" class="px-1">
                         @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
                         @if(!empty($status)) <input type="hidden" name="status" value="{{ $status }}"> @endif
+                        @if(!empty($paymentId)) <input type="hidden" name="payment_id" value="{{ $paymentId }}"> @endif
 
                         <div class="mb-2">
                             <label class="form-label small text-muted mb-1">Dari</label>
@@ -349,10 +350,34 @@
                         Semua Status
                         @if(empty($status)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
                     </a>
-                    @foreach(['PAID', 'VOID', 'REFUND', 'CANCELLED'] as $st)
+                    @foreach(['PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED'] as $st)
                         <a class="dropdown-item {{ $status === $st ? 'active' : '' }}" href="{{ route('reports.sales-detail', array_merge(request()->except(['page']), ['status' => $st])) }}">
                             {{ $st }}
                             @if($status === $st) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Dropdown Pembayaran -->
+            <div class="dropdown d-inline-block">
+                @php
+                    $activePayment = !empty($paymentId) ? collect($payments)->firstWhere('nid', $paymentId) : null;
+                    $paymentNameDisplay = $activePayment ? $activePayment->cname : 'Semua Pembayaran';
+                @endphp
+                <button type="button" class="filter-chip {{ !empty($paymentId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Metode Pembayaran">
+                    <i class="bi bi-credit-card"></i> {{ $paymentNameDisplay }}
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 200px; max-height: 280px; overflow-y: auto;">
+                    <a class="dropdown-item {{ empty($paymentId) ? 'active' : '' }}" href="{{ route('reports.sales-detail', request()->except(['payment_id', 'page'])) }}">
+                        Semua Pembayaran
+                        @if(empty($paymentId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                    </a>
+                    @foreach($payments as $pm)
+                        <a class="dropdown-item {{ (string)($paymentId ?? '') === (string)$pm->nid ? 'active' : '' }}" href="{{ route('reports.sales-detail', array_merge(request()->except(['page']), ['payment_id' => $pm->nid])) }}">
+                            {{ $pm->cname }}
+                            @if((string)($paymentId ?? '') === (string)$pm->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
                         </a>
                     @endforeach
                 </div>
@@ -582,9 +607,20 @@
                         <select name="status" id="status" class="form-select tom-select-filter" placeholder="Semua Status">
                             <option value="">Semua Status</option>
                             <option value="PAID" {{ $status == 'PAID' ? 'selected' : '' }}>PAID</option>
+                            <option value="COMPLETED" {{ $status == 'COMPLETED' ? 'selected' : '' }}>COMPLETED</option>
                             <option value="VOID" {{ $status == 'VOID' ? 'selected' : '' }}>VOID</option>
                             <option value="REFUND" {{ $status == 'REFUND' ? 'selected' : '' }}>REFUND</option>
                             <option value="CANCELLED" {{ $status == 'CANCELLED' ? 'selected' : '' }}>CANCELLED</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Metode Pembayaran</label>
+                        <select name="payment_id" id="payment_id" class="form-select tom-select-filter" placeholder="Semua Pembayaran">
+                            <option value="">Semua Pembayaran</option>
+                            @foreach($payments as $pm)
+                                <option value="{{ $pm->nid }}" {{ (string)($paymentId ?? '') === (string)$pm->nid ? 'selected' : '' }}>{{ $pm->cname }}</option>
+                            @endforeach
                         </select>
                     </div>
 
