@@ -1,16 +1,17 @@
 <table>
     <thead>
         <tr>
-            <th colspan="16" style="font-size: 14pt; font-weight: bold; text-align: center;">LAPORAN RINCIAN PENJUALAN</th>
+            <th colspan="17" style="font-size: 14pt; font-weight: bold; text-align: center;">LAPORAN RINCIAN PENJUALAN</th>
         </tr>
         <tr>
-            <th colspan="16" style="text-align: center;">Periode: {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }} | Outlet: {{ $outletName }}</th>
+            <th colspan="17" style="text-align: center;">Periode: {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }} | Outlet: {{ $outletName }}</th>
         </tr>
         <tr>
             <th>Tanggal Transaksi</th>
             <th>Waktu Transaksi</th>
             <th>No. Pesanan</th>
             <th>Payment Method</th>
+            <th>Status</th>
             <th>Kasir</th>
             <th>Pelanggan</th>
             <th>Total Penjualan</th>
@@ -75,6 +76,7 @@
                 <td>{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                 <td>{{ $row->cnotransaction }}</td>
                 <td style="{{ $excelPaymentStyle }}">{{ $row->payment_name ?? '-' }}</td>
+                <td>{{ $effectiveStatus }}</td>
                 <td>{{ $row->cashier_name ?? '-' }}</td>
                 <td>{{ $row->final_customer_name }}</td>
                 <td>{{ $grossSalesRow }}</td>
@@ -92,7 +94,7 @@
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="6" style="font-weight: bold; text-align: right;">GRAND TOTAL</td>
+            <td colspan="7" style="font-weight: bold; text-align: right;">GRAND TOTAL</td>
             <td style="font-weight: bold;">{{ (float) ($summary->gross_sales ?? 0) }}</td>
             <td style="font-weight: bold;">{{ (float) ($summary->total_void_refund ?? 0) }}</td>
             <td style="font-weight: bold;">{{ (float) ($summary->total_discount ?? 0) }}</td>
