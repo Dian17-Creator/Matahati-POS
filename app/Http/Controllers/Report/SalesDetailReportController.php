@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Exports\SalesDetailExport;
 use App\Imports\OlseraSalesImport;
 use App\Models\MposOutlet;
+use App\Models\MposPayment;
 use App\Models\MposSalesH;
 use App\Models\MposUser;
 use App\Traits\ResolvesOutletScope;
@@ -29,17 +30,19 @@ class SalesDetailReportController extends Controller
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
         
         $status = $request->input('status', '');
+        $paymentId = $request->input('payment_id', '');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
         $isCashierOnly = $this->isCashierOnlyUser();
         $isSuperAdmin = $this->isSuperAdminUser();
         $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
         $allowedOutletIds = $this->getUserAllowedOutletIds();
+        $payments = MposPayment::orderBy('cname')->get();
 
-        $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId);
+        $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId);
         $transactions = $query->paginate(10)->withQueryString();
 
-        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status)->first();
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status, $paymentId)->first();
         $netSales = $summary->net_sales ?? 0;
 
         return view('reports.sales_detail.index', compact(
@@ -47,6 +50,8 @@ class SalesDetailReportController extends Controller
             'startDate',
             'endDate',
             'status',
+            'paymentId',
+            'payments',
             'outletId',
             'outlets',
             'isCashierOnly',
@@ -65,6 +70,7 @@ class SalesDetailReportController extends Controller
         $endDateParsed = Carbon::parse($endDate)->endOfDay();
         
         $status = $request->input('status', '');
+        $paymentId = $request->input('payment_id', '');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
 
         $outletName = 'Semua Outlet';
@@ -75,8 +81,8 @@ class SalesDetailReportController extends Controller
             }
         }
 
-        $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId)->get();
-        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status)->first();
+        $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId)->get();
+        $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status, $paymentId)->first();
         $dateSuffix = $startDate === $endDate
             ? Carbon::parse($startDate)->format('d-m-Y')
             : Carbon::parse($startDate)->format('d-m-Y') . '_sd_' . Carbon::parse($endDate)->format('d-m-Y');
@@ -84,7 +90,7 @@ class SalesDetailReportController extends Controller
         return Excel::download(new SalesDetailExport($transactions, $summary, $startDate, $endDate, $outletName), "laporan_penjualan_{$dateSuffix}.xlsx");
     }
 
-    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId)
+    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId = '')
     {
         $query = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
@@ -143,6 +149,10 @@ class SalesDetailReportController extends Controller
             }
         }
 
+        if (!empty($paymentId)) {
+            $query->where('mpos_sales_h.nid_payment', $paymentId);
+        }
+
         $query->select(
             'mpos_sales_h.*',
             'mpos_payment.cname as payment_name',
@@ -175,7 +185,7 @@ class SalesDetailReportController extends Controller
         return $query;
     }
 
-    private function buildSummaryQuery($startDate, $endDateParsed, $outletId, $status = '')
+    private function buildSummaryQuery($startDate, $endDateParsed, $outletId, $status = '', $paymentId = '')
     {
         $summaryQuery = DB::table('mpos_sales_h')
             ->where('mpos_sales_h.dtransaction', '>=', $startDate)
@@ -186,6 +196,10 @@ class SalesDetailReportController extends Controller
             $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
         } elseif (!$this->isSuperAdminUser()) {
             $summaryQuery->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
+        }
+
+        if (!empty($paymentId)) {
+            $summaryQuery->where('mpos_sales_h.nid_payment', $paymentId);
         }
 
         $itemDeductions = DB::table('mpos_sales_d')
