@@ -403,6 +403,7 @@
                         <th class="py-3 text-center">WAKTU TRANSAKSI</th>
                         <th class="py-3 text-center">NO. PESANAN</th>
                         <th class="py-3 text-center">PAYMENT METHOD</th>
+                        <th class="py-3 text-center">STATUS</th>
                         <th class="py-3 text-center">KASIR</th>
                         <th class="py-3 text-center">PELANGGAN</th>
                         <th class="py-3 text-center">TOTAL PENJUALAN</th>
@@ -491,8 +492,14 @@
                             </td>
                             <td class="text-center">
                                 <span class="badge-payment {{ $badgePaymentClass }}">{{ $row->payment_name ?? '-' }}</span>
-                                @if($isVoid)
-                                    <span class="badge bg-danger ms-1" style="font-size: 10px;">{{ $effectiveStatus }}</span>
+                            </td>
+                            <td class="text-center">
+                                @if($effectiveStatus === 'PAID')
+                                    <span class="badge bg-success">PAID</span>
+                                @elseif($isVoid)
+                                    <span class="badge bg-danger">{{ $effectiveStatus }}</span>
+                                @else
+                                    <span class="badge bg-secondary">{{ $effectiveStatus }}</span>
                                 @endif
                             </td>
                             <td class="text-center">{{ $row->cashier_name ?? '-' }}</td>
@@ -513,7 +520,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="16" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
+                            <td colspan="17" class="text-center py-4 text-muted">Tidak ada data transaksi yang ditemukan.</td>
                         </tr>
                     @endforelse
                 </tbody>
