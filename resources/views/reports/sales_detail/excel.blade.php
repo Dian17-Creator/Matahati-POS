@@ -9,7 +9,7 @@
         <tr>
             <th>Tanggal</th>
             <th>No. Pesanan</th>
-            <th>Status</th>
+            <th>Payment Method</th>
             <th>Kasir</th>
             <th>Pelanggan</th>
             <th>Total Penjualan</th>
@@ -53,11 +53,26 @@
                         $labaValue = $netSalesRow - (float) $row->total_cost;
                     }
                 }
+
+                $pName = strtoupper(trim($row->payment_name ?? ''));
+                if (str_contains($pName, 'CASH') || str_contains($pName, 'TUNAI')) {
+                    $excelPaymentStyle = 'background-color: #dcfce7; color: #15803d; font-weight: bold; text-align: center;';
+                } elseif (str_contains($pName, 'QRIS')) {
+                    $excelPaymentStyle = 'background-color: #e0e7ff; color: #4338ca; font-weight: bold; text-align: center;';
+                } elseif (str_contains($pName, 'TRANSFER') || str_contains($pName, 'BCA') || str_contains($pName, 'MANDIRI') || str_contains($pName, 'BRI') || str_contains($pName, 'BNI') || str_contains($pName, 'BANK')) {
+                    $excelPaymentStyle = 'background-color: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center;';
+                } elseif (str_contains($pName, 'DEBIT') || str_contains($pName, 'CREDIT') || str_contains($pName, 'EDC') || str_contains($pName, 'KARTU')) {
+                    $excelPaymentStyle = 'background-color: #fef3c7; color: #b45309; font-weight: bold; text-align: center;';
+                } elseif (str_contains($pName, 'GOPAY') || str_contains($pName, 'OVO') || str_contains($pName, 'DANA') || str_contains($pName, 'SHOPEE')) {
+                    $excelPaymentStyle = 'background-color: #f3e8ff; color: #7e22ce; font-weight: bold; text-align: center;';
+                } else {
+                    $excelPaymentStyle = 'text-align: center;';
+                }
             @endphp
             <tr>
                 <td>{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                 <td>{{ $row->cnotransaction }}</td>
-                <td>{{ $effectiveStatus }}</td>
+                <td style="{{ $excelPaymentStyle }}">{{ $row->payment_name ?? '-' }}</td>
                 <td>{{ $row->cashier_name ?? '-' }}</td>
                 <td>{{ $row->final_customer_name }}</td>
                 <td>{{ $grossSalesRow }}</td>

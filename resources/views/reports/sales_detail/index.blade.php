@@ -101,6 +101,48 @@
         padding: 1rem 0.75rem !important;
     }
     
+    /* Payment Method Badges */
+    .badge-payment {
+        display: inline-block;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-radius: 6px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+    .badge-payment-cash {
+        background-color: #dcfce7 !important;
+        color: #15803d !important;
+        border: 1px solid #86efac !important;
+    }
+    .badge-payment-qris {
+        background-color: #e0e7ff !important;
+        color: #4338ca !important;
+        border: 1px solid #a5b4fc !important;
+    }
+    .badge-payment-transfer {
+        background-color: #e0f2fe !important;
+        color: #0369a1 !important;
+        border: 1px solid #7dd3fc !important;
+    }
+    .badge-payment-card {
+        background-color: #fef3c7 !important;
+        color: #b45309 !important;
+        border: 1px solid #fcd34d !important;
+    }
+    .badge-payment-ewallet {
+        background-color: #f3e8ff !important;
+        color: #7e22ce !important;
+        border: 1px solid #d8b4fe !important;
+    }
+    .badge-payment-default {
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+    
 
 
     .modern-modal .modal-content {
@@ -359,7 +401,7 @@
                     <tr>
                         <th class="py-3 text-center">TANGGAL</th>
                         <th class="py-3 text-center">NO. PESANAN</th>
-                        <th class="py-3 text-center">STATUS</th>
+                        <th class="py-3 text-center">PAYMENT METHOD</th>
                         <th class="py-3 text-center">KASIR</th>
                         <th class="py-3 text-center">PELANGGAN</th>
                         <th class="py-3 text-center">TOTAL PENJUALAN</th>
@@ -421,6 +463,21 @@
                                     $isLabaMissing = false;
                                 }
                             }
+
+                            $pName = strtoupper(trim($row->payment_name ?? ''));
+                            if (str_contains($pName, 'CASH') || str_contains($pName, 'TUNAI')) {
+                                $badgePaymentClass = 'badge-payment-cash';
+                            } elseif (str_contains($pName, 'QRIS')) {
+                                $badgePaymentClass = 'badge-payment-qris';
+                            } elseif (str_contains($pName, 'TRANSFER') || str_contains($pName, 'BCA') || str_contains($pName, 'MANDIRI') || str_contains($pName, 'BRI') || str_contains($pName, 'BNI') || str_contains($pName, 'BANK')) {
+                                $badgePaymentClass = 'badge-payment-transfer';
+                            } elseif (str_contains($pName, 'DEBIT') || str_contains($pName, 'CREDIT') || str_contains($pName, 'EDC') || str_contains($pName, 'KARTU')) {
+                                $badgePaymentClass = 'badge-payment-card';
+                            } elseif (str_contains($pName, 'GOPAY') || str_contains($pName, 'OVO') || str_contains($pName, 'DANA') || str_contains($pName, 'SHOPEE')) {
+                                $badgePaymentClass = 'badge-payment-ewallet';
+                            } else {
+                                $badgePaymentClass = 'badge-payment-default';
+                            }
                         @endphp
                         <tr style="border-bottom: 1px solid #f8f9fa;">
                             <td class="text-center">{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
@@ -431,12 +488,9 @@
                                 @endif
                             </td>
                             <td class="text-center">
-                                @if($effectiveStatus === 'PAID')
-                                    <span class="badge bg-success">PAID</span>
-                                @elseif($isVoid)
-                                    <span class="badge bg-danger">{{ $effectiveStatus }}</span>
-                                @else
-                                    <span class="badge bg-secondary">{{ $effectiveStatus }}</span>
+                                <span class="badge-payment {{ $badgePaymentClass }}">{{ $row->payment_name ?? '-' }}</span>
+                                @if($isVoid)
+                                    <span class="badge bg-danger ms-1" style="font-size: 10px;">{{ $effectiveStatus }}</span>
                                 @endif
                             </td>
                             <td class="text-center">{{ $row->cashier_name ?? '-' }}</td>
