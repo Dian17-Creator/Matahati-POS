@@ -112,31 +112,34 @@
         .sidebar .nav-icon {
             width: 20px;
             height: 20px;
-            font-size: 1.05rem;
+            font-size: 1.15rem;
             margin-right: 10px;
             text-align: center;
             flex: 0 0 20px !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-        }
-
-        .sidebar .nav-icon-svg {
-            max-width: 19px;
-            max-height: 19px;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            display: inline-block;
             opacity: 0.85;
             transition: opacity 0.2s ease;
         }
 
-        .sidebar a:hover .nav-icon-svg,
-        .sidebar a.active .nav-icon-svg,
-        .sidebar .nav-category:hover .nav-icon-svg,
-        .sidebar .nav-category.active-parent .nav-icon-svg,
-        .sidebar .nav-category:not(.collapsed) .nav-icon-svg {
+        .sidebar .nav-icon i {
+            font-size: 1.15rem;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar .nav-icon i::before {
+            vertical-align: 0;
+        }
+
+        .sidebar a:hover .nav-icon,
+        .sidebar a.active .nav-icon,
+        .sidebar .nav-category:hover .nav-icon,
+        .sidebar .nav-category.active-parent .nav-icon,
+        .sidebar .nav-category:not(.collapsed) .nav-icon {
             opacity: 1;
         }
 
@@ -307,7 +310,7 @@
                     @endphp
 
                     <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <span class="nav-icon"><img src="{{ asset('images/ic_pos_home2.svg') }}" alt="" class="nav-icon-svg"></span>
+                        <span class="nav-icon"><i class="bi bi-house-door"></i></span>
                         <span>Dashboard</span>
                     </a>
 
@@ -319,7 +322,7 @@
                         aria-controls="menuMasterData"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_master.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span class="nav-icon"><i class="bi bi-bookmark"></i></span>
                             <span>Master Data</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
@@ -352,7 +355,7 @@
                         aria-controls="menuPosManagement"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_management.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span class="nav-icon"><i class="bi bi-person-badge"></i></span>
                             <span>POS Management</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
@@ -387,7 +390,7 @@
                         aria-controls="menuPurchases"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_transaction.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span class="nav-icon"><i class="bi bi-cart3"></i></span>
                             <span>Transaksi & Pembelian</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
@@ -411,7 +414,7 @@
                         aria-controls="menuReports"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_report.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span class="nav-icon"><i class="bi bi-bar-chart"></i></span>
                             <span>Laporan</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
