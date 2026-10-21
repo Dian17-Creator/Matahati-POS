@@ -300,24 +300,24 @@
                     <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
 
                     @php
-                        $isMasterActive = request()->routeIs(['categories.*', 'customer-types.*', 'products.*', 'ingredients.*', 'combos.*']);
-                        $isPosActive = request()->routeIs(['customers.*', 'outlets.*', 'pos-users.*', 'payments.*', 'vouchers.*']);
-                        $isPurchasesActive = request()->routeIs(['purchases.*', 'suppliers.*']);
-                        $isReportsActive = request()->routeIs(['reports.*']);
+                    $isMasterActive = request()->routeIs(['categories.*', 'customer-types.*', 'products.*', 'ingredients.*', 'combos.*']);
+                    $isPosActive = request()->routeIs(['customers.*', 'outlets.*', 'pos-users.*', 'payments.*', 'vouchers.*']);
+                    $isPurchasesActive = request()->routeIs(['purchases.*', 'suppliers.*']);
+                    $isReportsActive = request()->routeIs(['reports.*']);
                     @endphp
 
                     <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <span class="nav-icon"><img src="{{ asset('images/ic_pos_home.svg') }}" alt="" class="nav-icon-svg"></span>
+                        <span class="nav-icon"><img src="{{ asset('images/ic_pos_home2.svg') }}" alt="" class="nav-icon-svg"></span>
                         <span>Dashboard</span>
                     </a>
 
                     <!-- Master Data -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isMasterActive ? '' : 'collapsed' }} {{ $isMasterActive ? 'active-parent' : '' }}"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#menuMasterData"
-                         aria-expanded="{{ $isMasterActive ? 'true' : 'false' }}"
-                         aria-controls="menuMasterData"
-                         role="button">
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuMasterData"
+                        aria-expanded="{{ $isMasterActive ? 'true' : 'false' }}"
+                        aria-controls="menuMasterData"
+                        role="button">
                         <div class="d-flex align-items-center">
                             <span class="nav-icon"><img src="{{ asset('images/ic_pos_master.svg') }}" alt="" class="nav-icon-svg"></span>
                             <span>Master Data</span>
@@ -346,11 +346,11 @@
 
                     <!-- POS Management -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isPosActive ? '' : 'collapsed' }} {{ $isPosActive ? 'active-parent' : '' }}"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#menuPosManagement"
-                         aria-expanded="{{ $isPosActive ? 'true' : 'false' }}"
-                         aria-controls="menuPosManagement"
-                         role="button">
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuPosManagement"
+                        aria-expanded="{{ $isPosActive ? 'true' : 'false' }}"
+                        aria-controls="menuPosManagement"
+                        role="button">
                         <div class="d-flex align-items-center">
                             <span class="nav-icon"><img src="{{ asset('images/ic_pos_management.svg') }}" alt="" class="nav-icon-svg"></span>
                             <span>POS Management</span>
@@ -381,11 +381,11 @@
 
                     <!-- Transaksi & Pembelian -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isPurchasesActive ? '' : 'collapsed' }} {{ $isPurchasesActive ? 'active-parent' : '' }}"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#menuPurchases"
-                         aria-expanded="{{ $isPurchasesActive ? 'true' : 'false' }}"
-                         aria-controls="menuPurchases"
-                         role="button">
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuPurchases"
+                        aria-expanded="{{ $isPurchasesActive ? 'true' : 'false' }}"
+                        aria-controls="menuPurchases"
+                        role="button">
                         <div class="d-flex align-items-center">
                             <span class="nav-icon"><img src="{{ asset('images/ic_pos_transaction.svg') }}" alt="" class="nav-icon-svg"></span>
                             <span>Transaksi & Pembelian</span>
@@ -405,11 +405,11 @@
 
                     <!-- Laporan -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isReportsActive ? '' : 'collapsed' }} {{ $isReportsActive ? 'active-parent' : '' }}"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#menuReports"
-                         aria-expanded="{{ $isReportsActive ? 'true' : 'false' }}"
-                         aria-controls="menuReports"
-                         role="button">
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuReports"
+                        aria-expanded="{{ $isReportsActive ? 'true' : 'false' }}"
+                        aria-controls="menuReports"
+                        role="button">
                         <div class="d-flex align-items-center">
                             <span class="nav-icon"><img src="{{ asset('images/ic_pos_report.svg') }}" alt="" class="nav-icon-svg"></span>
                             <span>Laporan</span>
@@ -482,28 +482,32 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebarMenu');
             if (sidebar) {
-                sidebar.querySelectorAll('.collapse').forEach(function (collapseEl) {
+                sidebar.querySelectorAll('.collapse').forEach(function(collapseEl) {
                     const id = collapseEl.id;
                     const savedState = sessionStorage.getItem('sidebar_collapse_' + id);
 
                     if (savedState === 'show' && !collapseEl.classList.contains('show')) {
-                        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+                        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, {
+                            toggle: false
+                        });
                         bsCollapse.show();
                     } else if (savedState === 'hide' && collapseEl.classList.contains('show')) {
                         const trigger = document.querySelector('[data-bs-target="#' + id + '"]');
                         if (!trigger || !trigger.classList.contains('active-parent')) {
-                            const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+                            const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, {
+                                toggle: false
+                            });
                             bsCollapse.hide();
                         }
                     }
 
-                    collapseEl.addEventListener('shown.bs.collapse', function () {
+                    collapseEl.addEventListener('shown.bs.collapse', function() {
                         sessionStorage.setItem('sidebar_collapse_' + id, 'show');
                     });
-                    collapseEl.addEventListener('hidden.bs.collapse', function () {
+                    collapseEl.addEventListener('hidden.bs.collapse', function() {
                         sessionStorage.setItem('sidebar_collapse_' + id, 'hide');
                     });
                 });
