@@ -233,7 +233,7 @@ class PurchaseController extends Controller
             'supplier',
             'outlet',
             'user',
-            'details.product',
+            'details.product.category',
         ])->findOrFail($id);
 
         // Ambil produk pada outlet yang sama untuk autocomplete / select
