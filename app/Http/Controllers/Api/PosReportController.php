@@ -75,10 +75,20 @@ class PosReportController extends Controller
                 'sd.cname as product_name',
                 DB::raw("COALESCE(gp.cname, 'Lainnya') as category_name"),
                 'sd.nprice as price',
-                // Calculate net quantity (qty - void - refund)
-                DB::raw('SUM(sd.nqty - sd.nqty_void - sd.nqty_refund) as sold_qty'),
-                // Calculate total sales based on net quantity and price
-                DB::raw('SUM((sd.nqty - sd.nqty_void - sd.nqty_refund) * sd.nprice) as total_sales')
+                // Calculate net quantity (main sales minus void/refund and minus Storno reversals)
+                DB::raw("SUM(
+                    CASE
+                        WHEN sh.nid_parent_transaction IS NOT NULL THEN -1 * ABS(sd.nqty)
+                        ELSE (sd.nqty - COALESCE(sd.nqty_void, 0) - COALESCE(sd.nqty_refund, 0))
+                    END
+                ) as sold_qty"),
+                // Calculate net sales based on net quantity and price
+                DB::raw("SUM(
+                    CASE
+                        WHEN sh.nid_parent_transaction IS NOT NULL THEN -1 * ABS(sd.nqty * sd.nprice)
+                        ELSE ((sd.nqty - COALESCE(sd.nqty_void, 0) - COALESCE(sd.nqty_refund, 0)) * sd.nprice)
+                    END
+                ) as total_sales")
             ]);
 
             $query->groupBy(
@@ -91,9 +101,9 @@ class PosReportController extends Controller
             // Get the results
             $items = $query->get();
 
-            // Remove items with 0 sold_qty (if everything was refunded/voided)
+            // Remove items with <= 0 sold_qty or total_sales (if everything was refunded/voided)
             $items = $items->filter(function ($item) {
-                return $item->sold_qty > 0;
+                return $item->sold_qty > 0 && $item->total_sales > 0;
             })->values();
 
             // Format items types (string from DB to expected types)
