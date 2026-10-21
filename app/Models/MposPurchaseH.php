@@ -90,24 +90,42 @@ class MposPurchaseH extends Model
     }
 
     /**
-     * Generate unique PO number (e.g. PO2610200001)
+     * Generate unique PO number matching Olsera format:
+     * 2 letters 'PO' + 14 digit numbers (6 digits YYMMDD + 8 digits running sequence), total 16 chars.
+     * Example: PO26101400000361
      */
     public static function generatePurchaseNumber(?Carbon $date = null): string
     {
         $date = $date ?? Carbon::now();
         $prefix = 'PO' . $date->format('ymd');
 
-        $last = self::where('cno_purchase', 'LIKE', "{$prefix}%")
-            ->orderBy('cno_purchase', 'desc')
+        // Look for the latest purchase order to get continuous running sequence
+        $last = self::where('cno_purchase', 'LIKE', 'PO%')
+            ->orderBy('nid', 'desc')
             ->first();
 
-        if ($last) {
-            $lastSeq = (int) substr($last->cno_purchase, -4);
-            $seq = str_pad($lastSeq + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            $seq = '0001';
+        $nextSeq = 1;
+        if ($last && !empty($last->cno_purchase)) {
+            $lastCno = trim($last->cno_purchase);
+            // Prefix 'PO' (2 chars) + 'ymd' (6 chars) = 8 chars offset.
+            if (strlen($lastCno) > 8) {
+                $lastSeqNum = (int) substr($lastCno, 8);
+                if ($lastSeqNum > 0) {
+                    $nextSeq = $lastSeqNum + 1;
+                }
+            }
         }
 
-        return $prefix . $seq;
+        $seq = str_pad($nextSeq, 8, '0', STR_PAD_LEFT);
+        $poNumber = $prefix . $seq;
+
+        // Ensure uniqueness in case of race conditions
+        while (self::where('cno_purchase', $poNumber)->exists()) {
+            $nextSeq++;
+            $seq = str_pad($nextSeq, 8, '0', STR_PAD_LEFT);
+            $poNumber = $prefix . $seq;
+        }
+
+        return $poNumber;
     }
 }
