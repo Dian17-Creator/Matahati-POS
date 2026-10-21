@@ -15,6 +15,8 @@ use App\Http\Controllers\Master\OutletController;
 use App\Http\Controllers\Master\PosUserController;
 use App\Http\Controllers\Master\PaymentController;
 use App\Http\Controllers\Master\VoucherController;
+use App\Http\Controllers\Master\SupplierController;
+use App\Http\Controllers\Purchase\PurchaseController;
 use App\Http\Controllers\AuthController;
 
 Route::get('/', function () {
@@ -89,6 +91,20 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('customers', CustomerController::class);
     Route::resource('payments', PaymentController::class);
     Route::resource('vouchers', VoucherController::class);
+
+    // Supplier & Purchase / Kontrol Stok
+    Route::resource('suppliers', SupplierController::class);
+    Route::prefix('purchases')->name('purchases.')->group(function () {
+        Route::get('/', [PurchaseController::class, 'index'])->name('index');
+        Route::post('/', [PurchaseController::class, 'store'])->name('store');
+        Route::get('/{id}', [PurchaseController::class, 'show'])->name('show');
+        Route::post('/{id}/items', [PurchaseController::class, 'addItem'])->name('add-item');
+        Route::delete('/{id}/items/{detailId}', [PurchaseController::class, 'removeItem'])->name('remove-item');
+        Route::post('/{id}/receive', [PurchaseController::class, 'receive'])->name('receive');
+        Route::post('/{id}/cancel', [PurchaseController::class, 'cancel'])->name('cancel');
+        Route::post('/{id}/payment', [PurchaseController::class, 'updatePayment'])->name('update-payment');
+        Route::get('/{id}/print', [PurchaseController::class, 'print'])->name('print');
+    });
 
     // Routes khusus level Owner / Super Admin
     Route::middleware(['owner'])->group(function () {

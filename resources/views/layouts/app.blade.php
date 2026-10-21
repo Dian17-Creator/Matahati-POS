@@ -44,6 +44,7 @@
                 width: 270px;
                 max-width: 80vw;
             }
+
             .sidebar .offcanvas-body {
                 overflow-y: auto;
                 height: 100%;
@@ -66,7 +67,7 @@
             text-decoration: none;
             padding: 9px 14px;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             border-radius: 6px;
             margin-bottom: 3px;
             font-size: 0.925rem;
@@ -75,10 +76,9 @@
 
         .sidebar a i {
             flex-shrink: 0;
-            margin-top: 2px;
         }
 
-        .sidebar a span {
+        .sidebar a span:not(.nav-icon) {
             flex: 1;
             line-height: 1.4;
         }
@@ -89,13 +89,123 @@
             background-color: rgba(255, 255, 255, 0.18);
         }
 
-        .sidebar .nav-category {
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255, 255, 255, 0.55);
-            margin: 14px 14px 4px;
+        /* Top level direct nav link (Dashboard) */
+        .sidebar a.nav-top-link {
+            font-size: 0.88rem;
             font-weight: 600;
+            color: rgba(255, 255, 255, 0.82);
+            padding: 9px 14px;
+            margin-bottom: 2px;
+        }
+
+        .sidebar a.nav-top-link:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .sidebar a.nav-top-link.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.18);
+        }
+
+        /* Nav icon fixed width & alignment */
+        .sidebar .nav-icon {
+            width: 20px;
+            height: 20px;
+            font-size: 1.05rem;
+            margin-right: 10px;
+            text-align: center;
+            flex: 0 0 20px !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar .nav-icon-svg {
+            max-width: 19px;
+            max-height: 19px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: inline-block;
+            opacity: 0.85;
+            transition: opacity 0.2s ease;
+        }
+
+        .sidebar a:hover .nav-icon-svg,
+        .sidebar a.active .nav-icon-svg,
+        .sidebar .nav-category:hover .nav-icon-svg,
+        .sidebar .nav-category.active-parent .nav-icon-svg,
+        .sidebar .nav-category:not(.collapsed) .nav-icon-svg {
+            opacity: 1;
+        }
+
+        /* Category Header with Toggle */
+        .sidebar .nav-category {
+            font-size: 0.88rem;
+            color: rgba(255, 255, 255, 0.82);
+            padding: 9px 14px;
+            margin-top: 8px;
+            margin-bottom: 2px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .sidebar .nav-category:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .sidebar .nav-category.active-parent {
+            color: #fff;
+        }
+
+        /* Chevron Arrow Animation */
+        .sidebar .nav-category .nav-arrow {
+            font-size: 0.75rem;
+            transition: transform 0.25s ease-in-out;
+            opacity: 0.8;
+            flex-shrink: 0;
+        }
+
+        .sidebar .nav-category:hover .nav-arrow {
+            opacity: 1;
+        }
+
+        .sidebar .nav-category:not(.collapsed) .nav-arrow,
+        .sidebar .nav-category[aria-expanded="true"] .nav-arrow {
+            transform: rotate(180deg);
+            opacity: 1;
+        }
+
+        /* Sub Menu Container */
+        .sidebar .nav-sub-menu {
+            padding: 2px 0 4px;
+        }
+
+        /* Sub Menu Links (Indented to align perfectly with category text: 14px padding + 20px icon + 10px margin = 44px) */
+        .sidebar a.sidebar-sub-item {
+            color: rgba(255, 255, 255, 0.75);
+            padding: 7px 14px 7px 44px;
+            font-size: 0.88rem;
+            margin-bottom: 2px;
+        }
+
+        .sidebar a.sidebar-sub-item:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.14);
+        }
+
+        .sidebar a.sidebar-sub-item.active {
+            color: #fff;
+            font-weight: 600;
+            background-color: rgba(255, 255, 255, 0.22);
         }
 
         .main-content {
@@ -189,71 +299,136 @@
                 <div class="p-3 w-100">
                     <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
 
-                    <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <i class="bi bi-house me-2"></i>
+                    @php
+                        $isMasterActive = request()->routeIs(['categories.*', 'customer-types.*', 'products.*', 'ingredients.*', 'combos.*']);
+                        $isPosActive = request()->routeIs(['customers.*', 'outlets.*', 'pos-users.*', 'payments.*', 'vouchers.*']);
+                        $isPurchasesActive = request()->routeIs(['purchases.*', 'suppliers.*']);
+                        $isReportsActive = request()->routeIs(['reports.*']);
+                    @endphp
+
+                    <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                        <span class="nav-icon"><img src="{{ asset('images/ic_pos_home.svg') }}" alt="" class="nav-icon-svg"></span>
                         <span>Dashboard</span>
                     </a>
 
-                    <div class="nav-category">Master Data</div>
-                    <a href="{{ route('categories.index') }}" class="{{ request()->routeIs('categories.*') ? 'active' : '' }}">
-                        <i class="bi bi-tags me-2"></i>
-                        <span>Kategori Produk</span>
-                    </a>
-                    <a href="{{ route('customer-types.index') }}" class="{{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
-                        <i class="bi bi-person-vcard me-2"></i>
-                        <span>Kategori Pelanggan</span>
-                    </a>
-                    <a href="{{ route('products.index') }}" class="{{ request()->routeIs('products.*') ? 'active' : '' }}">
-                        <i class="bi bi-cup-hot me-2"></i>
-                        <span>Produk</span>
-                    </a>
-                    <a href="{{ route('ingredients.index') }}" class="{{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
-                        <i class="bi bi-basket me-2"></i>
-                        <span>Bahan Baku</span>
-                    </a>
+                    <!-- Master Data -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isMasterActive ? '' : 'collapsed' }} {{ $isMasterActive ? 'active-parent' : '' }}"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#menuMasterData"
+                         aria-expanded="{{ $isMasterActive ? 'true' : 'false' }}"
+                         aria-controls="menuMasterData"
+                         role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_master.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span>Master Data</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isMasterActive ? 'show' : '' }}" id="menuMasterData">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('categories.index') }}" class="sidebar-sub-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                                <span>Kategori Produk</span>
+                            </a>
+                            <a href="{{ route('customer-types.index') }}" class="sidebar-sub-item {{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
+                                <span>Kategori Pelanggan</span>
+                            </a>
+                            <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs('products.*') ? 'active' : '' }}">
+                                <span>Produk</span>
+                            </a>
+                            <a href="{{ route('ingredients.index') }}" class="sidebar-sub-item {{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
+                                <span>Bahan Baku</span>
+                            </a>
+                            <a href="{{ route('combos.index') }}" class="sidebar-sub-item {{ request()->routeIs('combos.*') ? 'active' : '' }}">
+                                <span>Produk Kombo</span>
+                            </a>
+                        </div>
+                    </div>
 
-                    <a href="{{ route('combos.index') }}" class="{{ request()->routeIs('combos.*') ? 'active' : '' }}">
-                        <i class="bi bi-boxes me-2"></i>
-                        <span>Produk Kombo</span>
-                    </a>
+                    <!-- POS Management -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isPosActive ? '' : 'collapsed' }} {{ $isPosActive ? 'active-parent' : '' }}"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#menuPosManagement"
+                         aria-expanded="{{ $isPosActive ? 'true' : 'false' }}"
+                         aria-controls="menuPosManagement"
+                         role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_management.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span>POS Management</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isPosActive ? 'show' : '' }}" id="menuPosManagement">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('customers.index') }}" class="sidebar-sub-item {{ request()->routeIs('customers.*') ? 'active' : '' }}">
+                                <span>Pelanggan</span>
+                            </a>
+                            @if(Auth::user()?->isOwnerLevel())
+                            <a href="{{ route('outlets.index') }}" class="sidebar-sub-item {{ request()->routeIs('outlets.*') ? 'active' : '' }}">
+                                <span>Outlet</span>
+                            </a>
+                            <a href="{{ route('pos-users.index') }}" class="sidebar-sub-item {{ request()->routeIs('pos-users.*') ? 'active' : '' }}">
+                                <span>Pengguna POS</span>
+                            </a>
+                            @endif
+                            <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
+                                <span>Metode Pembayaran</span>
+                            </a>
+                            <a href="{{ route('vouchers.index') }}" class="sidebar-sub-item {{ request()->routeIs('vouchers.*') ? 'active' : '' }}">
+                                <span>Voucher</span>
+                            </a>
+                        </div>
+                    </div>
 
-                    <div class="nav-category">POS Management</div>
-                    <a href="{{ route('customers.index') }}" class="{{ request()->routeIs('customers.*') ? 'active' : '' }}">
-                        <i class="bi bi-people me-2"></i>
-                        <span>Pelanggan</span>
-                    </a>
-                    @if(Auth::user()?->isOwnerLevel())
-                    <a href="{{ route('outlets.index') }}" class="{{ request()->routeIs('outlets.*') ? 'active' : '' }}">
-                        <i class="bi bi-shop me-2"></i>
-                        <span>Outlet</span>
-                    </a>
-                    <a href="{{ route('pos-users.index') }}" class="{{ request()->routeIs('pos-users.*') ? 'active' : '' }}">
-                        <i class="bi bi-person-badge me-2"></i>
-                        <span>Pengguna POS</span>
-                    </a>
-                    @endif
-                    <a href="{{ route('payments.index') }}" class="{{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                        <i class="bi bi-credit-card me-2"></i>
-                        <span>Metode Pembayaran</span>
-                    </a>
-                    <a href="{{ route('vouchers.index') }}" class="{{ request()->routeIs('vouchers.*') ? 'active' : '' }}">
-                        <i class="bi bi-ticket-perforated me-2"></i>
-                        <span>Voucher</span>
-                    </a>
+                    <!-- Transaksi & Pembelian -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isPurchasesActive ? '' : 'collapsed' }} {{ $isPurchasesActive ? 'active-parent' : '' }}"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#menuPurchases"
+                         aria-expanded="{{ $isPurchasesActive ? 'true' : 'false' }}"
+                         aria-controls="menuPurchases"
+                         role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_transaction.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span>Transaksi & Pembelian</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isPurchasesActive ? 'show' : '' }}" id="menuPurchases">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('purchases.index') }}" class="sidebar-sub-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
+                                <span>Pembelian</span>
+                            </a>
+                            <a href="{{ route('suppliers.index') }}" class="sidebar-sub-item {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
+                                <span>Supplier</span>
+                            </a>
+                        </div>
+                    </div>
 
-                    <div class="nav-category">Laporan</div>
-                    <a href="{{ route('reports.customer-product') }}" class="{{ request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
-                        <i class="bi bi-file-earmark-bar-graph me-2"></i>
-                        <span>Laporan Pelanggan</span>
-                    </a>
-                    <a href="{{ route('reports.sales-detail') }}" class="{{ request()->routeIs('reports.sales-detail*') ? 'active' : '' }}">
-                        <i class="bi bi-receipt me-2"></i>
-                        <span>Laporan Penjualan</span>
-                    </a>
-                    <a href="{{ route('reports.sales-item') }}" class="{{ request()->routeIs('reports.sales-item*') ? 'active' : '' }}">
-                        <i class="bi bi-box-seam me-2"></i>
-                        <span>Laporan Item Penjualan</span>
-                    </a>
+                    <!-- Laporan -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isReportsActive ? '' : 'collapsed' }} {{ $isReportsActive ? 'active-parent' : '' }}"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#menuReports"
+                         aria-expanded="{{ $isReportsActive ? 'true' : 'false' }}"
+                         aria-controls="menuReports"
+                         role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon"><img src="{{ asset('images/ic_pos_report.svg') }}" alt="" class="nav-icon-svg"></span>
+                            <span>Laporan</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isReportsActive ? 'show' : '' }}" id="menuReports">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('reports.customer-product') }}" class="sidebar-sub-item {{ request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
+                                <span>Laporan Pelanggan</span>
+                            </a>
+                            <a href="{{ route('reports.sales-detail') }}" class="sidebar-sub-item {{ request()->routeIs('reports.sales-detail*') ? 'active' : '' }}">
+                                <span>Laporan Penjualan</span>
+                            </a>
+                            <a href="{{ route('reports.sales-item') }}" class="sidebar-sub-item {{ request()->routeIs('reports.sales-item*') ? 'active' : '' }}">
+                                <span>Laporan Item Penjualan</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -306,6 +481,35 @@
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebar = document.getElementById('sidebarMenu');
+            if (sidebar) {
+                sidebar.querySelectorAll('.collapse').forEach(function (collapseEl) {
+                    const id = collapseEl.id;
+                    const savedState = sessionStorage.getItem('sidebar_collapse_' + id);
+
+                    if (savedState === 'show' && !collapseEl.classList.contains('show')) {
+                        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+                        bsCollapse.show();
+                    } else if (savedState === 'hide' && collapseEl.classList.contains('show')) {
+                        const trigger = document.querySelector('[data-bs-target="#' + id + '"]');
+                        if (!trigger || !trigger.classList.contains('active-parent')) {
+                            const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+                            bsCollapse.hide();
+                        }
+                    }
+
+                    collapseEl.addEventListener('shown.bs.collapse', function () {
+                        sessionStorage.setItem('sidebar_collapse_' + id, 'show');
+                    });
+                    collapseEl.addEventListener('hidden.bs.collapse', function () {
+                        sessionStorage.setItem('sidebar_collapse_' + id, 'hide');
+                    });
+                });
+            }
+        });
+    </script>
     @stack('scripts')
 </body>
 

@@ -172,8 +172,11 @@
     
     .sync-date-btn {
         color: #94a3b8 !important;
-        transition: all 0.3s ease;
+        transition: color 0.2s ease;
         text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     .sync-date-btn:hover {
         color: #0ea5e9 !important;
@@ -236,42 +239,61 @@
             <!-- Dropdown Periode Tanggal -->
             <div class="dropdown d-inline-block">
                 <button type="button" class="filter-chip filter-chip-date dropdown-toggle border-0" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Ubah Periode Tanggal">
-                    <i class="bi bi-calendar"></i> {{ \Carbon\Carbon::parse($startDate)->format('d M Y') }} - {{ \Carbon\Carbon::parse($endDate)->format('d M Y') }}
+                    <i class="bi bi-calendar"></i> {{ $startDate === $endDate ? \Carbon\Carbon::parse($startDate)->format('d M Y') : \Carbon\Carbon::parse($startDate)->format('d M Y') . ' - ' . \Carbon\Carbon::parse($endDate)->format('d M Y') }}
                     <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
                 </button>
-                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-2" style="min-width: 260px;">
-                    <div class="px-2 py-1 text-muted small fw-semibold">Pilih Cepat</div>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-2" style="min-width: 350px;">
+                    <div class="px-2 py-1 text-muted text-center small fw-bold">Pilih Cepat</div>
                     @php
                         $today = \Carbon\Carbon::today()->format('Y-m-d');
+                        $yesterday = \Carbon\Carbon::yesterday()->format('Y-m-d');
+                        $last7Days = \Carbon\Carbon::today()->subDays(6)->format('Y-m-d');
                         $thisMonthStart = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
                         $thisMonthEnd = \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d');
                         $lastMonthStart = \Carbon\Carbon::now()->subMonth()->startOfMonth()->format('Y-m-d');
                         $lastMonthEnd = \Carbon\Carbon::now()->subMonth()->endOfMonth()->format('Y-m-d');
                     @endphp
-                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $today, 'end_date' => $today])) }}">
-                        <i class="bi bi-calendar-event me-2 text-muted"></i> Hari Ini
+                    <a class="dropdown-item rounded py-1 px-2 quick-date-btn" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $today, 'end_date' => $today])) }}">
+                        Hari Ini
                     </a>
-                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $thisMonthStart, 'end_date' => $thisMonthEnd])) }}">
-                        <i class="bi bi-calendar-month me-2 text-muted"></i> Bulan Ini
+                    <a class="dropdown-item rounded py-1 px-2 quick-date-btn" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $yesterday, 'end_date' => $yesterday])) }}">
+                        Kemarin
                     </a>
-                    <a class="dropdown-item rounded py-1 px-2" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $lastMonthStart, 'end_date' => $lastMonthEnd])) }}">
-                        <i class="bi bi-calendar-range me-2 text-muted"></i> Bulan Lalu
+                    <a class="dropdown-item rounded py-1 px-2 quick-date-btn" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $last7Days, 'end_date' => $today])) }}">
+                        7 Hari Lalu
                     </a>
+                    <a class="dropdown-item rounded py-1 px-2 quick-date-btn" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $thisMonthStart, 'end_date' => $thisMonthEnd])) }}">
+                        Bulan Ini
+                    </a>
+                    <a class="dropdown-item rounded py-1 px-2 quick-date-btn" href="{{ route('reports.sales-item', array_merge(request()->except(['page']), ['start_date' => $lastMonthStart, 'end_date' => $lastMonthEnd])) }}">
+                        Bulan Lalu
+                    </a>
+
                     <hr class="dropdown-divider my-2">
+                    <div class="px-2 py-1 text-muted small fw-semibold">Custom Tanggal</div>
                     <form action="{{ route('reports.sales-item') }}" method="GET" class="px-1">
                         @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
                         @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
                         @if(!empty($search)) <input type="hidden" name="search" value="{{ $search }}"> @endif
 
-                        <div class="mb-2">
-                            <label class="form-label small text-muted mb-1">Dari</label>
-                            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ $startDate }}" required>
+                        <div class="d-flex align-items-center gap-2 flex-nowrap mb-2">
+                            <div class="flex-grow-1" style="min-width: 0;">
+                                <label class="form-label small text-muted mb-1 fw-semibold" style="font-size: 0.75rem;">Dari</label>
+                                <input type="date" id="dropdownStartDate" name="start_date" class="form-control form-control-sm px-2 text-center" style="font-size: 0.82rem;" value="{{ $startDate }}" required>
+                            </div>
+                            <div class="d-flex align-items-center flex-shrink-0" style="padding-top: 25px;">
+                                <button type="button" class="btn btn-link p-1 border-0 sync-date-btn dropdown-sync-date-btn" title="Samakan Tanggal">
+                                    <i class="bi bi-arrow-left-right fs-6"></i>
+                                </button>
+                            </div>
+                            <div class="flex-grow-1" style="min-width: 0;">
+                                <label class="form-label small text-muted mb-1 fw-semibold" style="font-size: 0.75rem;">Sampai</label>
+                                <input type="date" id="dropdownEndDate" name="end_date" class="form-control form-control-sm px-2 text-center" style="font-size: 0.82rem;" value="{{ $endDate }}" required>
+                            </div>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label small text-muted mb-1">Sampai</label>
-                            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ $endDate }}" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm w-100 py-1">Terapkan Tanggal</button>
+                        <button type="submit" class="btn btn-sm w-100 py-1 mt-1 mb-2 text-white fw-semibold" style="background-color: #0ea5e9; border-color: #0ea5e9;">
+                            Terapkan Tanggal
+                        </button>
                     </form>
                 </div>
             </div>
@@ -678,7 +700,7 @@
         `;
         document.head.appendChild(style);
 
-        // Sync Date Button
+        // Sync Date Button (Modal)
         const syncBtn = document.getElementById('syncDateBtn');
         if (syncBtn) {
             syncBtn.addEventListener('click', function() {
@@ -689,6 +711,26 @@
                 }
             });
         }
+
+        // Sync Date Button (Dropdown)
+        document.querySelectorAll('.dropdown-sync-date-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const form = this.closest('form');
+                if (form) {
+                    const startInp = form.querySelector('input[name="start_date"]');
+                    const endInp = form.querySelector('input[name="end_date"]');
+                    if (startInp && endInp) {
+                        if (startInp.value) {
+                            endInp.value = startInp.value;
+                        } else if (endInp.value) {
+                            startInp.value = endInp.value;
+                        }
+                    }
+                }
+            });
+        });
 
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('print')) {
