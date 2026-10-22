@@ -481,7 +481,7 @@
                         role="button">
                         <div class="d-flex align-items-center">
                             <span class="nav-icon">
-                                <img src="{{ asset('images/ic_matahati_user.svg') }}" alt="Pegawai" class="nav-svg-icon">
+                                <img src="{{ asset('images/ic_matahati_user2.svg') }}" alt="Pegawai" class="nav-svg-icon">
                             </span>
                             <span>Pegawai</span>
                         </div>
