@@ -36,8 +36,8 @@ class CustomerProductSummarySheet implements FromView, ShouldAutoSize, WithStyle
 
     public function styles(Worksheet $sheet): array
     {
-        // Tambahkan filter otomatis pada baris header (Baris ke-3, dari kolom A sampai G)
-        $sheet->setAutoFilter('A3:G3');
+        // Tambahkan filter otomatis pada baris header (Baris ke-3, dari kolom A sampai F)
+        $sheet->setAutoFilter('A3:F3');
 
         return [
             1 => ['font' => ['bold' => true]],

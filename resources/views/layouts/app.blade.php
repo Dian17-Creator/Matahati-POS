@@ -91,11 +91,12 @@
 
         /* Top level direct nav link (Dashboard) */
         .sidebar a.nav-top-link {
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.82);
-            padding: 9px 14px;
+            color: rgba(255, 255, 255, 0.85);
+            padding: 8px 10px;
             margin-bottom: 2px;
+            white-space: nowrap;
         }
 
         .sidebar a.nav-top-link:hover {
@@ -110,12 +111,12 @@
 
         /* Nav icon fixed width & alignment */
         .sidebar .nav-icon {
-            width: 20px;
-            height: 20px;
-            font-size: 1.15rem;
-            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            font-size: 1.05rem;
+            margin-right: 8px;
             text-align: center;
-            flex: 0 0 20px !important;
+            flex: 0 0 18px !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -124,7 +125,7 @@
         }
 
         .sidebar .nav-icon i {
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             line-height: 1;
             display: inline-flex;
             align-items: center;
@@ -133,6 +134,16 @@
 
         .sidebar .nav-icon i::before {
             vertical-align: 0;
+        }
+
+        .sidebar .nav-icon .nav-svg-icon {
+            width: 18px;
+            height: 18px;
+            filter: brightness(0) invert(1);
+            object-fit: contain;
+            display: inline-block;
+            vertical-align: middle;
+            transition: transform 0.2s ease, opacity 0.2s ease;
         }
 
         .sidebar a:hover .nav-icon,
@@ -145,10 +156,10 @@
 
         /* Category Header with Toggle */
         .sidebar .nav-category {
-            font-size: 0.88rem;
-            color: rgba(255, 255, 255, 0.82);
-            padding: 9px 14px;
-            margin-top: 8px;
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.85);
+            padding: 8px 10px;
+            margin-top: 6px;
             margin-bottom: 2px;
             font-weight: 600;
             cursor: pointer;
@@ -158,6 +169,7 @@
             align-items: center;
             justify-content: space-between;
             transition: all 0.2s ease-in-out;
+            white-space: nowrap;
         }
 
         .sidebar .nav-category:hover {
@@ -171,10 +183,11 @@
 
         /* Chevron Arrow Animation */
         .sidebar .nav-category .nav-arrow {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             transition: transform 0.25s ease-in-out;
             opacity: 0.8;
             flex-shrink: 0;
+            margin-left: 6px;
         }
 
         .sidebar .nav-category:hover .nav-arrow {
@@ -192,12 +205,13 @@
             padding: 2px 0 4px;
         }
 
-        /* Sub Menu Links (Indented to align perfectly with category text: 14px padding + 20px icon + 10px margin = 44px) */
+        /* Sub Menu Links (Indented to align perfectly with category text: 10px padding + 18px icon + 8px margin = 36px) */
         .sidebar a.sidebar-sub-item {
             color: rgba(255, 255, 255, 0.75);
-            padding: 7px 14px 7px 44px;
-            font-size: 0.88rem;
+            padding: 6px 10px 6px 36px;
+            font-size: 0.82rem;
             margin-bottom: 2px;
+            white-space: nowrap;
         }
 
         .sidebar a.sidebar-sub-item:hover {
@@ -303,37 +317,40 @@
                     <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
 
                     @php
-                    $isMasterActive = request()->routeIs(['categories.*', 'customer-types.*', 'products.*', 'ingredients.*', 'combos.*']);
-                    $isPosActive = request()->routeIs(['customers.*', 'outlets.*', 'pos-users.*', 'payments.*', 'vouchers.*']);
-                    $isPurchasesActive = request()->routeIs(['purchases.*', 'suppliers.*']);
+                    $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*']);
+                    $isMarketingActive = request()->routeIs(['vouchers.*']);
+                    $isCustomerSupplierActive = request()->routeIs(['customer-types.*', 'customers.*', 'suppliers.*']);
+                    $isTransactionsActive = request()->routeIs(['purchases.*', 'payments.*']);
                     $isReportsActive = request()->routeIs(['reports.*']);
+                    $isPegawaiActive = request()->routeIs(['outlets.*', 'pos-users.*']);
                     @endphp
 
                     <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <span class="nav-icon"><i class="bi bi-house-door"></i></span>
+                        <span class="nav-icon">
+                            <img src="{{ asset('images/ic_matahati_home.svg') }}" alt="Dashboard" class="nav-svg-icon">
+                        </span>
                         <span>Dashboard</span>
                     </a>
 
-                    <!-- Master Data -->
-                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isMasterActive ? '' : 'collapsed' }} {{ $isMasterActive ? 'active-parent' : '' }}"
+                    <!-- Produk & Inventori -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isProductActive ? '' : 'collapsed' }} {{ $isProductActive ? 'active-parent' : '' }}"
                         data-bs-toggle="collapse"
-                        data-bs-target="#menuMasterData"
-                        aria-expanded="{{ $isMasterActive ? 'true' : 'false' }}"
-                        aria-controls="menuMasterData"
+                        data-bs-target="#menuProductInventory"
+                        aria-expanded="{{ $isProductActive ? 'true' : 'false' }}"
+                        aria-controls="menuProductInventory"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><i class="bi bi-bookmark"></i></span>
-                            <span>Master Data</span>
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_inventory.svg') }}" alt="Produk & Inventori" class="nav-svg-icon">
+                            </span>
+                            <span>Produk & Inventori</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
                     </div>
-                    <div class="collapse {{ $isMasterActive ? 'show' : '' }}" id="menuMasterData">
+                    <div class="collapse {{ $isProductActive ? 'show' : '' }}" id="menuProductInventory">
                         <div class="nav-sub-menu">
                             <a href="{{ route('categories.index') }}" class="sidebar-sub-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
                                 <span>Kategori Produk</span>
-                            </a>
-                            <a href="{{ route('customer-types.index') }}" class="sidebar-sub-item {{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
-                                <span>Kategori Pelanggan</span>
                             </a>
                             <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs('products.*') ? 'active' : '' }}">
                                 <span>Produk</span>
@@ -347,58 +364,51 @@
                         </div>
                     </div>
 
-                    <!-- POS Management -->
-                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isPosActive ? '' : 'collapsed' }} {{ $isPosActive ? 'active-parent' : '' }}"
+                    <!-- Marketing -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isMarketingActive ? '' : 'collapsed' }} {{ $isMarketingActive ? 'active-parent' : '' }}"
                         data-bs-toggle="collapse"
-                        data-bs-target="#menuPosManagement"
-                        aria-expanded="{{ $isPosActive ? 'true' : 'false' }}"
-                        aria-controls="menuPosManagement"
+                        data-bs-target="#menuMarketing"
+                        aria-expanded="{{ $isMarketingActive ? 'true' : 'false' }}"
+                        aria-controls="menuMarketing"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><i class="bi bi-person-badge"></i></span>
-                            <span>POS Management</span>
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_marketing.svg') }}" alt="Marketing" class="nav-svg-icon">
+                            </span>
+                            <span>Marketing</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
                     </div>
-                    <div class="collapse {{ $isPosActive ? 'show' : '' }}" id="menuPosManagement">
+                    <div class="collapse {{ $isMarketingActive ? 'show' : '' }}" id="menuMarketing">
                         <div class="nav-sub-menu">
-                            <a href="{{ route('customers.index') }}" class="sidebar-sub-item {{ request()->routeIs('customers.*') ? 'active' : '' }}">
-                                <span>Pelanggan</span>
-                            </a>
-                            @if(Auth::user()?->isOwnerLevel())
-                            <a href="{{ route('outlets.index') }}" class="sidebar-sub-item {{ request()->routeIs('outlets.*') ? 'active' : '' }}">
-                                <span>Outlet</span>
-                            </a>
-                            <a href="{{ route('pos-users.index') }}" class="sidebar-sub-item {{ request()->routeIs('pos-users.*') ? 'active' : '' }}">
-                                <span>Pengguna POS</span>
-                            </a>
-                            @endif
-                            <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                                <span>Metode Pembayaran</span>
-                            </a>
                             <a href="{{ route('vouchers.index') }}" class="sidebar-sub-item {{ request()->routeIs('vouchers.*') ? 'active' : '' }}">
                                 <span>Voucher</span>
                             </a>
                         </div>
                     </div>
 
-                    <!-- Transaksi & Pembelian -->
-                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isPurchasesActive ? '' : 'collapsed' }} {{ $isPurchasesActive ? 'active-parent' : '' }}"
+                    <!-- Pelanggan & Supplier -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isCustomerSupplierActive ? '' : 'collapsed' }} {{ $isCustomerSupplierActive ? 'active-parent' : '' }}"
                         data-bs-toggle="collapse"
-                        data-bs-target="#menuPurchases"
-                        aria-expanded="{{ $isPurchasesActive ? 'true' : 'false' }}"
-                        aria-controls="menuPurchases"
+                        data-bs-target="#menuCustomerSupplier"
+                        aria-expanded="{{ $isCustomerSupplierActive ? 'true' : 'false' }}"
+                        aria-controls="menuCustomerSupplier"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><i class="bi bi-cart3"></i></span>
-                            <span>Transaksi & Pembelian</span>
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_customer.svg') }}" alt="Pelanggan & Supplier" class="nav-svg-icon">
+                            </span>
+                            <span>Pelanggan & Supplier</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
                     </div>
-                    <div class="collapse {{ $isPurchasesActive ? 'show' : '' }}" id="menuPurchases">
+                    <div class="collapse {{ $isCustomerSupplierActive ? 'show' : '' }}" id="menuCustomerSupplier">
                         <div class="nav-sub-menu">
-                            <a href="{{ route('purchases.index') }}" class="sidebar-sub-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
-                                <span>Pembelian</span>
+                            <a href="{{ route('customer-types.index') }}" class="sidebar-sub-item {{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
+                                <span>Kategori Pelanggan</span>
+                            </a>
+                            <a href="{{ route('customers.index') }}" class="sidebar-sub-item {{ request()->routeIs('customers.*') ? 'active' : '' }}">
+                                <span>Pelanggan</span>
                             </a>
                             <a href="{{ route('suppliers.index') }}" class="sidebar-sub-item {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
                                 <span>Supplier</span>
@@ -406,7 +416,33 @@
                         </div>
                     </div>
 
-                    <!-- Laporan -->
+                    <!-- Transaksi & Pembayaran -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isTransactionsActive ? '' : 'collapsed' }} {{ $isTransactionsActive ? 'active-parent' : '' }}"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuTransactions"
+                        aria-expanded="{{ $isTransactionsActive ? 'true' : 'false' }}"
+                        aria-controls="menuTransactions"
+                        role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_transaction.svg') }}" alt="Transaksi & Pembayaran" class="nav-svg-icon">
+                            </span>
+                            <span>Transaksi & Pembayaran</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isTransactionsActive ? 'show' : '' }}" id="menuTransactions">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('purchases.index') }}" class="sidebar-sub-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
+                                <span>Pembelian</span>
+                            </a>
+                            <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
+                                <span>Metode Pembayaran</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Laporan & Pembukuan -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isReportsActive ? '' : 'collapsed' }} {{ $isReportsActive ? 'active-parent' : '' }}"
                         data-bs-toggle="collapse"
                         data-bs-target="#menuReports"
@@ -414,8 +450,10 @@
                         aria-controls="menuReports"
                         role="button">
                         <div class="d-flex align-items-center">
-                            <span class="nav-icon"><i class="bi bi-bar-chart"></i></span>
-                            <span>Laporan</span>
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_report.svg') }}" alt="Laporan & Pembukuan" class="nav-svg-icon">
+                            </span>
+                            <span>Laporan & Pembukuan</span>
                         </div>
                         <i class="bi bi-chevron-down nav-arrow"></i>
                     </div>
@@ -432,6 +470,34 @@
                             </a>
                         </div>
                     </div>
+
+                    <!-- Pegawai -->
+                    @if(Auth::user()?->isOwnerLevel())
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isPegawaiActive ? '' : 'collapsed' }} {{ $isPegawaiActive ? 'active-parent' : '' }}"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuPegawai"
+                        aria-expanded="{{ $isPegawaiActive ? 'true' : 'false' }}"
+                        aria-controls="menuPegawai"
+                        role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon">
+                                <img src="{{ asset('images/ic_matahati_user.svg') }}" alt="Pegawai" class="nav-svg-icon">
+                            </span>
+                            <span>Pegawai</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isPegawaiActive ? 'show' : '' }}" id="menuPegawai">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('outlets.index') }}" class="sidebar-sub-item {{ request()->routeIs('outlets.*') ? 'active' : '' }}">
+                                <span>Outlet</span>
+                            </a>
+                            <a href="{{ route('pos-users.index') }}" class="sidebar-sub-item {{ request()->routeIs('pos-users.*') ? 'active' : '' }}">
+                                <span>Pegawai Pos</span>
+                            </a>
+                        </div>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
