@@ -225,6 +225,176 @@
             background-color: rgba(255, 255, 255, 0.22);
         }
 
+        /* Olsera-style Top Sidebar User Card & Dropdown */
+        .sidebar-brand-title {
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+        }
+
+        .sidebar-user-card {
+            background-color: rgba(0, 0, 0, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 0 0 18px 18px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            user-select: none;
+        }
+
+        .sidebar-user-card:hover {
+            background-color: rgba(0, 0, 0, 0.28);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-user-card.active,
+        .sidebar-user-card[aria-expanded="true"] {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .sidebar-user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.22);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-user-name {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.2;
+        }
+
+        .sidebar-user-role {
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.75);
+            line-height: 1.2;
+        }
+
+        .sidebar-user-arrow {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.85);
+            transition: transform 0.25s ease-in-out;
+        }
+
+        .sidebar-user-card[aria-expanded="true"] .sidebar-user-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Olsera-style Floating User Dropdown Menu */
+        .sidebar-user-section {
+            position: relative;
+        }
+
+        #userProfileMenu {
+            position: absolute !important;
+            top: 100%;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 1060;
+        }
+
+        /* Olsera White Dropdown Menu Box */
+        .user-profile-menu-box {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 5px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            margin-top: 6px;
+            margin-bottom: 0;
+            animation: fadeInMenu 0.15s ease-in-out;
+        }
+
+        @keyframes fadeInMenu {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-menu-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            color: #334155 !important;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            width: 100%;
+            background: transparent;
+            border: none;
+        }
+
+        .user-menu-item i {
+            font-size: 1.1rem;
+            color: #64748b;
+            flex-shrink: 0;
+        }
+
+        .user-menu-item:hover,
+        .user-menu-item.active {
+            background-color: #f1f5f9;
+            color: #0f172a !important;
+        }
+
+        .user-menu-item:hover i,
+        .user-menu-item.active i {
+            color: #0f172a;
+        }
+
+        /* Keluar / Logout button (Olsera light-pink box with red text) */
+        .user-menu-item.user-menu-logout {
+            background-color: #fff1f2;
+            color: #e11d48 !important;
+            font-weight: 500;
+            margin-top: 3px;
+        }
+
+        .user-menu-item.user-menu-logout i {
+            color: #e11d48;
+        }
+
+        .user-menu-item.user-menu-logout:hover {
+            background-color: #ffe4e6;
+            color: #be123c !important;
+        }
+
+        .user-menu-item.user-menu-logout:hover i {
+            color: #be123c;
+        }
+
+        /* Hide browser native password reveal icon (Edge / Chromium) to prevent duplicate eye icons */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        input::-ms-reveal,
+        input::-ms-clear {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
         .main-content {
             padding: 20px;
         }
@@ -313,8 +483,49 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
             </div>
             <div class="offcanvas-body p-0 flex-column" style="background-color: #b63352 !important;">
-                <div class="p-3 w-100">
-                    <h4 class="text-center text-white mb-4 d-none d-md-block fw-bold">MATAHATI POS</h4>
+                <div class="px-3 pb-3 w-100">
+
+                    <!-- Olsera-Style Top User Profile & Menu -->
+                    <div class="sidebar-user-section mb-3">
+                        <div class="sidebar-user-card d-flex align-items-center justify-content-between p-2"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#userProfileMenu"
+                            aria-expanded="false"
+                            aria-controls="userProfileMenu"
+                            role="button"
+                            title="Menu Pengguna">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                <div class="sidebar-user-avatar">
+                                    <i class="bi bi-person-fill"></i>
+                                </div>
+                                <div class="d-flex flex-column overflow-hidden text-start">
+                                    <span class="sidebar-user-name text-truncate">{{ Auth::user()->cname ?? 'Administrator' }}</span>
+                                    <span class="sidebar-user-role text-truncate">{{ Auth::user()->role_name ?? 'Supervisor' }}</span>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-shrink-0 ms-1">
+                                <i class="bi bi-chevron-down sidebar-user-arrow"></i>
+                            </div>
+                        </div>
+
+                        <!-- Dropdown Menu: Profil & Keluar -->
+                        <div class="collapse" id="userProfileMenu">
+                            <div class="user-profile-menu-box shadow-sm">
+                                <a href="{{ route('profile') }}" class="user-menu-item {{ request()->routeIs('profile') ? 'active' : '' }}">
+                                    <i class="bi bi-person me-2"></i>
+                                    <span>Profil</span>
+                                </a>
+                                <div class="my-1 border-top" style="border-color: #f1f5f9 !important;"></div>
+                                <form action="{{ route('logout') }}" method="POST" class="m-0 p-0">
+                                    @csrf
+                                    <button type="submit" class="user-menu-item user-menu-logout">
+                                        <i class="bi bi-box-arrow-right me-2"></i>
+                                        <span>Keluar</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
 
                     @php
                     $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*']);
@@ -507,14 +718,8 @@
                         </button>
                         <span class="navbar-brand mb-0 h1 fs-5">@yield('title')</span>
                     </div>
-                    <div class="d-flex align-items-center gap-2 gap-md-3">
-                        <span class="text-muted small"><i class="bi bi-person-circle me-1"></i> {{ Auth::user()->cname ?? 'Sistem Admin' }}</span>
-                        <form action="{{ route('logout') }}" method="POST" class="d-inline">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0">
-                                <i class="bi bi-box-arrow-right"></i> Logout
-                            </button>
-                        </form>
+                    <div class="d-flex align-items-center gap-2">
+                        @yield('header_actions')
                     </div>
                 </div>
             </nav>
@@ -552,6 +757,7 @@
             if (sidebar) {
                 sidebar.querySelectorAll('.collapse').forEach(function(collapseEl) {
                     const id = collapseEl.id;
+                    if (id === 'userProfileMenu') return; // Handled separately without session storage persistence
                     const savedState = sessionStorage.getItem('sidebar_collapse_' + id);
 
                     if (savedState === 'show' && !collapseEl.classList.contains('show')) {
@@ -575,6 +781,20 @@
                     collapseEl.addEventListener('hidden.bs.collapse', function() {
                         sessionStorage.setItem('sidebar_collapse_' + id, 'hide');
                     });
+                });
+
+                // Close user profile menu when clicking outside
+                document.addEventListener('click', function(e) {
+                    const userMenu = document.getElementById('userProfileMenu');
+                    const userTrigger = document.querySelector('[data-bs-target="#userProfileMenu"]');
+                    if (userMenu && userTrigger && userMenu.classList.contains('show')) {
+                        if (!userMenu.contains(e.target) && !userTrigger.contains(e.target)) {
+                            const bsCollapse = bootstrap.Collapse.getInstance(userMenu);
+                            if (bsCollapse) {
+                                bsCollapse.hide();
+                            }
+                        }
+                    }
                 });
             }
         });
