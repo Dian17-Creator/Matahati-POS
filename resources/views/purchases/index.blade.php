@@ -218,7 +218,7 @@
     <!-- Active Filters Bar (Report Style: Date, Status, Search) -->
     <div class="px-4 py-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div class="d-flex flex-wrap align-items-center">
-            <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">Filter Aktif:</span>
+            <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">FILTER :</span>
 
             <!-- Dropdown Periode Tanggal -->
             <div class="dropdown d-inline-block">

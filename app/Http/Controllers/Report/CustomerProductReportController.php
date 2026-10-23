@@ -63,7 +63,42 @@ class CustomerProductReportController extends Controller
         }
         $customers = $customersQuery->distinct()->orderBy('cname')->get();
 
-        $categories = MposGrpProduct::select('cname')->whereNotNull('cname')->distinct()->orderBy('cname')->get();
+        // Resolve department scope for categories
+        $user = Auth::user();
+        $deptId = null;
+        if (!empty($outletId)) {
+            $currentOutlet = MposOutlet::find($outletId);
+            $deptId = $currentOutlet?->nid_dept;
+        }
+        if (empty($deptId) && $user && !empty($user->niddept)) {
+            $deptId = $user->niddept;
+        }
+
+        $targetOutletIds = [];
+        if (!empty($deptId)) {
+            $targetOutletIds = MposOutlet::where('nid_dept', $deptId)->pluck('nid')->map(fn($id) => (int)$id)->toArray();
+        }
+
+        if (empty($targetOutletIds)) {
+            if (!empty($outletId)) {
+                $targetOutletIds = [(int) $outletId];
+            } elseif (!$this->isSuperAdminUser()) {
+                $targetOutletIds = array_map('intval', $allowedOutletIds);
+            }
+        }
+
+        $categoriesQuery = MposGrpProduct::select('cname')->whereNotNull('cname');
+        if (!empty($targetOutletIds)) {
+            $categoriesQuery->where(function($q) use ($targetOutletIds) {
+                $q->whereIn('nid_outlet', $targetOutletIds)
+                  ->orWhereHas('products', function($pq) use ($targetOutletIds) {
+                      $pq->whereIn('nid_outlet', $targetOutletIds);
+                  });
+            });
+        } elseif (!$this->isSuperAdminUser()) {
+            $categoriesQuery->whereIn('nid_outlet', $allowedOutletIds);
+        }
+        $categories = $categoriesQuery->distinct()->orderBy('cname')->get();
         $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
         if (!empty($outletId)) {
             $productsQuery->where('nid_outlet', $outletId);
@@ -199,11 +234,32 @@ class CustomerProductReportController extends Controller
         $categoryId = $request->input('category_id');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
 
-        $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
+        $user = Auth::user();
+        $deptId = null;
         if (!empty($outletId)) {
-            $productsQuery->where('nid_outlet', $outletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $productsQuery->whereIn('nid_outlet', $this->getUserAllowedOutletIds());
+            $currentOutlet = MposOutlet::find($outletId);
+            $deptId = $currentOutlet?->nid_dept;
+        }
+        if (empty($deptId) && $user && !empty($user->niddept)) {
+            $deptId = $user->niddept;
+        }
+
+        $targetOutletIds = [];
+        if (!empty($deptId)) {
+            $targetOutletIds = MposOutlet::where('nid_dept', $deptId)->pluck('nid')->map(fn($id) => (int)$id)->toArray();
+        }
+
+        if (empty($targetOutletIds)) {
+            if (!empty($outletId)) {
+                $targetOutletIds = [(int) $outletId];
+            } elseif (!$this->isSuperAdminUser()) {
+                $targetOutletIds = array_map('intval', $this->getUserAllowedOutletIds());
+            }
+        }
+
+        $productsQuery = MposProduct::select('cname')->whereNotNull('cname');
+        if (!empty($targetOutletIds)) {
+            $productsQuery->whereIn('nid_outlet', $targetOutletIds);
         }
 
         if (!empty($categoryId)) {

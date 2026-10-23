@@ -459,14 +459,8 @@
                     </div>
                     <div class="collapse {{ $isReportsActive ? 'show' : '' }}" id="menuReports">
                         <div class="nav-sub-menu">
-                            <a href="{{ route('reports.customer-product') }}" class="sidebar-sub-item {{ request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
-                                <span>Laporan Pelanggan</span>
-                            </a>
-                            <a href="{{ route('reports.sales-detail') }}" class="sidebar-sub-item {{ request()->routeIs('reports.sales-detail*') ? 'active' : '' }}">
-                                <span>Laporan Penjualan</span>
-                            </a>
-                            <a href="{{ route('reports.sales-item') }}" class="sidebar-sub-item {{ request()->routeIs('reports.sales-item*') ? 'active' : '' }}">
-                                <span>Laporan Item Penjualan</span>
+                            <a href="{{ route('reports.sales-detail') }}" class="sidebar-sub-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                                <span>Laporan</span>
                             </a>
                         </div>
                     </div>
@@ -524,6 +518,8 @@
                     </div>
                 </div>
             </nav>
+
+            @yield('sub_header')
 
             <div class="main-content flex-grow-1">
                 <!-- Alert Success -->
