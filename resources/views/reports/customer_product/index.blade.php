@@ -328,9 +328,6 @@
                     @php
                     $isAnyFilterActive = !empty($customerId) || !empty($categoryId) || !empty($productId) || !empty($outletId);
                     @endphp
-                    <button type="button" class="btn {{ $isAnyFilterActive ? 'btn-primary' : 'btn-outline-primary' }} btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
-                        <i class="bi bi-funnel"></i> Filter
-                    </button>
                     <a href="{{ route('reports.customer-product.export', request()->query()) }}" class="btn btn-outline-success btn-sm" id="btnExportExcel">
                         <i class="bi bi-file-earmark-excel"></i> Excel
                     </a>
@@ -470,57 +467,57 @@
                         $selectedCatCount = is_array($categoryId) ? count($categoryId) : (!empty($categoryId) ? 1 : 0);
                         $isAllSelected = ($allCatCount > 0 && $selectedCatCount === $allCatCount);
                         if (!empty($categoryId)) {
-                            if ($isAllSelected) {
-                                $catDisplay = 'Semua Kategori';
-                            } elseif (is_array($categoryId)) {
-                                $catDisplay = count($categoryId) <= 2 ? implode(', ', $categoryId) : count($categoryId) . ' Kategori';
+                        if ($isAllSelected) {
+                        $catDisplay = 'Semua Kategori';
+                        } elseif (is_array($categoryId)) {
+                        $catDisplay = count($categoryId) <= 2 ? implode(', ', $categoryId) : count($categoryId) . ' Kategori';
                             } else {
-                                $catDisplay = $categoryId;
+                            $catDisplay=$categoryId;
                             }
-                        } else {
-                            $catDisplay = 'Semua Kategori';
-                        }
-                        @endphp
-                        <button type="button" class="filter-chip {{ !empty($categoryId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" id="catFilterChipBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Kategori">
+                            } else {
+                            $catDisplay='Semua Kategori' ;
+                            }
+                            @endphp
+                            <button type="button" class="filter-chip {{ !empty($categoryId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" id="catFilterChipBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Kategori">
                             <i class="bi bi-tags"></i> <span id="catFilterChipText">{{ $catDisplay }}</span>
                             <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
-                        </button>
-                        <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 270px;">
-                            <form id="categoryFilterForm" action="{{ route('reports.customer-product') }}" method="GET" onsubmit="return false;">
-                                <input type="hidden" name="start_date" value="{{ $startDate }}">
-                                <input type="hidden" name="end_date" value="{{ $endDate }}">
-                                @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
-                                @if(!empty($customerId)) <input type="hidden" name="customer_id" value="{{ $customerId }}"> @endif
-                                @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
-                                @if(!empty($sortCol)) <input type="hidden" name="sort_col" value="{{ $sortCol }}"> <input type="hidden" name="sort_dir" value="{{ $sortDir }}"> @endif
+                            </button>
+                            <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-0" style="min-width: 270px;">
+                                <form id="categoryFilterForm" action="{{ route('reports.customer-product') }}" method="GET" onsubmit="return false;">
+                                    <input type="hidden" name="start_date" value="{{ $startDate }}">
+                                    <input type="hidden" name="end_date" value="{{ $endDate }}">
+                                    @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
+                                    @if(!empty($customerId)) <input type="hidden" name="customer_id" value="{{ $customerId }}"> @endif
+                                    @if(!empty($productId)) <input type="hidden" name="product_id" value="{{ $productId }}"> @endif
+                                    @if(!empty($sortCol)) <input type="hidden" name="sort_col" value="{{ $sortCol }}"> <input type="hidden" name="sort_dir" value="{{ $sortDir }}"> @endif
 
-                                <div class="p-2 border-bottom bg-light rounded-top">
-                                    <span class="small fw-semibold text-secondary">Kategori Produk</span>
-                                </div>
-                                <div class="p-2 border-bottom">
-                                    <input type="text" class="form-control form-control-sm quick-cat-search" placeholder="Cari kategori...">
-                                </div>
-                                <div class="p-2" style="max-height: 220px; overflow-y: auto;">
-                                    <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2 rounded fw-semibold text-primary border-bottom mb-1 cat-filter-all" style="cursor: pointer;">
-                                        <input class="form-check-input mt-0" type="checkbox" id="quickCatCheckAll" {{ $isAllSelected ? 'checked' : '' }}>
-                                        <span class="small">Semua Kategori</span>
-                                    </label>
-                                    @foreach($categories as $cat)
-                                    @php
-                                    $isSelected = is_array($categoryId) ? in_array($cat->cname, $categoryId) : $categoryId == $cat->cname;
-                                    @endphp
-                                    <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2 rounded cat-filter-item" style="cursor: pointer;">
-                                        <input class="form-check-input mt-0 quick-cat-cb" type="checkbox" name="category_id[]" value="{{ $cat->cname }}" {{ $isSelected ? 'checked' : '' }}>
-                                        <span class="small text-dark">{{ $cat->cname }}</span>
-                                    </label>
-                                    @endforeach
-                                </div>
-                            </form>
-                        </div>
+                                    <div class="p-2 border-bottom bg-light rounded-top">
+                                        <span class="small fw-semibold text-secondary">Kategori Produk</span>
+                                    </div>
+                                    <div class="p-2 border-bottom">
+                                        <input type="text" class="form-control form-control-sm quick-cat-search" placeholder="Cari kategori...">
+                                    </div>
+                                    <div class="p-2" style="max-height: 220px; overflow-y: auto;">
+                                        <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2 rounded fw-semibold text-primary border-bottom mb-1 cat-filter-all" style="cursor: pointer;">
+                                            <input class="form-check-input mt-0" type="checkbox" id="quickCatCheckAll" {{ $isAllSelected ? 'checked' : '' }}>
+                                            <span class="small">Semua Kategori</span>
+                                        </label>
+                                        @foreach($categories as $cat)
+                                        @php
+                                        $isSelected = is_array($categoryId) ? in_array($cat->cname, $categoryId) : $categoryId == $cat->cname;
+                                        @endphp
+                                        <label class="dropdown-item d-flex align-items-center gap-2 py-1 px-2 rounded cat-filter-item" style="cursor: pointer;">
+                                            <input class="form-check-input mt-0 quick-cat-cb" type="checkbox" name="category_id[]" value="{{ $cat->cname }}" {{ $isSelected ? 'checked' : '' }}>
+                                            <span class="small text-dark">{{ $cat->cname }}</span>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                </form>
+                            </div>
                     </div>
 
                     <!-- Dropdown Produk -->
-                    <div class="dropdown d-inline-block flex-shrink-0" id="productDropdownContainer">
+                    <!-- <div class="dropdown d-inline-block flex-shrink-0" id="productDropdownContainer">
                         <button type="button" class="filter-chip {{ $productId ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" id="productFilterChipBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Pilih Produk">
                             <i class="bi bi-cup-hot"></i> <span id="productFilterChipText">{{ $productId ? $productId : 'Semua Produk' }}</span>
                             <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
@@ -542,7 +539,7 @@
                                 @endforeach
                             </div>
                         </div>
-                    </div>
+                    </div> -->
 
                 </div>
 
@@ -825,74 +822,76 @@
             }
 
             fetch(fetchUrl, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('Fetch failed with status ' + res.status);
-                return res.text();
-            })
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error('Fetch failed with status ' + res.status);
+                    return res.text();
+                })
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
 
-                // 1. Update Table
-                const newTable = doc.querySelector('.table-responsive');
-                if (newTable && tableContainer) {
-                    tableContainer.innerHTML = newTable.innerHTML;
-                }
+                    // 1. Update Table
+                    const newTable = doc.querySelector('.table-responsive');
+                    if (newTable && tableContainer) {
+                        tableContainer.innerHTML = newTable.innerHTML;
+                    }
 
-                // 2. Update Grand Total
-                const newGrandTotal = doc.querySelector('.print-grand-total');
-                if (newGrandTotal && grandTotalContainer) {
-                    grandTotalContainer.innerHTML = newGrandTotal.innerHTML;
-                }
+                    // 2. Update Grand Total
+                    const newGrandTotal = doc.querySelector('.print-grand-total');
+                    if (newGrandTotal && grandTotalContainer) {
+                        grandTotalContainer.innerHTML = newGrandTotal.innerHTML;
+                    }
 
-                // 3. Update Pagination
-                const currentPagination = document.querySelector('.card-body > .order-4');
-                const newPagination = doc.querySelector('.card-body > .order-4');
-                if (currentPagination && newPagination) {
-                    currentPagination.innerHTML = newPagination.innerHTML;
-                } else if (currentPagination && !newPagination) {
-                    currentPagination.remove();
-                } else if (!currentPagination && newPagination) {
-                    const pagWrapper = document.createElement('div');
-                    pagWrapper.className = 'd-flex justify-content-center mt-3 order-4';
-                    pagWrapper.innerHTML = newPagination.innerHTML;
-                    document.querySelector('.card-body').appendChild(pagWrapper);
-                }
+                    // 3. Update Pagination
+                    const currentPagination = document.querySelector('.card-body > .order-4');
+                    const newPagination = doc.querySelector('.card-body > .order-4');
+                    if (currentPagination && newPagination) {
+                        currentPagination.innerHTML = newPagination.innerHTML;
+                    } else if (currentPagination && !newPagination) {
+                        currentPagination.remove();
+                    } else if (!currentPagination && newPagination) {
+                        const pagWrapper = document.createElement('div');
+                        pagWrapper.className = 'd-flex justify-content-center mt-3 order-4';
+                        pagWrapper.innerHTML = newPagination.innerHTML;
+                        document.querySelector('.card-body').appendChild(pagWrapper);
+                    }
 
-                // 4. Update Product Dropdown List
-                const newProductList = doc.querySelector('.product-dropdown-list');
-                const currentProductList = document.querySelector('.product-dropdown-list');
-                if (newProductList && currentProductList) {
-                    currentProductList.innerHTML = newProductList.innerHTML;
-                }
+                    // 4. Update Product Dropdown List
+                    const newProductList = doc.querySelector('.product-dropdown-list');
+                    const currentProductList = document.querySelector('.product-dropdown-list');
+                    if (newProductList && currentProductList) {
+                        currentProductList.innerHTML = newProductList.innerHTML;
+                    }
 
-                // 5. Update Export Excel & Cetak / PDF links
-                const exportBtn = document.getElementById('btnExportExcel');
-                const newExportBtn = doc.getElementById('btnExportExcel');
-                if (exportBtn && newExportBtn) {
-                    exportBtn.href = newExportBtn.href;
-                }
+                    // 5. Update Export Excel & Cetak / PDF links
+                    const exportBtn = document.getElementById('btnExportExcel');
+                    const newExportBtn = doc.getElementById('btnExportExcel');
+                    if (exportBtn && newExportBtn) {
+                        exportBtn.href = newExportBtn.href;
+                    }
 
-                const printBtn = document.getElementById('btnPrintPdf');
-                const newPrintBtn = doc.getElementById('btnPrintPdf');
-                if (printBtn && newPrintBtn) {
-                    printBtn.href = newPrintBtn.href;
-                }
+                    const printBtn = document.getElementById('btnPrintPdf');
+                    const newPrintBtn = doc.getElementById('btnPrintPdf');
+                    if (printBtn && newPrintBtn) {
+                        printBtn.href = newPrintBtn.href;
+                    }
 
-                // 6. Update URL in address bar without reload
-                window.history.pushState({ path: fetchUrl }, '', fetchUrl);
-            })
-            .catch(err => {
-                console.error('Error applying category filter:', err);
-            })
-            .finally(() => {
-                if (tableContainer) tableContainer.style.opacity = '1';
-                if (grandTotalContainer) grandTotalContainer.style.opacity = '1';
-            });
+                    // 6. Update URL in address bar without reload
+                    window.history.pushState({
+                        path: fetchUrl
+                    }, '', fetchUrl);
+                })
+                .catch(err => {
+                    console.error('Error applying category filter:', err);
+                })
+                .finally(() => {
+                    if (tableContainer) tableContainer.style.opacity = '1';
+                    if (grandTotalContainer) grandTotalContainer.style.opacity = '1';
+                });
         }
 
         function debouncedApplyCategoryFilter() {
