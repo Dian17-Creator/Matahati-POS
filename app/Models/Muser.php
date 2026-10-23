@@ -142,6 +142,37 @@ class Muser extends Authenticatable
         return (bool) ($this->isSuperAdmin() || $this->isAdmin());
     }
 
+    public function getRoleNameAttribute(): string
+    {
+        if ($this->isOwner()) {
+            return 'Owner';
+        }
+
+        if ($this->isSpv()) {
+            return 'Supervisor';
+        }
+
+        $posUser = $this->posUser ?: $this->posUsers()->first();
+        if ($posUser) {
+            if ($posUser->fcaptain) {
+                return 'Captain';
+            }
+            if ($posUser->fcashier) {
+                return 'Kasir';
+            }
+        }
+
+        if ($this->isSuperAdmin()) {
+            return 'Super Admin';
+        }
+
+        if ($this->isAdmin()) {
+            return 'Admin';
+        }
+
+        return $this->cdeptname ?: 'Staff';
+    }
+
     public function department()
     {
         return $this->belongsTo(Mdepartment::class, 'niddept', 'nid');
