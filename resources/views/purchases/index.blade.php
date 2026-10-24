@@ -353,11 +353,11 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-3">
                             <label class="form-label fw-semibold small text-secondary">Supplier <span class="text-danger">*</span></label>
-                            <select name="nid_supplier" class="form-select" required>
+                            <select name="nid_supplier" id="modalCreateSupplier" class="form-select" required>
                                 <option value="">-- Pilih Supplier --</option>
                                 @foreach($suppliers as $sp)
-                                <option value="{{ $sp->nid }}" {{ old('nid_supplier') == $sp->nid ? 'selected' : '' }}>
-                                    {{ $sp->cname }} {{ $sp->cphone ? "({$sp->cphone})" : '' }}
+                                <option value="{{ $sp->nid }}" data-outlet="{{ $sp->nid_outlet ?? '' }}" {{ old('nid_supplier') == $sp->nid ? 'selected' : '' }}>
+                                    {{ $sp->cname }} @if($sp->outlet) ({{ $sp->outlet->cname }}) @endif {{ $sp->cphone ? "({$sp->cphone})" : '' }}
                                 </option>
                                 @endforeach
                             </select>

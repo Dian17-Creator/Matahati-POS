@@ -35,7 +35,19 @@ class PurchaseController extends Controller
         $outlets = $this->getAvailableOutlets();
         $isOutletLocked = $this->isOutletLocked();
         $allowedOutletIds = $this->getUserAllowedOutletIds();
-        $suppliers = MposSupplier::where('factive', 1)->orderBy('cname')->get();
+        $supplierQuery = MposSupplier::where('factive', 1)->with('outlet');
+        if (!empty($outletId)) {
+            $supplierQuery->where(function ($q) use ($outletId) {
+                $q->where('nid_outlet', $outletId)
+                  ->orWhereNull('nid_outlet');
+            });
+        } elseif (!$this->isSuperAdminUser()) {
+            $supplierQuery->where(function ($q) use ($allowedOutletIds) {
+                $q->whereIn('nid_outlet', $allowedOutletIds)
+                  ->orWhereNull('nid_outlet');
+            });
+        }
+        $suppliers = $supplierQuery->orderBy('cname')->get();
 
         // Base query for counts
         $baseQuery = MposPurchaseH::query();
