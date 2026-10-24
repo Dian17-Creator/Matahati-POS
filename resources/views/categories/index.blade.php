@@ -6,22 +6,7 @@
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
-            <h5 class="mb-0 me-3">Daftar Kategori</h5>
-            <form action="{{ route('categories.index') }}" method="GET" class="d-flex" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
-                    <option value="">Semua Outlet</option>
-                    @endif
-                    @foreach($outlets as $outlet)
-                    <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? request('nid_outlet')) === (string)$outlet->nid ? 'selected' : '' }}>
-                        {{ $outlet->cname }}
-                    </option>
-                    @endforeach
-                </select>
-                @if($isOutletLocked ?? $isCashierOnly ?? false)
-                    <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
-                @endif
-            </form>
+            <h5 class="mb-0">Daftar Kategori</h5>
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru

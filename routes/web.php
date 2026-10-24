@@ -73,6 +73,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 // Protected Routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::match(['get', 'post'], '/switch-outlet', [\App\Http\Controllers\OutletSwitchController::class, 'switch'])->name('switch-outlet');
 
     // Profile Routes
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');

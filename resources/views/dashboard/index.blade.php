@@ -148,21 +148,6 @@
     </h5>
 
     <div class="d-flex align-items-center gap-2">
-        @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
-        <form action="{{ route('dashboard') }}" method="GET" class="d-inline-block">
-            <input type="hidden" name="start_date" value="{{ $startDate }}">
-            <input type="hidden" name="end_date" value="{{ $endDate }}">
-            <select name="nid_outlet" class="form-select form-select-sm rounded-pill shadow-sm bg-white" onchange="this.form.submit()" style="font-size: 0.85rem; font-weight: 500; min-width: 160px; border-color: #cbd5e1;">
-                <option value="" {{ empty($selectedOutletId) ? 'selected' : '' }}>Semua Outlet</option>
-                @foreach($outlets as $outlet)
-                    <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? '') === (string)$outlet->nid ? 'selected' : '' }}>
-                        {{ $outlet->cname }}
-                    </option>
-                @endforeach
-            </select>
-        </form>
-        @endif
-
         <!-- Tombol Filter Tanggal (Pill) -->
         <button type="button" class="btn btn-light border bg-white shadow-sm rounded-pill px-3 py-1 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#filterTanggalModal" style="font-size: 0.85rem; font-weight: 500; border-color: #cbd5e1 !important;">
             <i class="bi bi-funnel text-secondary"></i>
@@ -370,10 +355,6 @@
 
                 <!-- Form Custom Date Range (Gambar 4) -->
                 <form action="{{ route('dashboard') }}" method="GET" id="filterDateForm">
-                    @if(!empty($selectedOutletId))
-                        <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
-                    @endif
-
                     <div class="row g-2 align-items-center mb-3">
                         <div class="col">
                             <label class="form-label text-muted small mb-1 fw-semibold">Dari</label>

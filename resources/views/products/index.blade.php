@@ -35,19 +35,6 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
             <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
-                <select name="nid_outlet" class="form-select form-select-sm" style="width: 160px;" id="outletFilter" {{ ($isOutletLocked ?? $isCashierOnly ?? false) ? 'disabled' : '' }}>
-                    @if(($isSuperAdmin ?? false) || !($isOutletLocked ?? false))
-                    <option value="">Semua Outlet</option>
-                    @endif
-                    @foreach($outlets as $outlet)
-                        <option value="{{ $outlet->nid }}" {{ (string)($selectedOutletId ?? request('nid_outlet')) === (string)$outlet->nid ? 'selected' : '' }}>
-                            {{ $outlet->cname }}
-                        </option>
-                    @endforeach
-                </select>
-                @if($isOutletLocked ?? $isCashierOnly ?? false)
-                    <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
-                @endif
                 <select name="nid_category" class="form-select form-select-sm" style="width: 160px;" id="categoryFilter">
                     <option value="">Semua Kategori</option>
                     @foreach($categories as $category)

@@ -386,28 +386,6 @@
                         </div>
                     </div>
 
-                    <!-- Dropdown Outlet -->
-                    <div class="dropdown d-inline-block flex-shrink-0">
-                        @php
-                        $outletNameDisplay = !empty($outletId) ? (collect($outlets)->firstWhere('nid', $outletId)?->cname ?? $outletId) : 'Semua Outlet';
-                        @endphp
-                        <button type="button" class="filter-chip {{ !empty($outletId) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Outlet" {{ ($isOutletLocked ?? false) ? 'disabled' : '' }}>
-                            <i class="bi bi-shop"></i> {{ $outletNameDisplay }}
-                            <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
-                        </button>
-                        <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 220px; max-height: 280px; overflow-y: auto;">
-                            <a class="dropdown-item {{ empty($outletId) ? 'active' : '' }}" href="{{ route('reports.sales-detail', request()->except(['outlet_id', 'page'])) }}">
-                                Semua Outlet
-                                @if(empty($outletId)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
-                            </a>
-                            @foreach($outlets as $outlet)
-                            <a class="dropdown-item {{ (string)($outletId ?? '') === (string)$outlet->nid ? 'active' : '' }}" href="{{ route('reports.sales-detail', array_merge(request()->except(['page']), ['outlet_id' => $outlet->nid])) }}">
-                                {{ $outlet->cname }}
-                                @if((string)($outletId ?? '') === (string)$outlet->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
-                            </a>
-                            @endforeach
-                        </div>
-                    </div>
 
                     <!-- Dropdown Status -->
                     <div class="dropdown d-inline-block flex-shrink-0">
