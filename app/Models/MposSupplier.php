@@ -17,6 +17,7 @@ class MposSupplier extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'nid_outlet',
         'cname',
         'ccontact_person',
         'cphone',
@@ -31,9 +32,19 @@ class MposSupplier extends Model
     protected function casts(): array
     {
         return [
+            'nid_outlet' => 'integer',
             'factive' => 'boolean',
             'dcreated' => 'datetime',
         ];
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(
+            MposOutlet::class,
+            'nid_outlet',
+            'nid'
+        );
     }
 
     public function purchases()

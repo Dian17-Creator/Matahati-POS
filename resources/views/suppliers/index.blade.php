@@ -60,20 +60,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show m-3 mb-0" role="alert">
-        <i class="bi bi-check-circle me-1"></i> {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    @endif
-
-    @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show m-3 mb-0" role="alert">
-        <i class="bi bi-exclamation-triangle me-1"></i> {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    @endif
-
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -81,6 +67,7 @@
                     <tr>
                         <th class="py-3 ps-4" style="width: 50px;">LOGO</th>
                         <th class="py-3">NAMA SUPPLIER</th>
+                        <th class="py-3">OUTLET</th>
                         <th class="py-3">PERSONAL YG DIHUBUNGI (PIC)</th>
                         <th class="py-3 text-center">KONTAK</th>
                         <th class="py-3">ALAMAT</th>
@@ -110,6 +97,17 @@
                                 {{ $supplier->cnote }}
                             </div>
                             @endif
+                        </td>
+                        <td>
+                            @php
+                            $assignedRecords = $allSupplierOutlets->get($supplier->cname, collect());
+                            $uniqueOutlets = $assignedRecords->pluck('outlet')->filter()->unique('nid');
+                            @endphp
+                            @forelse($uniqueOutlets as $outletItem)
+                                <span class="badge bg-light text-dark border mb-1">{{ $outletItem->cname }}</span><br>
+                            @empty
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Semua / Belum Ditentukan</span>
+                            @endforelse
                         </td>
                         <td>{{ $supplier->ccontact_person ?? '-' }}</td>
                         <td class="text-center">
@@ -163,6 +161,55 @@
                                         <div class="mb-3">
                                             <label class="form-label fw-semibold small">Nama Supplier <span class="text-danger">*</span></label>
                                             <input type="text" name="cname" class="form-control" value="{{ old('cname', $supplier->cname) }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
+                                            @if($isOutletLocked)
+                                                @php
+                                                    $lockedOutlet = $outlets->firstWhere('nid', $allowedOutletIds[0] ?? null);
+                                                @endphp
+                                                <input type="text" class="form-control" value="{{ $lockedOutlet?->cname ?? 'Outlet' }}" readonly disabled>
+                                                <input type="hidden" name="outlet_ids[]" value="{{ $allowedOutletIds[0] ?? '' }}">
+                                            @else
+                                                <div class="dropdown @if(session('error_modal') == 'edit_' . $supplier->nid) @error('outlet_ids') is-invalid @enderror @endif">
+                                                    <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_{{ $supplier->nid }}">
+                                                        <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                                                    </button>
+                                                    <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                                        <li class="px-2 pb-1 border-bottom mb-1 d-flex justify-content-between">
+                                                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none select-all-btn" data-target="#editSupplierModal{{ $supplier->nid }}">Pilih Semua</button>
+                                                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none deselect-all-btn text-secondary" data-target="#editSupplierModal{{ $supplier->nid }}">Kosongkan</button>
+                                                        </li>
+                                                        @php
+                                                            $currentAssignedIds = $allSupplierOutlets->get($supplier->cname, collect())->pluck('nid_outlet')->filter()->unique()->toArray();
+                                                        @endphp
+                                                        @foreach($outlets as $outlet)
+                                                        @php
+                                                            $isChecked = false;
+                                                            if (session('error_modal') == 'edit_' . $supplier->nid && is_array(old('outlet_ids'))) {
+                                                                $isChecked = in_array($outlet->nid, old('outlet_ids'));
+                                                            } else {
+                                                                $isChecked = in_array($outlet->nid, $currentAssignedIds);
+                                                            }
+                                                        @endphp
+                                                        <li>
+                                                            <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                                <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $supplier->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
+                                                                <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $supplier->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                                    {{ $outlet->cname }}
+                                                                    @if($supplier->nid_outlet == $outlet->nid)
+                                                                    <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
+                                                                    @endif
+                                                                </label>
+                                                            </div>
+                                                        </li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                                @if(session('error_modal') == 'edit_' . $supplier->nid)
+                                                    @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                                                @endif
+                                            @endif
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label fw-semibold small">Personal Yg Dihubungi (PIC)</label>
@@ -239,7 +286,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">
+                        <td colspan="9" class="text-center py-4 text-muted">
                             Tidak ada data supplier ditemukan.
                         </td>
                     </tr>
@@ -270,6 +317,49 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold small">Nama Supplier <span class="text-danger">*</span></label>
                         <input type="text" name="cname" class="form-control" value="{{ old('cname') }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
+                        @if($isOutletLocked)
+                            @php
+                                $lockedOutlet = $outlets->firstWhere('nid', $allowedOutletIds[0] ?? null);
+                            @endphp
+                            <input type="text" class="form-control" value="{{ $lockedOutlet?->cname ?? 'Outlet' }}" readonly disabled>
+                            <input type="hidden" name="outlet_ids[]" value="{{ $allowedOutletIds[0] ?? '' }}">
+                        @else
+                            <div class="dropdown @if(session('error_modal') == 'create') @error('outlet_ids') is-invalid @enderror @endif">
+                                <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_create">
+                                    <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="px-2 pb-1 border-bottom mb-1 d-flex justify-content-between">
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none select-all-btn" data-target="#createSupplierModal">Pilih Semua</button>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none deselect-all-btn text-secondary" data-target="#createSupplierModal">Kosongkan</button>
+                                    </li>
+                                    @foreach($outlets as $outlet)
+                                    @php
+                                        $isChecked = false;
+                                        if (session('error_modal') == 'create' && is_array(old('outlet_ids'))) {
+                                            $isChecked = in_array($outlet->nid, old('outlet_ids'));
+                                        } elseif ($selectedOutletId && $selectedOutletId == $outlet->nid) {
+                                            $isChecked = true;
+                                        }
+                                    @endphp
+                                    <li>
+                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
+                                            <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                {{ $outlet->cname }}
+                                            </label>
+                                        </div>
+                                    </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                            @if(session('error_modal') == 'create')
+                                @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            @endif
+                        @endif
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold small">Personal Yg Dihubungi (PIC)</label>
@@ -308,3 +398,74 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Handle Dropdown Outlet Text Update
+        function updateDropdownText() {
+            document.querySelectorAll('.dropdown').forEach(dropdown => {
+                const button = dropdown.querySelector('.dropdown-toggle');
+                if (!button) return;
+                const checkboxes = dropdown.querySelectorAll('.outlet-checkbox:checked');
+                const selectedText = button.querySelector('.selected-text');
+                if (!selectedText) return;
+
+                if (checkboxes.length === 0) {
+                    selectedText.textContent = 'Pilih Outlet...';
+                } else if (checkboxes.length === 1) {
+                    selectedText.textContent = checkboxes[0].getAttribute('data-name');
+                } else {
+                    selectedText.textContent = checkboxes.length + ' Outlet Terpilih';
+                }
+            });
+        }
+
+        document.querySelectorAll('.outlet-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateDropdownText);
+        });
+
+        // Select All / Deselect All
+        document.querySelectorAll('.select-all-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const target = document.querySelector(this.getAttribute('data-target'));
+                if (target) {
+                    target.querySelectorAll('.outlet-checkbox').forEach(cb => cb.checked = true);
+                    updateDropdownText();
+                }
+            });
+        });
+
+        document.querySelectorAll('.deselect-all-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const target = document.querySelector(this.getAttribute('data-target'));
+                if (target) {
+                    target.querySelectorAll('.outlet-checkbox').forEach(cb => cb.checked = false);
+                    updateDropdownText();
+                }
+            });
+        });
+
+        // Reopen modal if there was an error
+        @if(session('error_modal') == 'create')
+            var createModalEl = document.getElementById('createSupplierModal');
+            if (createModalEl) {
+                var createModal = new bootstrap.Modal(createModalEl);
+                createModal.show();
+            }
+        @elseif(session('error_modal') && str_starts_with(session('error_modal'), 'edit_'))
+            var editModalId = "{{ session('error_modal') }}";
+            var editModalEl = document.getElementById(editModalId.replace('edit_', 'editSupplierModal'));
+            if (editModalEl) {
+                var editModal = new bootstrap.Modal(editModalEl);
+                editModal.show();
+            }
+        @endif
+
+        // Initial update
+        updateDropdownText();
+    });
+</script>
+@endpush
