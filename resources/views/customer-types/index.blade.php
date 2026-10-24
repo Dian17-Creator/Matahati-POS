@@ -6,17 +6,7 @@
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
-            <h5 class="mb-0 me-3">Daftar Kategori Pelanggan</h5>
-            <form action="{{ route('customer-types.index') }}" method="GET" class="d-flex">
-                <select name="nid_outlet" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="">Semua Outlet</option>
-                    @foreach($outlets as $outlet)
-                    <option value="{{ $outlet->nid }}" {{ request('nid_outlet') == $outlet->nid ? 'selected' : '' }}>
-                        {{ $outlet->cname }}
-                    </option>
-                    @endforeach
-                </select>
-            </form>
+            <h5 class="mb-0">Daftar Kategori Pelanggan</h5>
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru

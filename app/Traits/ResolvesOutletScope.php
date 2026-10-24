@@ -288,7 +288,7 @@ trait ResolvesOutletScope
     {
         $allowedIds = $this->getUserAllowedOutletIds();
 
-        // Check if request provided an outlet parameter (check both nid_outlet and outlet_id)
+        // Check if request provided an explicit outlet parameter (check both nid_outlet and outlet_id)
         $inputVal = null;
         if ($request->has($paramName)) {
             $inputVal = $request->input($paramName);
@@ -296,6 +296,14 @@ trait ResolvesOutletScope
             $inputVal = $request->input('outlet_id');
         } elseif ($paramName === 'outlet_id' && $request->has('nid_outlet')) {
             $inputVal = $request->input('nid_outlet');
+        }
+
+        // If no explicit parameter in request URL, fallback to global active outlet stored in session
+        if ($inputVal === null && session()->has('active_outlet_id')) {
+            $sessionVal = session('active_outlet_id');
+            if ($sessionVal !== null && $sessionVal !== '' && $sessionVal !== 'all') {
+                $inputVal = $sessionVal;
+            }
         }
 
         // Non-superadmin: strictly locked to allowed outlet(s)
@@ -327,7 +335,7 @@ trait ResolvesOutletScope
             return ($inputVal !== '') ? (int) $inputVal : null;
         }
 
-        // When no outlet parameter is specified, default to null ("Semua Outlet") so all data is shown
+        // When no outlet parameter is specified and no active session, default to null ("Semua Outlet")
         return null;
     }
 

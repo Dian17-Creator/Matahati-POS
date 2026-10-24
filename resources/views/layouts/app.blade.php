@@ -470,6 +470,156 @@
             flex: 1 1 100%;
             padding: 10px 20px;
         }
+
+        /* Olsera-Style Header Outlet Switcher */
+        .outlet-switcher-btn {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 9999px;
+            padding: 4px 12px 4px 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #334155;
+            font-size: 0.85rem;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .outlet-switcher-btn:hover,
+        .outlet-switcher-btn:focus,
+        .show > .outlet-switcher-btn {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+            color: #0f172a;
+        }
+
+        .outlet-icon-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #fff1f2;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #b63352;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+
+        .outlet-name-text {
+            max-width: 190px;
+            line-height: 1.2;
+            font-size: 0.84rem;
+        }
+
+        .outlet-chevron {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            transition: transform 0.2s ease;
+        }
+
+        .show > .outlet-switcher-btn .outlet-chevron {
+            transform: rotate(180deg);
+        }
+
+        .outlet-switcher-dropdown {
+            min-width: 290px;
+            max-width: 340px;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12) !important;
+            padding: 6px;
+            margin-top: 6px !important;
+        }
+
+        .outlet-dropdown-item {
+            border-radius: 8px;
+            padding: 9px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #334155;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            margin-bottom: 2px;
+        }
+
+        .outlet-dropdown-item:hover {
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        .outlet-dropdown-item.active {
+            background-color: #fff1f2;
+            color: #b63352;
+        }
+
+        .outlet-dropdown-item.active .outlet-item-icon {
+            background-color: #b63352;
+            color: #ffffff;
+        }
+
+        .outlet-dropdown-item.active .outlet-item-title {
+            color: #b63352;
+            font-weight: 700;
+        }
+
+        .outlet-item-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #f1f5f9;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 1rem;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+
+        .outlet-btn-img {
+            width: 15px;
+            height: 15px;
+            object-fit: contain;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .outlet-img-icon {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            display: inline-block;
+            vertical-align: middle;
+            transition: filter 0.15s ease;
+        }
+
+        .outlet-dropdown-item.active .outlet-img-icon {
+            filter: brightness(0) invert(1);
+        }
+
+        .outlet-item-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #1e293b;
+            line-height: 1.25;
+        }
+
+        .outlet-item-subtitle {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            line-height: 1.2;
+        }
     </style>
     @stack('styles')
 </head>
@@ -720,6 +870,86 @@
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         @yield('header_actions')
+
+                        <!-- Olsera-Style Outlet Switcher (Pojok Kanan Atas) -->
+                        @if(isset($headerCanSwitchOutlet) && $headerCanSwitchOutlet)
+                        <div class="dropdown outlet-switcher-wrapper ms-1">
+                            <button class="outlet-switcher-btn dropdown-toggle" type="button" id="headerOutletDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Cabang / Outlet">
+                                <span class="outlet-icon-circle">
+                                    @if(empty($headerActiveOutletId))
+                                        <img src="{{ asset('images/ic_matahati_pos_all.svg') }}" alt="Semua Outlet" class="outlet-btn-img">
+                                    @else
+                                        <img src="{{ asset('images/ic_matahati_pos.svg') }}" alt="Outlet" class="outlet-btn-img">
+                                    @endif
+                                </span>
+                                <span class="outlet-name-text text-truncate">{{ $headerActiveOutletName ?? 'Semua Outlet' }}</span>
+                            </button>
+
+                            <div class="dropdown-menu dropdown-menu-end outlet-switcher-dropdown shadow-lg" aria-labelledby="headerOutletDropdown">
+                                <div class="px-3 py-2 border-bottom mb-1">
+                                    <div class="fw-bold text-dark small">Pilih Cabang / Outlet</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">Seluruh data otomatis terfilter by outlet</div>
+                                </div>
+
+                                <form action="{{ route('switch-outlet') }}" method="POST" class="m-0 p-0">
+                                    @csrf
+                                    <div class="py-1" style="max-height: 320px; overflow-y: auto;">
+                                        <!-- Opsi Semua Outlet -->
+                                        <button type="submit" name="outlet_id" value="" class="outlet-dropdown-item {{ empty($headerActiveOutletId) ? 'active' : '' }}">
+                                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                                <span class="outlet-item-icon">
+                                                    <img src="{{ asset('images/ic_matahati_pos_all.svg') }}" alt="Semua Outlet" class="outlet-img-icon">
+                                                </span>
+                                                <div class="d-flex flex-column text-start overflow-hidden">
+                                                    <span class="outlet-item-title text-truncate">Semua Outlet</span>
+                                                    <span class="outlet-item-subtitle text-truncate">Gabungan data semua cabang</span>
+                                                </div>
+                                            </div>
+                                            @if(empty($headerActiveOutletId))
+                                                <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
+                                            @endif
+                                        </button>
+
+                                        <div class="dropdown-divider my-1"></div>
+
+                                        <!-- Daftar Cabang / Outlet -->
+                                        @foreach($headerOutlets as $hOutlet)
+                                        <button type="submit" name="outlet_id" value="{{ $hOutlet->nid }}" class="outlet-dropdown-item {{ (string)$headerActiveOutletId === (string)$hOutlet->nid ? 'active' : '' }}">
+                                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                                <span class="outlet-item-icon">
+                                                    <img src="{{ asset('images/ic_matahati_pos.svg') }}" alt="{{ $hOutlet->cname }}" class="outlet-img-icon">
+                                                </span>
+                                                <div class="d-flex flex-column text-start overflow-hidden">
+                                                    <span class="outlet-item-title text-truncate">{{ $hOutlet->cname }}</span>
+                                                </div>
+                                            </div>
+                                            @if((string)$headerActiveOutletId === (string)$hOutlet->nid)
+                                                <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
+                                            @endif
+                                        </button>
+                                        @endforeach
+                                    </div>
+                                </form>
+
+                                @if(!empty($isOwnerLevelUser))
+                                <div class="border-top pt-1 mt-1 px-2">
+                                    <a href="{{ route('outlets.index') }}" class="btn btn-sm btn-light w-100 text-muted d-flex align-items-center justify-content-center gap-1 py-1" style="font-size: 0.78rem;">
+                                        <i class="bi bi-plus-lg"></i>
+                                        <span>Kelola Outlet</span>
+                                    </a>
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+                        @elseif(!empty($headerActiveOutletName) && $headerActiveOutletName !== 'Semua Outlet')
+                        <!-- Static outlet badge for single-outlet locked users (Kasir / Captain) -->
+                        <div class="outlet-switcher-btn disabled ms-1" title="Outlet Aktif: {{ $headerActiveOutletName }}" style="cursor: default; opacity: 0.95;">
+                            <span class="outlet-icon-circle">
+                                <img src="{{ asset('images/ic_matahati_pos.svg') }}" alt="Outlet" class="outlet-btn-img">
+                            </span>
+                            <span class="outlet-name-text text-truncate">{{ $headerActiveOutletName }}</span>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </nav>

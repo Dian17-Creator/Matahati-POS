@@ -5,33 +5,37 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\MposPriceCategory;
 use App\Models\MposOutlet;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PriceCategoryController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function index(Request $request)
     {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
         $query = MposPriceCategory::with('outlet');
 
-        if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-            $query->where('nid_outlet', $request->nid_outlet);
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
         }
 
-        $query->whereIn('nid', function($q) use ($request) {
+        $query->whereIn('nid', function($q) use ($selectedOutletId) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_price_category')
               ->groupBy('cname');
               
-            if ($request->has('nid_outlet') && $request->nid_outlet != '') {
-                $q->where('nid_outlet', $request->nid_outlet);
+            if (!empty($selectedOutletId)) {
+                $q->where('nid_outlet', $selectedOutletId);
             }
         });
 
         $priceCategories = $query->paginate(10)->withQueryString();
-        $outlets = MposOutlet::orderBy('cname')->get();
+        $outlets = $this->getAvailableOutlets();
 
-        return view('price-categories.index', compact('priceCategories', 'outlets'));
+        return view('price-categories.index', compact('priceCategories', 'outlets', 'selectedOutletId'));
     }
 
     public function store(Request $request)
