@@ -735,6 +735,8 @@ class TransactionController extends Controller
                 'cvoid_note' => $request->cvoid_note,
             ]);
 
+            $hasDeductedStock = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED]) || (float) $transaction->npaid > 0;
+
             if ($transaction->details) {
                 foreach ($transaction->details as $detail) {
                     MposSalesD::create([
@@ -746,6 +748,14 @@ class TransactionController extends Controller
                         'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
                         'cnote' => $detail->cnote,
                     ]);
+
+                    // Kembalikan kuantitas stok jika produk memiliki kategori ftrack_stock = 1
+                    if ($hasDeductedStock) {
+                        $qtyToRestore = (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0);
+                        if ($qtyToRestore > 0) {
+                            $this->restoreProductStockIfTracked($detail->nid_product, $qtyToRestore);
+                        }
+                    }
                 }
             }
 
@@ -1015,6 +1025,12 @@ class TransactionController extends Controller
 
                 if ($actionType === 'VOID') {
                     $detail->nqty_void += $requestQty;
+
+                    // Kembalikan kuantitas stok jika produk memiliki kategori ftrack_stock = 1
+                    $hasDeductedStock = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED]) || (float) $transaction->npaid > 0;
+                    if ($hasDeductedStock) {
+                        $this->restoreProductStockIfTracked($detail->nid_product, (int) $requestQty);
+                    }
                 } else {
                     $detail->nqty_refund += $requestQty;
                 }
@@ -1150,5 +1166,37 @@ class TransactionController extends Controller
                 $transaction->save();
             }
         }
+    }
+
+    /**
+     * Mengembalikan kuantitas stok produk ke tabel mpos_product jika kategori produk mengaktifkan kelola stok (ftrack_stock == 1).
+     *
+     * @param int|null $productId
+     * @param int $qty
+     * @return bool
+     */
+    protected function restoreProductStockIfTracked(?int $productId, int $qty): bool
+    {
+        if (!$productId || $qty <= 0) {
+            return false;
+        }
+
+        $product = MposProduct::with('category')->lockForUpdate()->find($productId);
+        if (!$product) {
+            return false;
+        }
+
+        // Cek apakah kategori produk melacak stok (ftrack_stock == 1)
+        $isTrackStock = $product->category && isset($product->category->ftrack_stock)
+            ? (bool) $product->category->ftrack_stock
+            : true;
+
+        if ($isTrackStock) {
+            $product->nqty = (int) $product->nqty + $qty;
+            $product->save();
+            return true;
+        }
+
+        return false;
     }
 }
