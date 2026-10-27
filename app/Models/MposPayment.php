@@ -27,4 +27,13 @@ class MposPayment extends Model
             'nid'
         );
     }
+
+    public function salesPayments()
+    {
+        return $this->hasMany(
+            MposSalesPayment::class,
+            'nid_payment',
+            'nid'
+        );
+    }
 }

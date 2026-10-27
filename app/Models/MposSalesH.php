@@ -67,6 +67,7 @@ class MposSalesH extends Model
         'nid_outlet',
         'nid_voucher',
         'nid_payment',
+        'nid_payment_dual',
         'nid_parent_transaction',
 
         'cname_customer',
@@ -82,6 +83,8 @@ class MposSalesH extends Model
         'ngrandtotal',
 
         'npaid',
+        'ndp_amount',
+        'nremaining_amount',
         'nchange',
 
         'nitem',
@@ -112,6 +115,7 @@ class MposSalesH extends Model
             'nid_outlet' => 'integer',
             'nid_voucher' => 'integer',
             'nid_payment' => 'integer',
+            'nid_payment_dual' => 'integer',
             'nid_parent_transaction' => 'integer',
 
             'nqueue' => 'integer',
@@ -126,6 +130,8 @@ class MposSalesH extends Model
             'ntotal_profit' => 'decimal:2',
 
             'npaid' => 'decimal:2',
+            'ndp_amount' => 'decimal:2',
+            'nremaining_amount' => 'decimal:2',
             'nchange' => 'decimal:2',
             'nservice_charge' => 'decimal:2',
             'nrounding' => 'decimal:2',
@@ -197,6 +203,24 @@ class MposSalesH extends Model
         return $this->belongsTo(
             MposPayment::class,
             'nid_payment',
+            'nid'
+        );
+    }
+
+    public function paymentDual()
+    {
+        return $this->belongsTo(
+            MposPayment::class,
+            'nid_payment_dual',
+            'nid'
+        );
+    }
+
+    public function salesPayments()
+    {
+        return $this->hasMany(
+            MposSalesPayment::class,
+            'nid_transaction',
             'nid'
         );
     }

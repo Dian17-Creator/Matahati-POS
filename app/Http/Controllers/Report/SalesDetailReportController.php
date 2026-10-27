@@ -94,6 +94,7 @@ class SalesDetailReportController extends Controller
     {
         $query = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
+            ->leftJoin('mpos_payment as p_dual', 'mpos_sales_h.nid_payment_dual', '=', 'p_dual.nid')
             ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
             ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
             ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
@@ -150,12 +151,16 @@ class SalesDetailReportController extends Controller
         }
 
         if (!empty($paymentId)) {
-            $query->where('mpos_sales_h.nid_payment', $paymentId);
+            $query->where(function ($q) use ($paymentId) {
+                $q->where('mpos_sales_h.nid_payment', $paymentId)
+                  ->orWhere('mpos_sales_h.nid_payment_dual', $paymentId);
+            });
         }
 
         $query->select(
             'mpos_sales_h.*',
             'mpos_payment.cname as payment_name',
+            'p_dual.cname as payment_dual_name',
             'muser.cname as cashier_name',
             DB::raw('COALESCE(mpos_sales_h.cname_customer, mpos_cust.cname, \'Umum\') as final_customer_name'),
             DB::raw("CASE 
@@ -199,7 +204,10 @@ class SalesDetailReportController extends Controller
         }
 
         if (!empty($paymentId)) {
-            $summaryQuery->where('mpos_sales_h.nid_payment', $paymentId);
+            $summaryQuery->where(function ($q) use ($paymentId) {
+                $q->where('mpos_sales_h.nid_payment', $paymentId)
+                  ->orWhere('mpos_sales_h.nid_payment_dual', $paymentId);
+            });
         }
 
         $itemDeductions = DB::table('mpos_sales_d')

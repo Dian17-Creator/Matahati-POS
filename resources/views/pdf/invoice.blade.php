@@ -179,10 +179,29 @@
             <td class="text-left">GRAND TOTAL</td>
             <td class="text-right">{{ number_format($salesH->ngrandtotal, 0, ',', '.') }}</td>
         </tr>
-        <tr>
-            <td class="text-left">Paid</td>
-            <td class="text-right">{{ number_format($salesH->npaid, 0, ',', '.') }}</td>
-        </tr>
+        @if(!empty($salesH->nid_payment_dual) || (float) $salesH->ndp_amount > 0)
+            <tr>
+                <td class="text-left">Bayar 1 ({{ $salesH->payment->cname ?? 'DP' }})</td>
+                <td class="text-right">{{ number_format($salesH->ndp_amount > 0 ? $salesH->ndp_amount : ($salesH->npaid - max(0, $salesH->npaid - $salesH->ndp_amount)), 0, ',', '.') }}</td>
+            </tr>
+            @if(!empty($salesH->nid_payment_dual))
+            <tr>
+                <td class="text-left">Bayar 2 ({{ $salesH->paymentDual->cname ?? 'Pelunasan' }})</td>
+                <td class="text-right">{{ number_format(max(0, $salesH->npaid - $salesH->ndp_amount), 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            @if((float) $salesH->nremaining_amount > 0)
+            <tr style="font-weight: bold; color: #d9534f;">
+                <td class="text-left">Sisa Tagihan</td>
+                <td class="text-right">{{ number_format($salesH->nremaining_amount, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+        @else
+            <tr>
+                <td class="text-left">Paid ({{ $salesH->payment->cname ?? 'Cash' }})</td>
+                <td class="text-right">{{ number_format($salesH->npaid, 0, ',', '.') }}</td>
+            </tr>
+        @endif
         <tr>
             <td class="text-left">Change</td>
             <td class="text-right">{{ number_format($salesH->nchange, 0, ',', '.') }}</td>
