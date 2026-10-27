@@ -56,6 +56,7 @@ Route::delete('/pos/transactions/{id}', [TransactionController::class, 'destroy'
 Route::post('/pos/transactions/{id}/void', [TransactionController::class, 'voidTransaction']);
 Route::post('/pos/transactions/{id}/refund', [TransactionController::class, 'refundTransaction']);
 Route::post('/pos/transactions/{id}/finish', [TransactionController::class, 'markFinished']);
+Route::post('/pos/transactions/{id}/pay', [TransactionController::class, 'settlePayment']);
 Route::post('/pos/transactions/{id}/items/void', [TransactionController::class, 'voidItems']);
 Route::post('/pos/transactions/{id}/items/refund', [TransactionController::class, 'refundItems']);
 

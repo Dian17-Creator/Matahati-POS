@@ -565,6 +565,10 @@
                                     </td>
                                     <td class="text-center">
                                         <span class="badge-payment {{ $badgePaymentClass }}">{{ $row->payment_name ?? '-' }}</span>
+                                        @if(!empty($row->payment_dual_name))
+                                        <span class="text-muted mx-1" style="font-size: 11px;">+</span>
+                                        <span class="badge-payment badge-payment-card">{{ $row->payment_dual_name }}</span>
+                                        @endif
                                     </td>
                                     <td class="text-center">
                                         @if($effectiveStatus === 'PAID')

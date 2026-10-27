@@ -30,6 +30,7 @@ class TransactionController extends Controller
             $query = MposSalesH::with([
                 'details.product',
                 'payment',
+                'paymentDual',
                 'customer',
                 'voucher',
                 'posUser.user',
@@ -134,6 +135,7 @@ class TransactionController extends Controller
             $transaction = MposSalesH::with([
                 'details.product',
                 'payment',
+                'paymentDual',
                 'customer',
                 'voucher',
                 'posUser.user',
@@ -183,6 +185,8 @@ class TransactionController extends Controller
             'nid_outlet' => 'required|integer',
             'nid_user' => 'nullable|integer',
             'nid_payment' => 'nullable|integer',
+            'nid_payment_dual' => 'nullable|integer',
+            'ndp_amount' => 'nullable|numeric|min:0',
             'nid_voucher' => 'nullable|integer',
             'cname_customer' => 'nullable|string|max:255',
 
@@ -404,15 +408,30 @@ class TransactionController extends Controller
             $npaid = (float) ($validated['npaid'] ?? 0);
             $reqStatus = $validated['cstatus'] ?? null;
 
-            // Cek apakah metode pembayaran adalah non-tunai (seperti QRIS, Transfer, Debit, dll.)
-            $isNonCash = false;
+            $isCashName = function ($cname) {
+                $upper = strtoupper(trim((string) $cname));
+                return str_contains($upper, 'CASH') || str_contains($upper, 'TUNAI');
+            };
+
+            // Cek apakah ada metode pembayaran tunai (CASH) pada pembayaran 1 atau 2
+            $hasCashPayment = false;
             if (!empty($validated['nid_payment'])) {
-                $payment = \App\Models\MposPayment::find($validated['nid_payment']);
-                if ($payment) {
-                    $pName = strtoupper(trim($payment->cname));
-                    $isNonCash = !in_array($pName, ['CASH', 'TUNAI', 'UANG TUNAI']);
+                $payment1 = \App\Models\MposPayment::find($validated['nid_payment']);
+                if ($payment1 && $isCashName($payment1->cname)) {
+                    $hasCashPayment = true;
                 }
             }
+            if (!empty($validated['nid_payment_dual'])) {
+                $payment2 = \App\Models\MposPayment::find($validated['nid_payment_dual']);
+                if ($payment2 && $isCashName($payment2->cname)) {
+                    $hasCashPayment = true;
+                }
+            }
+            if (empty($validated['nid_payment']) && empty($validated['nid_payment_dual'])) {
+                $hasCashPayment = true;
+            }
+
+            $isNonCash = !$hasCashPayment;
 
             if ($reqStatus === MposSalesH::STATUS_CANCELLED) {
                 $nchange = 0;
@@ -471,6 +490,14 @@ class TransactionController extends Controller
                 }
             }
 
+            $ndpAmount = (float) ($validated['ndp_amount'] ?? 0);
+            $nidPaymentDual = $validated['nid_payment_dual'] ?? null;
+            if ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED) {
+                $nremainingAmount = 0;
+            } else {
+                $nremainingAmount = max(0, $ngrandtotal - ($ndpAmount > 0 ? $ndpAmount : $npaid));
+            }
+
             if ($existingDraft) {
                 $pdfUrl = $validated['cpdf_url'] ?? $existingDraft->cpdf_url;
                 if (!$pdfUrl) {
@@ -486,6 +513,7 @@ class TransactionController extends Controller
                     'nid_outlet' => (int) $validated['nid_outlet'],
                     'nid_voucher' => $validated['nid_voucher'] ?? null,
                     'nid_payment' => $validated['nid_payment'] ?? null,
+                    'nid_payment_dual' => $nidPaymentDual,
                     'cname_customer' => $validated['cname_customer'] ?? null,
                     'cordertype' => $validated['cordertype'],
                     'nvisitor' => (int) ($validated['nvisitor'] ?? 1),
@@ -495,6 +523,8 @@ class TransactionController extends Controller
                     'ntax' => $ntax,
                     'ngrandtotal' => $ngrandtotal,
                     'npaid' => $npaid,
+                    'ndp_amount' => $ndpAmount,
+                    'nremaining_amount' => $nremainingAmount,
                     'nchange' => $nchange,
                     'nitem' => $nitem,
                     'cnote' => $validated['cnote'] ?? null,
@@ -516,6 +546,7 @@ class TransactionController extends Controller
                     'nid_outlet' => (int) $validated['nid_outlet'],
                     'nid_voucher' => $validated['nid_voucher'] ?? null,
                     'nid_payment' => $validated['nid_payment'] ?? null,
+                    'nid_payment_dual' => $nidPaymentDual,
                     'cname_customer' => $validated['cname_customer'] ?? null,
                     'nqueue' => $nqueue,
                     'cordertype' => $validated['cordertype'],
@@ -526,6 +557,8 @@ class TransactionController extends Controller
                     'ntax' => $ntax,
                     'ngrandtotal' => $ngrandtotal,
                     'npaid' => $npaid,
+                    'ndp_amount' => $ndpAmount,
+                    'nremaining_amount' => $nremainingAmount,
                     'nchange' => $nchange,
                     'nitem' => $nitem,
                     'cnote' => $validated['cnote'] ?? null,
@@ -566,7 +599,7 @@ class TransactionController extends Controller
                 ]);
             }
 
-            $salesH->load(['details', 'outlet', 'posUser.user']);
+            $salesH->load(['details', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
 
             return response()->json([
                 'success' => true,
@@ -735,8 +768,6 @@ class TransactionController extends Controller
                 'cvoid_note' => $request->cvoid_note,
             ]);
 
-            $hasDeductedStock = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED]) || (float) $transaction->npaid > 0;
-
             if ($transaction->details) {
                 foreach ($transaction->details as $detail) {
                     MposSalesD::create([
@@ -748,14 +779,6 @@ class TransactionController extends Controller
                         'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
                         'cnote' => $detail->cnote,
                     ]);
-
-                    // Kembalikan kuantitas stok jika produk memiliki kategori ftrack_stock = 1
-                    if ($hasDeductedStock) {
-                        $qtyToRestore = (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0);
-                        if ($qtyToRestore > 0) {
-                            $this->restoreProductStockIfTracked($detail->nid_product, $qtyToRestore);
-                        }
-                    }
                 }
             }
 
@@ -1025,12 +1048,6 @@ class TransactionController extends Controller
 
                 if ($actionType === 'VOID') {
                     $detail->nqty_void += $requestQty;
-
-                    // Kembalikan kuantitas stok jika produk memiliki kategori ftrack_stock = 1
-                    $hasDeductedStock = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED]) || (float) $transaction->npaid > 0;
-                    if ($hasDeductedStock) {
-                        $this->restoreProductStockIfTracked($detail->nid_product, (int) $requestQty);
-                    }
                 } else {
                     $detail->nqty_refund += $requestQty;
                 }
@@ -1168,35 +1185,65 @@ class TransactionController extends Controller
         }
     }
 
-    /**
-     * Mengembalikan kuantitas stok produk ke tabel mpos_product jika kategori produk mengaktifkan kelola stok (ftrack_stock == 1).
-     *
-     * @param int|null $productId
-     * @param int $qty
-     * @return bool
-     */
-    protected function restoreProductStockIfTracked(?int $productId, int $qty): bool
+    public function settlePayment(Request $request, string $id)
     {
-        if (!$productId || $qty <= 0) {
-            return false;
+        $validated = $request->validate([
+            'nid_payment' => 'required|integer',
+            'namount' => 'required|numeric|min:0.01',
+            'creference_no' => 'nullable|string|max:255',
+            'cnote' => 'nullable|string|max:1000',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->lockForUpdate()->first();
+
+            if (!$transaction) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaksi tidak ditemukan.',
+                ], 404);
+            }
+
+            $settleAmount = (float) $validated['namount'];
+            $newPaid = (float) $transaction->npaid + $settleAmount;
+            $grandTotal = (float) $transaction->ngrandtotal;
+
+            $newRemaining = max(0, $grandTotal - $newPaid);
+            $status = ($newRemaining <= 0) ? MposSalesH::STATUS_PAID : MposSalesH::STATUS_PENDING;
+            $change = max(0, $newPaid - $grandTotal);
+
+            $transaction->update([
+                'npaid' => $newPaid,
+                'nremaining_amount' => $newRemaining,
+                'nchange' => $change,
+                'cstatus' => $status,
+            ]);
+
+            DB::commit();
+
+            $transaction->load(['details.product', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pelunasan berhasil diproses',
+                'data' => [
+                    'transaction' => $transaction,
+                    'details' => $transaction->details,
+                ],
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Gagal memproses pelunasan: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memproses pelunasan.',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
         }
-
-        $product = MposProduct::with('category')->lockForUpdate()->find($productId);
-        if (!$product) {
-            return false;
-        }
-
-        // Cek apakah kategori produk melacak stok (ftrack_stock == 1)
-        $isTrackStock = $product->category && isset($product->category->ftrack_stock)
-            ? (bool) $product->category->ftrack_stock
-            : true;
-
-        if ($isTrackStock) {
-            $product->nqty = (int) $product->nqty + $qty;
-            $product->save();
-            return true;
-        }
-
-        return false;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\MposCashMovement;
 use App\Models\MposSalesH;
+use App\Models\MposSalesPayment;
 use App\Models\MposShift;
 use App\Models\MposUser;
 use App\Models\Muser;
@@ -104,18 +105,7 @@ class ShiftController extends Controller
             ->whereNull('nid_parent_transaction')
             ->sum('ngrandtotal');
 
-        $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+        $cashSales = $this->calculateShiftCashSales($shift->nid);
 
         $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
             ->where('cstatus', MposSalesH::STATUS_REFUND)
@@ -481,18 +471,7 @@ class ShiftController extends Controller
             ->whereNull('nid_parent_transaction')
             ->sum('ngrandtotal');
 
-        $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+        $cashSales = $this->calculateShiftCashSales($shift->nid);
 
         $data = $shift->toArray();
         $data['nsales_cash'] = $shift->cstatus === 'OPEN' ? (float) $totalSales : (float) $shift->nsales_cash;
@@ -580,18 +559,7 @@ class ShiftController extends Controller
             ->whereNull('nid_parent_transaction')
             ->sum('ndiscount');
 
-        $cashSales = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+        $cashSales = $this->calculateShiftCashSales($shiftId);
 
         $cashFullRefundSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
             ->where('cstatus', MposSalesH::STATUS_REFUND)
@@ -637,30 +605,57 @@ class ShiftController extends Controller
 
         $totalCancellation = $totalFullVoidSum + $totalReversalVoidSum;
 
-        $paymentBreakdown = DB::table('mpos_sales_h')
-            ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
-            ->where('mpos_sales_h.nid_shift', $shiftId)
-            ->whereIn('mpos_sales_h.cstatus', $validStatuses)
-            ->select(
-                DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.nid_parent_transaction IS NULL AND mpos_sales_h.cstatus IN ('PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as refund"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as void")
-            )
-            ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
-            ->get()
-            ->map(function ($row) {
-                $sales = (float) $row->sales;
-                $refund = (float) $row->refund;
-                $void = (float) $row->void;
-                return [
-                    'name' => $row->payment_name,
-                    'sales' => $sales,
-                    'refund' => $refund,
-                    'void' => $void,
-                    'net' => max(0, $sales - $refund - $void),
-                ];
-            });
+        $hasSalesPayment = MposSalesPayment::where('nid_shift', $shiftId)->exists();
+        if ($hasSalesPayment) {
+            $paymentBreakdown = DB::table('mpos_sales_payment')
+                ->leftJoin('mpos_payment', 'mpos_sales_payment.nid_payment', '=', 'mpos_payment.nid')
+                ->where('mpos_sales_payment.nid_shift', $shiftId)
+                ->select(
+                    DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_payment.cstatus = 'PAID' THEN mpos_sales_payment.namount ELSE 0 END) as sales"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_payment.cstatus = 'REFUND' THEN ABS(mpos_sales_payment.namount) ELSE 0 END) as refund"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_payment.cstatus = 'VOID' THEN ABS(mpos_sales_payment.namount) ELSE 0 END) as void")
+                )
+                ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
+                ->get()
+                ->map(function ($row) {
+                    $sales = (float) $row->sales;
+                    $refund = (float) $row->refund;
+                    $void = (float) $row->void;
+                    return [
+                        'name' => $row->payment_name,
+                        'sales' => $sales,
+                        'refund' => $refund,
+                        'void' => $void,
+                        'net' => max(0, $sales - $refund - $void),
+                    ];
+                });
+        } else {
+            $paymentBreakdown = DB::table('mpos_sales_h')
+                ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
+                ->where('mpos_sales_h.nid_shift', $shiftId)
+                ->whereIn('mpos_sales_h.cstatus', $validStatuses)
+                ->select(
+                    DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_h.nid_parent_transaction IS NULL AND mpos_sales_h.cstatus IN ('PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as refund"),
+                    DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as void")
+                )
+                ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
+                ->get()
+                ->map(function ($row) {
+                    $sales = (float) $row->sales;
+                    $refund = (float) $row->refund;
+                    $void = (float) $row->void;
+                    return [
+                        'name' => $row->payment_name,
+                        'sales' => $sales,
+                        'refund' => $refund,
+                        'void' => $void,
+                        'net' => max(0, $sales - $refund - $void),
+                    ];
+                });
+        }
 
         $data['total_receipts'] = $totalReceipts;
         $data['total_pax'] = $totalPax > 0 ? $totalPax : $totalReceipts;
@@ -673,5 +668,33 @@ class ShiftController extends Controller
         $data['payment_breakdown'] = $paymentBreakdown;
 
         return $data;
+    }
+
+    /**
+     * Menghitung total cash sales untuk shift dengan memprioritaskan mpos_sales_payment.
+     */
+    protected function calculateShiftCashSales(int $shiftId): float
+    {
+        $hasSalesPayment = MposSalesPayment::where('nid_shift', $shiftId)->exists();
+        if ($hasSalesPayment) {
+            return (float) MposSalesPayment::where('nid_shift', $shiftId)
+                ->where('cstatus', MposSalesPayment::STATUS_PAID)
+                ->whereHas('payment', function ($query) {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })->sum('namount');
+        }
+
+        return (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', [
+                MposSalesH::STATUS_PAID,
+                MposSalesH::STATUS_COMPLETED,
+                MposSalesH::STATUS_VOID,
+                MposSalesH::STATUS_REFUND,
+                MposSalesH::STATUS_CANCELLED,
+            ])
+            ->whereNull('nid_parent_transaction')
+            ->whereHas('payment', function ($query) {
+                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+            })->sum('ngrandtotal');
     }
 }
