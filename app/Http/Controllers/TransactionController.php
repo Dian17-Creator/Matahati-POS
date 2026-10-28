@@ -439,6 +439,9 @@ class TransactionController extends Controller
             } elseif ($reqStatus === MposSalesH::STATUS_DRAFT) {
                 $nchange = 0;
                 $status = MposSalesH::STATUS_DRAFT;
+            } elseif (($validated['cordertype'] ?? '') === MposSalesH::ORDER_TYPE_RESERVATION && $ngrandtotal == 0) {
+                $nchange = 0;
+                $status = MposSalesH::STATUS_PENDING;
             } elseif ($reqStatus === MposSalesH::STATUS_PAID || $reqStatus === MposSalesH::STATUS_COMPLETED) {
                 $status = $reqStatus;
                 if ($npaid < $ngrandtotal) {
@@ -491,8 +494,11 @@ class TransactionController extends Controller
             }
 
             $ndpAmount = (float) ($validated['ndp_amount'] ?? 0);
+            if (($validated['cordertype'] ?? '') === MposSalesH::ORDER_TYPE_RESERVATION && $ndpAmount == 0 && $npaid > 0) {
+                $ndpAmount = $npaid;
+            }
             $nidPaymentDual = $validated['nid_payment_dual'] ?? null;
-            if ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED) {
+            if (($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED) && ($validated['cordertype'] ?? '') !== MposSalesH::ORDER_TYPE_RESERVATION) {
                 $nremainingAmount = 0;
             } else {
                 $nremainingAmount = max(0, $ngrandtotal - ($ndpAmount > 0 ? $ndpAmount : $npaid));

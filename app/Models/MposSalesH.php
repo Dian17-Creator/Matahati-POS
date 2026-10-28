@@ -16,10 +16,13 @@ class MposSalesH extends Model
 
     public const ORDER_TYPE_ONLINE = 'ONLINE';
 
+    public const ORDER_TYPE_RESERVATION = 'RESERVATION';
+
     public const ORDER_TYPES = [
         self::ORDER_TYPE_DINE_IN,
         self::ORDER_TYPE_TAKE_AWAY,
         self::ORDER_TYPE_ONLINE,
+        self::ORDER_TYPE_RESERVATION,
     ];
 
     // Statuses

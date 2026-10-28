@@ -75,6 +75,7 @@ Route::get('/pos/order-types', function () {
                     MposSalesH::ORDER_TYPE_DINE_IN => 'DINE-IN',
                     MposSalesH::ORDER_TYPE_TAKE_AWAY => 'TAKE-AWAY',
                     MposSalesH::ORDER_TYPE_ONLINE => 'ONLINE',
+                    MposSalesH::ORDER_TYPE_RESERVATION => 'RESERVASI',
                     default => $type,
                 },
             ];
