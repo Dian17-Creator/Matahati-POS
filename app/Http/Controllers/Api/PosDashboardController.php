@@ -30,8 +30,8 @@ class PosDashboardController extends Controller
                 ])
                 ->orWhereNotNull('nid_parent_transaction');
             })
-            ->whereDate('dtransaction', '>=', $dateFrom)
-            ->whereDate('dtransaction', '<=', $dateTo);
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $dateFrom)
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $dateTo);
 
         if ($nidOutlet) {
             $salesQuery->where('nid_outlet', $nidOutlet);
@@ -44,8 +44,8 @@ class PosDashboardController extends Controller
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_REFUND,
             ])
-            ->whereDate('dtransaction', '>=', $dateFrom)
-            ->whereDate('dtransaction', '<=', $dateTo);
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $dateFrom)
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $dateTo);
 
         if ($nidOutlet) {
             $refundQuery->where('nid_outlet', $nidOutlet);
@@ -62,16 +62,16 @@ class PosDashboardController extends Controller
                 ])
                 ->orWhereNotNull('nid_parent_transaction');
             })
-            ->whereDate('dtransaction', '>=', $dateFrom)
-            ->whereDate('dtransaction', '<=', $dateTo);
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $dateFrom)
+            ->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $dateTo);
 
         if ($nidOutlet) {
             $dailySalesQuery->where('nid_outlet', $nidOutlet);
         }
 
         $dailyNet = $dailySalesQuery
-            ->selectRaw('DATE(dtransaction) as date, SUM(ngrandtotal) as net_total')
-            ->groupByRaw('DATE(dtransaction)')
+            ->selectRaw('DATE(COALESCE(dpayment_date, dtransaction)) as date, SUM(ngrandtotal) as net_total')
+            ->groupByRaw('DATE(COALESCE(dpayment_date, dtransaction))')
             ->pluck('net_total', 'date');
 
         $salesByDate = [];
@@ -97,8 +97,8 @@ class PosDashboardController extends Controller
                 ])
                 ->orWhereNotNull('mpos_sales_h.nid_parent_transaction');
             })
-            ->whereDate('mpos_sales_h.dtransaction', '>=', $dateFrom)
-            ->whereDate('mpos_sales_h.dtransaction', '<=', $dateTo);
+            ->whereDate(DB::raw('COALESCE(mpos_sales_h.dpayment_date, mpos_sales_h.dtransaction)'), '>=', $dateFrom)
+            ->whereDate(DB::raw('COALESCE(mpos_sales_h.dpayment_date, mpos_sales_h.dtransaction)'), '<=', $dateTo);
 
         if ($nidOutlet) {
             $topProductGroupsQuery->where('mpos_sales_h.nid_outlet', $nidOutlet);

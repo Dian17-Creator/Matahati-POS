@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <title>Invoice {{ $salesH->cnotransaction }}</title>
@@ -47,7 +48,9 @@
             margin: 6px 0;
         }
 
-        .meta-table, .item-table, .calc-table {
+        .meta-table,
+        .item-table,
+        .calc-table {
             width: 100%;
             border-collapse: collapse;
         }
@@ -104,6 +107,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Header / Outlet Name -->
     <div class="text-center title">
@@ -138,19 +142,19 @@
 
     <!-- List Items -->
     @foreach ($salesH->details as $item)
-        <div class="item-block">
-            <div class="item-name">{{ $item->cname ?? ($item->product->cname ?? 'Item') }}</div>
-            <table class="item-detail">
-                <tr>
-                    <td class="text-left">
-                        {{ (int) $item->nqty }} x {{ number_format($item->nprice, 0, ',', '.') }}
-                    </td>
-                    <td class="text-right">
-                        {{ number_format($item->nsubtotal, 0, ',', '.') }}
-                    </td>
-                </tr>
-            </table>
-        </div>
+    <div class="item-block">
+        <div class="item-name">{{ $item->cname ?? ($item->product->cname ?? 'Item') }}</div>
+        <table class="item-detail">
+            <tr>
+                <td class="text-left">
+                    {{ (int) $item->nqty }} x {{ number_format($item->nprice, 0, ',', '.') }}
+                </td>
+                <td class="text-right">
+                    {{ number_format($item->nsubtotal, 0, ',', '.') }}
+                </td>
+            </tr>
+        </table>
+    </div>
     @endforeach
 
     <div class="divider"></div>
@@ -180,27 +184,27 @@
             <td class="text-right">{{ number_format($salesH->ngrandtotal, 0, ',', '.') }}</td>
         </tr>
         @if(!empty($salesH->nid_payment_dual) || (float) $salesH->ndp_amount > 0)
-            <tr>
-                <td class="text-left">Bayar 1 ({{ $salesH->payment->cname ?? 'DP' }})</td>
-                <td class="text-right">{{ number_format($salesH->ndp_amount > 0 ? $salesH->ndp_amount : ($salesH->npaid - max(0, $salesH->npaid - $salesH->ndp_amount)), 0, ',', '.') }}</td>
-            </tr>
-            @if(!empty($salesH->nid_payment_dual))
-            <tr>
-                <td class="text-left">Bayar 2 ({{ $salesH->paymentDual->cname ?? 'Pelunasan' }})</td>
-                <td class="text-right">{{ number_format(max(0, $salesH->npaid - $salesH->ndp_amount), 0, ',', '.') }}</td>
-            </tr>
-            @endif
-            @if((float) $salesH->nremaining_amount > 0)
-            <tr style="font-weight: bold; color: #d9534f;">
-                <td class="text-left">Sisa Tagihan</td>
-                <td class="text-right">{{ number_format($salesH->nremaining_amount, 0, ',', '.') }}</td>
-            </tr>
-            @endif
+        <tr>
+            <td class="text-left">Bayar 1 ({{ $salesH->payment->cname ?? 'DP' }})</td>
+            <td class="text-right">{{ number_format($salesH->ndp_amount > 0 ? $salesH->ndp_amount : ($salesH->npaid - max(0, $salesH->npaid - $salesH->ndp_amount)), 0, ',', '.') }}</td>
+        </tr>
+        @if(!empty($salesH->nid_payment_dual))
+        <tr>
+            <td class="text-left">Bayar 2 ({{ $salesH->paymentDual->cname ?? 'Pelunasan' }})</td>
+            <td class="text-right">{{ number_format(max(0, $salesH->npaid - $salesH->ndp_amount), 0, ',', '.') }}</td>
+        </tr>
+        @endif
+        @if((float) $salesH->nremaining_amount > 0)
+        <tr style="font-weight: bold; color: #d9534f;">
+            <td class="text-left">Sisa Tagihan</td>
+            <td class="text-right">{{ number_format($salesH->nremaining_amount, 0, ',', '.') }}</td>
+        </tr>
+        @endif
         @else
-            <tr>
-                <td class="text-left">Paid ({{ $salesH->payment->cname ?? 'Cash' }})</td>
-                <td class="text-right">{{ number_format($salesH->npaid, 0, ',', '.') }}</td>
-            </tr>
+        <tr>
+            <td class="text-left">Paid ({{ $salesH->payment->cname ?? 'Cash' }})</td>
+            <td class="text-right">{{ number_format($salesH->npaid, 0, ',', '.') }}</td>
+        </tr>
         @endif
         <tr>
             <td class="text-left">Change</td>
@@ -218,4 +222,5 @@
         Terima kasih atas kunjungan Anda
     </div>
 </body>
+
 </html>
