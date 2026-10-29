@@ -53,8 +53,8 @@ class PosReportController extends Controller
                     ])
                     ->orWhereNotNull('sh.nid_parent_transaction');
                 })
-                ->whereDate(DB::raw('COALESCE(parent.dtransaction, sh.dtransaction)'), '>=', $dateFrom)
-                ->whereDate(DB::raw('COALESCE(parent.dtransaction, sh.dtransaction)'), '<=', $dateTo);
+                ->whereDate(DB::raw('COALESCE(sh.dpayment_date, parent.dpayment_date, parent.dtransaction, sh.dtransaction)'), '>=', $dateFrom)
+                ->whereDate(DB::raw('COALESCE(sh.dpayment_date, parent.dpayment_date, parent.dtransaction, sh.dtransaction)'), '<=', $dateTo);
 
             // Apply optional filters
             if ($request->filled('nid_outlet')) {

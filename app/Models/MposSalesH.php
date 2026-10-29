@@ -63,6 +63,7 @@ class MposSalesH extends Model
     protected $fillable = [
         'cnotransaction',
         'dtransaction',
+        'dpayment_date',
 
         'nid_customer',
         'nid_user',
@@ -110,6 +111,7 @@ class MposSalesH extends Model
     {
         return [
             'dtransaction' => 'datetime',
+            'dpayment_date' => 'datetime',
             'dcreated' => 'datetime',
 
             'nid_customer' => 'integer',

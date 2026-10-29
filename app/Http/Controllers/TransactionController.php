@@ -66,14 +66,14 @@ class TransactionController extends Controller
                 $query->where('nid_payment', $request->input('payment_id'));
             }
             if ($request->filled('date')) {
-                $query->whereDate('dtransaction', $request->input('date'));
+                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), $request->input('date'));
             }
 
             if ($request->filled('start_date')) {
-                $query->whereDate('dtransaction', '>=', $request->input('start_date'));
+                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $request->input('start_date'));
             }
             if ($request->filled('end_date')) {
-                $query->whereDate('dtransaction', '<=', $request->input('end_date'));
+                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $request->input('end_date'));
             }
 
             if ($request->filled('search')) {
@@ -85,7 +85,7 @@ class TransactionController extends Controller
                 });
             }
 
-            $query->orderBy('dtransaction', 'desc')->orderBy('nid', 'desc');
+            $query->orderBy(DB::raw('COALESCE(dpayment_date, dtransaction)'), 'desc')->orderBy('nid', 'desc');
 
             if ($request->boolean('paginate')) {
                 $perPage = (int) $request->input('per_page', 15);
@@ -512,6 +512,12 @@ class TransactionController extends Controller
                     $pdfUrl = "https://pos.matahaticafe.com/pos/invoice/invoice_{$cleanTrxNo}_{$datePart}.pdf";
                 }
 
+                $isPaidOrCompleted = ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED);
+                $paymentDate = $existingDraft->dpayment_date;
+                if ($isPaidOrCompleted && !$paymentDate) {
+                    $paymentDate = now();
+                }
+
                 $existingDraft->update([
                     'nid_customer' => $validated['nid_customer'] ?? null,
                     'nid_user' => $nidUser,
@@ -537,15 +543,20 @@ class TransactionController extends Controller
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
                     'cpdf_url' => $pdfUrl,
+                    'dpayment_date' => $paymentDate,
                 ]);
                 $salesH = $existingDraft;
 
                 // Hapus detail item lama di mpos_sales_d
                 MposSalesD::where('nid_transaction', $salesH->nid)->delete();
             } else {
+                $isPaidOrCompleted = ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED);
+                $paymentDate = $isPaidOrCompleted ? now() : null;
+
                 $salesH = MposSalesH::create([
                     'cnotransaction' => $cnotransaction,
                     'dtransaction' => now(),
+                    'dpayment_date' => $paymentDate,
                     'nid_customer' => $validated['nid_customer'] ?? null,
                     'nid_user' => $nidUser,
                     'nid_shift' => $activeShift->nid,
@@ -1225,6 +1236,7 @@ class TransactionController extends Controller
                 'nremaining_amount' => $newRemaining,
                 'nchange' => $change,
                 'cstatus' => $status,
+                'dpayment_date' => ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED || $transaction->dpayment_date === null) ? now() : $transaction->dpayment_date,
             ]);
 
             DB::commit();
