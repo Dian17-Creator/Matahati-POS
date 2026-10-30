@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Detail Produk')
+@section('title', 'Katalog Produk / Detail Produk')
+
+@section('sub_header')
+@include('products.partials.catalog_tabs', ['activeTab' => 'products'])
+@endsection
 
 @push('styles')
 <style>
