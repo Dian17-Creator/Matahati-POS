@@ -72,7 +72,7 @@
             padding: 8px 8px;
             display: flex;
             align-items: center;
-            border-radius: 7px;
+            border-radius: 2px;
             margin-bottom: 2px;
             font-size: 0.73rem;
             font-weight: 500;
@@ -178,7 +178,7 @@
             font-weight: 500;
             cursor: pointer;
             user-select: none;
-            border-radius: 7px;
+            border-radius: 2px;
             display: flex;
             align-items: center;
             justify-content: space-between;
