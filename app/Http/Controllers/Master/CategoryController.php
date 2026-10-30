@@ -55,10 +55,35 @@ class CategoryController extends Controller
             }
         });
 
-        $categories = $query->paginate(10)->withQueryString();
+        $categories = $query->orderBy('cname', 'asc')->get();
+
+        // Hitung jumlah produk unik (distinct cname) per nama kategori sesuai scope outlet
+        $productCountQuery = DB::table('mpos_grp_product')
+            ->leftJoin('mpos_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid');
+
+        if (!empty($selectedOutletId)) {
+            $productCountQuery->where('mpos_grp_product.nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $productCountQuery->whereIn('mpos_grp_product.nid_outlet', $allowedOutletIds);
+        }
+
+        $productCounts = $productCountQuery
+            ->select(
+                'mpos_grp_product.cname',
+                DB::raw('COUNT(DISTINCT mpos_product.cname) as product_count')
+            )
+            ->groupBy('mpos_grp_product.cname')
+            ->pluck('product_count', 'cname');
+
+        // Preload pemetaan outlet untuk setiap nama kategori agar bebas N+1 query di modal detail
+        $categoryOutletsMap = MposGrpProduct::with('outlet')
+            ->get()
+            ->groupBy('cname');
 
         return view('categories.index', compact(
             'categories',
+            'productCounts',
+            'categoryOutletsMap',
             'outlets',
             'selectedOutletId',
             'isCashierOnly',
@@ -177,10 +202,15 @@ class CategoryController extends Controller
 
     public function destroy(string $id)
     {
-        $category = MposGrpProduct::findOrFail($id);
-        $category->delete();
+        try {
+            $category = MposGrpProduct::findOrFail($id);
+            $category->delete();
 
-        return redirect()->route('categories.index')
-            ->with('success', 'Kategori berhasil dihapus.');
+            return redirect()->route('categories.index')
+                ->with('success', 'Kategori berhasil dihapus.');
+        } catch (\Exception $e) {
+            return redirect()->route('categories.index')
+                ->with('error', 'Kategori tidak dapat dihapus karena masih digunakan oleh produk.');
+        }
     }
 }

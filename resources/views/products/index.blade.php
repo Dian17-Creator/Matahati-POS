@@ -1,7 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Produk')
+@section('title', 'Katalog Produk / Daftar Produk')
 
+@section('sub_header')
+@include('products.partials.catalog_tabs', ['activeTab' => 'products'])
+@endsection
 
 @section('content')
 @if(session('import_results'))
