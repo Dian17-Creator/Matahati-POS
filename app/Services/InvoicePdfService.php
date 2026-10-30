@@ -20,7 +20,7 @@ class InvoicePdfService
     {
         try {
             // Eager load necessary relationships
-            $salesH->loadMissing(['details.product', 'outlet', 'posUser.user', 'customer', 'payment', 'paymentDual', 'salesPayments.payment']);
+            $salesH->loadMissing(['details.product', 'outlet', 'posUser.user', 'customer', 'payment', 'paymentDual']);
 
             $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
             $datePart = $salesH->dtransaction ? Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');

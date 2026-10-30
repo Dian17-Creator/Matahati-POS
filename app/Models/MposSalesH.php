@@ -221,15 +221,6 @@ class MposSalesH extends Model
         );
     }
 
-    public function salesPayments()
-    {
-        return $this->hasMany(
-            MposSalesPayment::class,
-            'nid_transaction',
-            'nid'
-        );
-    }
-
     public function details()
     {
         return $this->hasMany(
