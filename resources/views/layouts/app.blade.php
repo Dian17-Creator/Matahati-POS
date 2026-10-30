@@ -25,7 +25,7 @@
         }
 
         .sidebar {
-            width: 220px;
+            width: 198px;
             border-right: 1px solid #eef2f6;
             box-shadow: 4px 0 20px rgba(15, 23, 42, 0.08), 1px 0 4px rgba(15, 23, 42, 0.04);
             z-index: 1030;
@@ -44,7 +44,7 @@
         /* Mobile Offcanvas Drawer from Side */
         @media (max-width: 767.98px) {
             .sidebar.offcanvas-md {
-                width: 245px;
+                width: 225px;
                 max-width: 80vw;
                 box-shadow: 6px 0 24px rgba(15, 23, 42, 0.16);
             }
@@ -69,12 +69,12 @@
         .sidebar a {
             color: #1e293b;
             text-decoration: none;
-            padding: 8px 10px;
+            padding: 8px 8px;
             display: flex;
             align-items: center;
             border-radius: 7px;
             margin-bottom: 2px;
-            font-size: 0.78rem;
+            font-size: 0.73rem;
             font-weight: 500;
             transition: all 0.2s ease-in-out;
         }
@@ -96,10 +96,10 @@
 
         /* Top level direct nav link (Dashboard) */
         .sidebar a.nav-top-link {
-            font-size: 0.78rem;
+            font-size: 0.73rem;
             font-weight: 500;
             color: #1e293b;
-            padding: 10px 10px;
+            padding: 9px 8px;
             margin-bottom: 4px;
             white-space: nowrap;
         }
@@ -124,12 +124,12 @@
 
         /* Nav icon fixed width & alignment */
         .sidebar .nav-icon {
-            width: 16px;
-            height: 16px;
-            font-size: 0.95rem;
-            margin-right: 10px;
+            width: 15px;
+            height: 15px;
+            font-size: 0.88rem;
+            margin-right: 8px;
             text-align: center;
-            flex: 0 0 16px !important;
+            flex: 0 0 15px !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -138,7 +138,7 @@
         }
 
         .sidebar .nav-icon i {
-            font-size: 0.95rem;
+            font-size: 0.88rem;
             line-height: 1;
             display: inline-flex;
             align-items: center;
@@ -151,8 +151,8 @@
         }
 
         .sidebar .nav-icon .nav-svg-icon {
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
             filter: none;
             object-fit: contain;
             display: inline-block;
@@ -170,9 +170,9 @@
 
         /* Category Header with Toggle */
         .sidebar .nav-category {
-            font-size: 0.78rem;
+            font-size: 0.73rem;
             color: #1e293b;
-            padding: 10px 10px;
+            padding: 9px 8px;
             margin-top: 6px;
             margin-bottom: 4px;
             font-weight: 500;
@@ -199,7 +199,7 @@
 
         /* Chevron Arrow Animation */
         .sidebar .nav-category .nav-arrow {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             color: #94a3b8;
             transition: transform 0.25s ease-in-out, color 0.2s ease;
             opacity: 1;
@@ -222,11 +222,11 @@
             padding: 4px 0 6px;
         }
 
-        /* Sub Menu Links (Indented to align perfectly with category text: 10px padding + 16px icon + 10px margin = 36px) */
+        /* Sub Menu Links (Indented to align perfectly with category text: 8px padding + 15px icon + 8px margin = 31px) */
         .sidebar a.sidebar-sub-item {
             color: #475569;
-            padding: 7px 10px 7px 36px;
-            font-size: 0.75rem;
+            padding: 6px 8px 6px 31px;
+            font-size: 0.7rem;
             font-weight: 400;
             margin-bottom: 3px;
             white-space: nowrap;
@@ -245,7 +245,7 @@
 
         /* Olsera-style Top Sidebar User Card & Dropdown */
         .sidebar-brand-title {
-            font-size: 0.92rem;
+            font-size: 0.88rem;
             letter-spacing: 0.5px;
             font-weight: 700;
         }
@@ -253,7 +253,7 @@
         .sidebar-user-card {
             background-color: #b63352;
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 0 0 14px 14px;
+            border-radius: 0 0 13px 13px;
             box-shadow: 0 4px 12px rgba(182, 51, 82, 0.22);
             cursor: pointer;
             transition: all 0.2s ease-in-out;
@@ -271,34 +271,34 @@
         }
 
         .sidebar-user-avatar {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.22);
             color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 0.9rem;
             flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .sidebar-user-name {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 700;
             color: #ffffff;
             line-height: 1.2;
         }
 
         .sidebar-user-role {
-            font-size: 0.68rem;
+            font-size: 0.64rem;
             color: rgba(255, 255, 255, 0.78);
             line-height: 1.2;
         }
 
         .sidebar-user-arrow {
-            font-size: 0.68rem;
+            font-size: 0.62rem;
             color: rgba(255, 255, 255, 0.85);
             transition: transform 0.25s ease-in-out;
         }
@@ -348,9 +348,9 @@
         .user-menu-item {
             display: flex;
             align-items: center;
-            padding: 7px 10px;
+            padding: 6px 9px;
             color: #334155 !important;
-            font-size: 0.78rem;
+            font-size: 0.73rem;
             font-weight: 500;
             border-radius: 6px;
             text-decoration: none;
@@ -361,7 +361,7 @@
         }
 
         .user-menu-item i {
-            font-size: 1rem;
+            font-size: 0.92rem;
             color: #64748b;
             flex-shrink: 0;
         }
@@ -665,7 +665,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
             </div>
             <div class="offcanvas-body p-0 flex-column" style="background-color: #ffffff !important;">
-                <div class="w-100" style="padding: 0 10px 14px;">
+                <div class="w-100" style="padding: 0 8px 14px;">
 
                     <!-- Olsera-Style Top User Profile & Menu -->
                     <div class="sidebar-user-section mb-3">
