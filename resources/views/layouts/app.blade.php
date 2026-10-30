@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #ffffffff;
         }
 
         .sidebar,
@@ -19,13 +19,16 @@
         .sidebar.offcanvas,
         .sidebar .offcanvas-header,
         .sidebar .offcanvas-body {
-            background-color: #b63352 !important;
-            --bs-offcanvas-bg: #b63352 !important;
-            color: white !important;
+            background-color: #ffffff !important;
+            --bs-offcanvas-bg: #ffffff !important;
+            color: #1e293b !important;
         }
 
         .sidebar {
-            width: 250px;
+            width: 220px;
+            border-right: 1px solid #eef2f6;
+            box-shadow: 4px 0 20px rgba(15, 23, 42, 0.08), 1px 0 4px rgba(15, 23, 42, 0.04);
+            z-index: 1030;
         }
 
         /* Desktop Sticky & Scroll */
@@ -41,8 +44,9 @@
         /* Mobile Offcanvas Drawer from Side */
         @media (max-width: 767.98px) {
             .sidebar.offcanvas-md {
-                width: 270px;
+                width: 245px;
                 max-width: 80vw;
+                box-shadow: 6px 0 24px rgba(15, 23, 42, 0.16);
             }
 
             .sidebar .offcanvas-body {
@@ -58,19 +62,20 @@
 
         .sidebar::-webkit-scrollbar-thumb,
         .sidebar .offcanvas-body::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(15, 23, 42, 0.16);
             border-radius: 4px;
         }
 
         .sidebar a {
-            color: rgba(255, 255, 255, 0.75);
+            color: #1e293b;
             text-decoration: none;
-            padding: 9px 14px;
+            padding: 8px 10px;
             display: flex;
             align-items: center;
-            border-radius: 6px;
-            margin-bottom: 3px;
-            font-size: 0.925rem;
+            border-radius: 7px;
+            margin-bottom: 2px;
+            font-size: 0.78rem;
+            font-weight: 500;
             transition: all 0.2s ease-in-out;
         }
 
@@ -80,43 +85,51 @@
 
         .sidebar a span:not(.nav-icon) {
             flex: 1;
-            line-height: 1.4;
+            line-height: 1.35;
         }
 
         .sidebar a:hover,
         .sidebar a.active {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.18);
+            color: #0f172a;
+            background-color: #f1f5f9;
         }
 
         /* Top level direct nav link (Dashboard) */
         .sidebar a.nav-top-link {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.85);
-            padding: 8px 10px;
-            margin-bottom: 2px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: #1e293b;
+            padding: 10px 10px;
+            margin-bottom: 4px;
             white-space: nowrap;
         }
 
         .sidebar a.nav-top-link:hover {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.12);
+            color: #0f172a;
+            background-color: #f1f5f9;
         }
 
         .sidebar a.nav-top-link.active {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.18);
+            color: #0f172a;
+            font-weight: 600;
+            background-color: #f1f5f9;
+        }
+
+        .sidebar-divider {
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+            opacity: 1;
+            margin: 10px 6px 12px;
         }
 
         /* Nav icon fixed width & alignment */
         .sidebar .nav-icon {
-            width: 18px;
-            height: 18px;
-            font-size: 1.05rem;
-            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            font-size: 0.95rem;
+            margin-right: 10px;
             text-align: center;
-            flex: 0 0 18px !important;
+            flex: 0 0 16px !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -125,11 +138,12 @@
         }
 
         .sidebar .nav-icon i {
-            font-size: 1.05rem;
+            font-size: 0.95rem;
             line-height: 1;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            color: #1e293b;
         }
 
         .sidebar .nav-icon i::before {
@@ -137,9 +151,9 @@
         }
 
         .sidebar .nav-icon .nav-svg-icon {
-            width: 18px;
-            height: 18px;
-            filter: brightness(0) invert(1);
+            width: 16px;
+            height: 16px;
+            filter: none;
             object-fit: contain;
             display: inline-block;
             vertical-align: middle;
@@ -156,15 +170,15 @@
 
         /* Category Header with Toggle */
         .sidebar .nav-category {
-            font-size: 0.82rem;
-            color: rgba(255, 255, 255, 0.85);
-            padding: 8px 10px;
+            font-size: 0.78rem;
+            color: #1e293b;
+            padding: 10px 10px;
             margin-top: 6px;
-            margin-bottom: 2px;
-            font-weight: 600;
+            margin-bottom: 4px;
+            font-weight: 500;
             cursor: pointer;
             user-select: none;
-            border-radius: 6px;
+            border-radius: 7px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -173,114 +187,118 @@
         }
 
         .sidebar .nav-category:hover {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.12);
+            color: #0f172a;
+            background-color: #f1f5f9;
         }
 
         .sidebar .nav-category.active-parent {
-            color: #fff;
+            color: #0f172a;
+            font-weight: 600;
+            background-color: #f8fafc;
         }
 
         /* Chevron Arrow Animation */
         .sidebar .nav-category .nav-arrow {
-            font-size: 0.72rem;
-            transition: transform 0.25s ease-in-out;
-            opacity: 0.8;
+            font-size: 0.65rem;
+            color: #94a3b8;
+            transition: transform 0.25s ease-in-out, color 0.2s ease;
+            opacity: 1;
             flex-shrink: 0;
-            margin-left: 6px;
+            margin-left: 4px;
         }
 
         .sidebar .nav-category:hover .nav-arrow {
-            opacity: 1;
+            color: #334155;
         }
 
         .sidebar .nav-category:not(.collapsed) .nav-arrow,
         .sidebar .nav-category[aria-expanded="true"] .nav-arrow {
             transform: rotate(180deg);
-            opacity: 1;
+            color: #334155;
         }
 
         /* Sub Menu Container */
         .sidebar .nav-sub-menu {
-            padding: 2px 0 4px;
+            padding: 4px 0 6px;
         }
 
-        /* Sub Menu Links (Indented to align perfectly with category text: 10px padding + 18px icon + 8px margin = 36px) */
+        /* Sub Menu Links (Indented to align perfectly with category text: 10px padding + 16px icon + 10px margin = 36px) */
         .sidebar a.sidebar-sub-item {
-            color: rgba(255, 255, 255, 0.75);
-            padding: 6px 10px 6px 36px;
-            font-size: 0.82rem;
-            margin-bottom: 2px;
+            color: #475569;
+            padding: 7px 10px 7px 36px;
+            font-size: 0.75rem;
+            font-weight: 400;
+            margin-bottom: 3px;
             white-space: nowrap;
         }
 
         .sidebar a.sidebar-sub-item:hover {
-            color: #fff;
-            background-color: rgba(255, 255, 255, 0.14);
+            color: #0f172a;
+            background-color: #f1f5f9;
         }
 
         .sidebar a.sidebar-sub-item.active {
-            color: #fff;
+            color: #0f172a;
             font-weight: 600;
-            background-color: rgba(255, 255, 255, 0.22);
+            background-color: #f1f5f9;
         }
 
         /* Olsera-style Top Sidebar User Card & Dropdown */
         .sidebar-brand-title {
-            font-size: 1rem;
+            font-size: 0.92rem;
             letter-spacing: 0.5px;
             font-weight: 700;
         }
 
         .sidebar-user-card {
-            background-color: rgba(0, 0, 0, 0.18);
+            background-color: #b63352;
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 0 0 18px 18px;
+            border-radius: 0 0 14px 14px;
+            box-shadow: 0 4px 12px rgba(182, 51, 82, 0.22);
             cursor: pointer;
             transition: all 0.2s ease-in-out;
             user-select: none;
         }
 
         .sidebar-user-card:hover {
-            background-color: rgba(0, 0, 0, 0.28);
-            border-color: rgba(255, 255, 255, 0.3);
+            background-color: #a12b47;
+            box-shadow: 0 6px 14px rgba(182, 51, 82, 0.28);
         }
 
         .sidebar-user-card.active,
         .sidebar-user-card[aria-expanded="true"] {
-            background-color: rgba(0, 0, 0, 0.3);
-            border-color: rgba(255, 255, 255, 0.4);
+            background-color: #962640;
         }
 
         .sidebar-user-avatar {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.22);
             color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.15rem;
+            font-size: 1rem;
             flex-shrink: 0;
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .sidebar-user-name {
-            font-size: 0.88rem;
+            font-size: 0.8rem;
             font-weight: 700;
             color: #ffffff;
             line-height: 1.2;
         }
 
         .sidebar-user-role {
-            font-size: 0.72rem;
-            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.78);
             line-height: 1.2;
         }
 
         .sidebar-user-arrow {
-            font-size: 0.75rem;
+            font-size: 0.68rem;
             color: rgba(255, 255, 255, 0.85);
             transition: transform 0.25s ease-in-out;
         }
@@ -330,9 +348,9 @@
         .user-menu-item {
             display: flex;
             align-items: center;
-            padding: 8px 12px;
+            padding: 7px 10px;
             color: #334155 !important;
-            font-size: 0.85rem;
+            font-size: 0.78rem;
             font-weight: 500;
             border-radius: 6px;
             text-decoration: none;
@@ -343,7 +361,7 @@
         }
 
         .user-menu-item i {
-            font-size: 1.1rem;
+            font-size: 1rem;
             color: #64748b;
             flex-shrink: 0;
         }
@@ -471,19 +489,33 @@
             padding: 10px 20px;
         }
 
+        /* Top Maroon Gradient Header Navbar (Left Dark -> Right Light) */
+        .top-header-navbar {
+            background: linear-gradient(90deg, #b63352 50%, #e04a70 100%) !important;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+            border-bottom: none !important;
+        }
+
+        .top-header-navbar .navbar-brand {
+            color: #ffffff !important;
+            font-weight: 600;
+            font-size: 1.05rem !important;
+            letter-spacing: 0.2px;
+        }
+
         /* Olsera-Style Header Outlet Switcher */
         .outlet-switcher-btn {
             background-color: #ffffff;
-            border: 1px solid #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.9);
             border-radius: 9999px;
             padding: 4px 12px 4px 6px;
             display: inline-flex;
             align-items: center;
             gap: 8px;
             color: #334155;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-weight: 600;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
             transition: all 0.2s ease;
             text-decoration: none;
             cursor: pointer;
@@ -491,10 +523,10 @@
 
         .outlet-switcher-btn:hover,
         .outlet-switcher-btn:focus,
-        .show > .outlet-switcher-btn {
+        .show>.outlet-switcher-btn {
             background-color: #f8fafc;
-            border-color: #cbd5e1;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+            border-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
             color: #0f172a;
         }
 
@@ -523,7 +555,7 @@
             transition: transform 0.2s ease;
         }
 
-        .show > .outlet-switcher-btn .outlet-chevron {
+        .show>.outlet-switcher-btn .outlet-chevron {
             transform: rotate(180deg);
         }
 
@@ -627,13 +659,13 @@
 <body>
     <div class="d-flex" style="min-height: 100vh;">
         <!-- Sidebar -->
-        <div class="sidebar offcanvas-md offcanvas-start text-white flex-shrink-0" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel" style="background-color: #b63352 !important; --bs-offcanvas-bg: #b63352 !important;">
-            <div class="offcanvas-header d-md-none p-3 justify-content-between align-items-center" style="background-color: #b63352 !important; border-bottom: 1px solid rgba(255,255,255,0.15);">
-                <h5 class="offcanvas-title text-white fw-bold mb-0" id="sidebarMenuLabel">MATAHATI POS</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
+        <div class="sidebar offcanvas-md offcanvas-start text-dark flex-shrink-0" tabindex="-1" id="sidebarMenu" aria-labelledby="sidebarMenuLabel" style="background-color: #ffffff !important; --bs-offcanvas-bg: #ffffff !important;">
+            <div class="offcanvas-header d-md-none p-3 justify-content-between align-items-center" style="background-color: #ffffff !important; border-bottom: 1px solid #eef2f6;">
+                <h5 class="offcanvas-title text-dark fw-bold mb-0" id="sidebarMenuLabel">MATAHATI POS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarMenu" aria-label="Close"></button>
             </div>
-            <div class="offcanvas-body p-0 flex-column" style="background-color: #b63352 !important;">
-                <div class="px-3 pb-3 w-100">
+            <div class="offcanvas-body p-0 flex-column" style="background-color: #ffffff !important;">
+                <div class="w-100" style="padding: 0 10px 14px;">
 
                     <!-- Olsera-Style Top User Profile & Menu -->
                     <div class="sidebar-user-section mb-3">
@@ -692,6 +724,8 @@
                         </span>
                         <span>Dashboard</span>
                     </a>
+
+                    <hr class="sidebar-divider">
 
                     <!-- Produk & Inventori -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isProductActive ? '' : 'collapsed' }} {{ $isProductActive ? 'active-parent' : '' }}"
@@ -860,13 +894,13 @@
         <!-- Content Area -->
         <div class="flex-grow-1 d-flex flex-column min-vh-100" style="min-width: 0;">
             <!-- Navbar -->
-            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-3 px-md-4 py-2">
+            <nav class="navbar navbar-expand-lg navbar-dark top-header-navbar px-3 px-md-4 py-2">
                 <div class="container-fluid p-0">
                     <div class="d-flex align-items-center">
-                        <button class="btn btn-sm btn-outline-danger d-md-none me-2 px-2 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-label="Toggle navigation">
+                        <button class="btn btn-sm btn-outline-light d-md-none me-2 px-2 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-label="Toggle navigation">
                             <i class="bi bi-list fs-5"></i>
                         </button>
-                        <span class="navbar-brand mb-0 h1 fs-5">@yield('title')</span>
+                        <span class="navbar-brand text-white mb-0 h1">@yield('title')</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         @yield('header_actions')
@@ -877,9 +911,9 @@
                             <button class="outlet-switcher-btn dropdown-toggle" type="button" id="headerOutletDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Cabang / Outlet">
                                 <span class="outlet-icon-circle">
                                     @if(empty($headerActiveOutletId))
-                                        <img src="{{ asset('images/ic_matahati_pos_all.svg') }}" alt="Semua Outlet" class="outlet-btn-img">
+                                    <img src="{{ asset('images/ic_matahati_pos_all.svg') }}" alt="Semua Outlet" class="outlet-btn-img">
                                     @else
-                                        <img src="{{ asset('images/ic_matahati_pos.svg') }}" alt="Outlet" class="outlet-btn-img">
+                                    <img src="{{ asset('images/ic_matahati_pos.svg') }}" alt="Outlet" class="outlet-btn-img">
                                     @endif
                                 </span>
                                 <span class="outlet-name-text text-truncate">{{ $headerActiveOutletName ?? 'Semua Outlet' }}</span>
@@ -906,7 +940,7 @@
                                                 </div>
                                             </div>
                                             @if(empty($headerActiveOutletId))
-                                                <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
+                                            <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
                                             @endif
                                         </button>
 
@@ -924,7 +958,7 @@
                                                 </div>
                                             </div>
                                             @if((string)$headerActiveOutletId === (string)$hOutlet->nid)
-                                                <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
+                                            <i class="bi bi-check2-circle text-danger fs-5 ms-2 flex-shrink-0"></i>
                                             @endif
                                         </button>
                                         @endforeach
