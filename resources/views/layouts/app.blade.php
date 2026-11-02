@@ -710,7 +710,7 @@
                     </div>
 
                     @php
-                    $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*']);
+                    $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*', 'inventory.*']);
                     $isMarketingActive = request()->routeIs(['vouchers.*']);
                     $isCustomerSupplierActive = request()->routeIs(['customer-types.*', 'customers.*', 'suppliers.*']);
                     $isTransactionsActive = request()->routeIs(['purchases.*', 'payments.*']);
@@ -746,6 +746,9 @@
                         <div class="nav-sub-menu">
                             <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs(['products.*', 'categories.*']) ? 'active' : '' }}">
                                 <span>Produk</span>
+                            </a>
+                            <a href="{{ route('inventory.index') }}" class="sidebar-sub-item {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
+                                <span>Inventori</span>
                             </a>
                             <a href="{{ route('ingredients.index') }}" class="sidebar-sub-item {{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
                                 <span>Bahan Baku</span>
