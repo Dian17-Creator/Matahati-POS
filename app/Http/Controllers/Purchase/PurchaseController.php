@@ -294,6 +294,298 @@ class PurchaseController extends Controller
         }
     }
 
+    public function importPdf(Request $request)
+    {
+        $request->validate([
+            'nid_supplier' => 'required|exists:mpos_supplier,nid',
+            'nid_outlet' => 'required|exists:mpos_outlet,nid',
+            'pdf_file' => 'required|file|mimes:pdf|max:10240',
+        ], [
+            'nid_supplier.required' => 'Supplier wajib dipilih.',
+            'nid_outlet.required' => 'Outlet tujuan wajib dipilih.',
+            'pdf_file.required' => 'File PDF wajib diunggah.',
+            'pdf_file.mimes' => 'Format file harus berupa PDF (.pdf).',
+            'pdf_file.max' => 'Ukuran file PDF maksimal 10MB.',
+        ]);
+
+        try {
+            $file = $request->file('pdf_file');
+            $parser = new \Smalot\PdfParser\Parser();
+            $pdf = $parser->parseFile($file->getPathname());
+            $fullText = $pdf->getText();
+
+            if (empty(trim($fullText))) {
+                return redirect()->back()
+                    ->with('error', 'Dokumen PDF tidak terbaca atau tidak memiliki teks yang dapat diekstrak.')
+                    ->withInput();
+            }
+
+            // 1. Ekstrak No Pembelian Supplier / No Referensi
+            $supplierPoRef = null;
+            if (preg_match('#(?:\bNo\.?\s*Pembelian|Purchase\s*Order\s*No\.?)\s*[:\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
+                $supplierPoRef = trim($m[1]);
+            }
+
+            // 2. Ekstrak Tanggal Beli
+            $dpurchase = now();
+            if (preg_match('#(?:\bTgl\.?\s*Beli|Purchase\s*Date)\s*[:\s]+([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $m)) {
+                $dpurchase = $this->parsePdfDate($m[1]);
+            }
+
+            // 3. Ekstrak Jatuh Tempo
+            $dueDate = null;
+            if (preg_match('#(?:\bJatuh\s*Tempo(?:\s*Pembayaran)?|Due\s*Date)\s*[:\s]+([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $m)) {
+                $dueDate = $this->parsePdfDate($m[1]);
+            }
+
+            // 4. Ekstrak Item-item Pembelian
+            $lines = preg_split('/\r\n|\r|\n/', $fullText);
+            $parsedItems = [];
+            $tableRowPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s*(Pack|Pcs|Box|Btl|Unit|Slop|Kartun|Kg|Gr|[A-Za-z]+)\s+([0-9.,]+)(?:\s+([0-9.,]+))?\s+([0-9.,]+)$#i';
+            $fallbackPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s+([0-9.,]+)\s+([0-9.,]+)$#';
+
+            $ignoreKeywords = [
+                'foto', 'nama', 'unit pengukuran', 'no. pembelian', 'kepada :',
+                'iqos matahati', 'jl. ir soekarno', 'penerima :', 'total pembelian',
+                'subtotal', 'jumlah terbayar', 'pembayaran yang belum lunas',
+                'tanggal pembayaran', 'jatuh tempo pembayaran', 'kode supplier'
+            ];
+
+            foreach ($lines as $rawLine) {
+                $line = trim($rawLine);
+                if (empty($line)) {
+                    continue;
+                }
+
+                $lowerLine = strtolower($line);
+                $shouldSkip = false;
+                foreach ($ignoreKeywords as $kw) {
+                    if (str_starts_with($lowerLine, $kw) || $lowerLine === $kw) {
+                        $shouldSkip = true;
+                        break;
+                    }
+                }
+                if ($shouldSkip) {
+                    continue;
+                }
+
+                // Ganti tab (\t) menjadi spasi agar pemisahan kolom konsisten
+                $normalizedLine = trim(preg_replace('/\t+/', ' ', $line));
+
+                $rawItemName = null;
+                $qty = 0;
+                $cost = 0.0;
+                $subtotal = 0.0;
+
+                if (preg_match($tableRowPattern, $normalizedLine, $matches)) {
+                    $rawItemName = trim($matches[1]);
+                    $qty = (int) $this->parseIndonesianNumber($matches[2]);
+                    $cost = $this->parseIndonesianNumber($matches[4]);
+                    $subtotal = isset($matches[6]) ? $this->parseIndonesianNumber($matches[6]) : ($qty * $cost);
+                } elseif (preg_match($fallbackPattern, $normalizedLine, $matches)) {
+                    $rawItemName = trim($matches[1]);
+                    $qty = (int) $this->parseIndonesianNumber($matches[2]);
+                    $cost = $this->parseIndonesianNumber($matches[3]);
+                    $subtotal = isset($matches[4]) ? $this->parseIndonesianNumber($matches[4]) : ($qty * $cost);
+                }
+
+                if ($rawItemName && $qty > 0) {
+                    $cleanName = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $rawItemName));
+                    $parsedItems[] = [
+                        'raw_name' => $rawItemName,
+                        'clean_name' => $cleanName,
+                        'qty' => $qty,
+                        'cost' => $cost,
+                        'subtotal' => $subtotal > 0 ? $subtotal : ($qty * $cost),
+                    ];
+                }
+            }
+
+            if (empty($parsedItems)) {
+                return redirect()->back()
+                    ->with('error', 'Tidak ditemukan item produk pada dokumen PDF tersebut. Pastikan format tabel sesuai.')
+                    ->withInput();
+            }
+
+            $outletId = $request->input('nid_outlet');
+
+            DB::beginTransaction();
+
+            $poNumber = MposPurchaseH::generatePurchaseNumber($dpurchase);
+            $note = 'Hasil import otomatis dari dokumen PDF';
+            if ($supplierPoRef) {
+                $note .= " (No. Ref Supplier: {$supplierPoRef})";
+            }
+
+            $purchase = MposPurchaseH::create([
+                'cno_purchase' => $poNumber,
+                'dpurchase' => $dpurchase,
+                'nid_supplier' => $request->input('nid_supplier'),
+                'nid_outlet' => $outletId,
+                'nid_user' => Auth::id() ?? 1,
+                'cstatus' => MposPurchaseH::STATUS_PENDING,
+                'cpayment_status' => MposPurchaseH::PAYMENT_UNPAID,
+                'ddue_date' => $dueDate,
+                'cno_reference' => $supplierPoRef,
+                'ntotal_amount' => 0,
+                'cnote' => $note,
+                'dcreated' => now(),
+            ]);
+
+            $totalAmount = 0;
+            $itemsCount = 0;
+
+            foreach ($parsedItems as $item) {
+                $cname = $item['clean_name'];
+                $itemCost = (float) $item['cost'];
+                $itemQty = (int) $item['qty'];
+                $itemSubtotal = (float) $item['subtotal'];
+
+                // 1. Prioritaskan EXACT MATCH di outlet tujuan
+                $product = MposProduct::where('nid_outlet', $outletId)
+                    ->where(function ($q) use ($item, $cname) {
+                        $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
+                          ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($item['raw_name']))]);
+                    })
+                    ->first();
+
+                // 2. Jika tidak ada exact match, gunakan pencarian partial dengan memfilter agar tidak tertukar ke prefix KDR
+                if (!$product) {
+                    $partialQuery = MposProduct::where('nid_outlet', $outletId)
+                        ->where(function ($q) use ($item, $cname) {
+                            $q->whereRaw('LOWER(cname) LIKE ?', ['%' . strtolower($cname) . '%'])
+                              ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(cname), "%")', [strtolower($cname)]);
+                        });
+
+                    if (!str_contains(strtolower($cname), 'kdr')) {
+                        $partialQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
+                    }
+
+                    $product = $partialQuery->first();
+                }
+
+                // 3. Jika tidak ditemukan di outlet ini, cari exact match di outlet lain untuk disalin
+                if (!$product) {
+                    $otherProductQuery = MposProduct::where(function ($q) use ($item, $cname) {
+                        $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
+                          ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($item['raw_name']))]);
+                    });
+
+                    if (!str_contains(strtolower($cname), 'kdr')) {
+                        $otherProductQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
+                    }
+
+                    $otherProduct = $otherProductQuery->first();
+
+                    if ($otherProduct) {
+                        $product = MposProduct::create([
+                            'cname' => $otherProduct->cname,
+                            'nid_category' => $otherProduct->nid_category,
+                            'nid_outlet' => $outletId,
+                            'nprice' => $otherProduct->nprice,
+                            'nprice_online' => $otherProduct->nprice_online,
+                            'nprice_buy' => $itemCost,
+                            'nqty' => 0,
+                            'cphotos' => $otherProduct->cphotos,
+                            'cstatus' => 'ACTIVE',
+                            'fcombo' => 0,
+                        ]);
+                    }
+                }
+
+                // 3. Jika benar-benar belum ada di database, buat produk baru
+                if (!$product) {
+                    $firstCat = \App\Models\MposGrpProduct::where('nid_outlet', $outletId)->first()
+                        ?? \App\Models\MposGrpProduct::first();
+
+                    $product = MposProduct::create([
+                        'cname' => $cname,
+                        'nid_category' => $firstCat ? $firstCat->nid : 1,
+                        'nid_outlet' => $outletId,
+                        'nprice' => $itemCost,
+                        'nprice_online' => $itemCost,
+                        'nprice_buy' => $itemCost,
+                        'nqty' => 0,
+                        'cstatus' => 'ACTIVE',
+                        'fcombo' => 0,
+                    ]);
+                } else {
+                    // Update nprice_buy bila ada harga baru dari invoice
+                    if ($itemCost > 0) {
+                        $product->nprice_buy = $itemCost;
+                        $product->save();
+                    }
+                }
+
+                MposPurchaseD::create([
+                    'nid_purchase' => $purchase->nid,
+                    'citem_type' => MposPurchaseD::TYPE_PRODUCT,
+                    'nid_product' => $product->nid,
+                    'nid_ingredient' => null,
+                    'nqty' => $itemQty,
+                    'ncost' => $itemCost,
+                    'nsubtotal' => $itemSubtotal,
+                ]);
+
+                $totalAmount += $itemSubtotal;
+                $itemsCount++;
+            }
+
+            $purchase->ntotal_amount = $totalAmount;
+            $purchase->save();
+
+            DB::commit();
+
+            return redirect()->route('purchases.show', $purchase->nid)->with(
+                'success',
+                "Pesanan Pembelian {$purchase->cno_purchase} berhasil di-import dari PDF dengan {$itemsCount} item produk. Silakan verifikasi penerimaan barang dan status pembayaran."
+            );
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Gagal meng-import PDF: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    protected function parsePdfDate(?string $rawDate): Carbon
+    {
+        if (empty($rawDate)) {
+            return now();
+        }
+        $rawDate = trim(preg_replace('/\s+/', ' ', $rawDate));
+        try {
+            return Carbon::parse($rawDate);
+        } catch (\Exception $e) {
+            $idMonths = [
+                'Jan' => 'Jan', 'Feb' => 'Feb', 'Mar' => 'Mar', 'Apr' => 'Apr',
+                'Mei' => 'May', 'Jun' => 'Jun', 'Jul' => 'Jul', 'Agu' => 'Aug',
+                'Agt' => 'Aug', 'Sep' => 'Sep', 'Okt' => 'Oct', 'Nov' => 'Nov',
+                'Des' => 'Dec'
+            ];
+            $engDate = str_ireplace(array_keys($idMonths), array_values($idMonths), $rawDate);
+            try {
+                return Carbon::parse($engDate);
+            } catch (\Exception $e2) {
+                return now();
+            }
+        }
+    }
+
+    protected function parseIndonesianNumber(string $str): float
+    {
+        $clean = trim($str);
+        if (str_contains($clean, ',') && str_contains($clean, '.')) {
+            $clean = str_replace('.', '', $clean);
+            $clean = str_replace(',', '.', $clean);
+        } elseif (str_contains($clean, '.')) {
+            $clean = str_replace('.', '', $clean);
+        } elseif (str_contains($clean, ',')) {
+            $clean = str_replace(',', '.', $clean);
+        }
+        return (float) preg_replace('/[^0-9.]/', '', $clean);
+    }
+
     public function show(string $id)
     {
         $purchase = MposPurchaseH::with([

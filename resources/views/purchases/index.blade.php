@@ -184,7 +184,10 @@
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0 fw-bold">Daftar Pembelian</h5>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createPurchaseModal">
+            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#importPdfModal">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
+            </button>
+            <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createPurchaseModal">
                 <i class="bi bi-plus-lg me-1"></i> Tambah Pembelian
             </button>
         </div>
@@ -332,6 +335,83 @@
 
         <div id="tableContent">
             @include('purchases.partials.table', ['purchases' => $purchases])
+        </div>
+    </div>
+</div>
+
+<!-- Modal Import Pembelian dari PDF -->
+<div class="modal fade" id="importPdfModal" tabindex="-1" aria-labelledby="importPdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light-subtle py-3 border-bottom">
+                <h5 class="modal-title fw-bold" id="importPdfModalLabel">
+                    <i class="bi bi-file-earmark-pdf text-danger me-2"></i>Import Pembelian dari PDF
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('purchases.import-pdf') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small text-muted mb-3 d-flex align-items-start">
+                        <i class="bi bi-info-circle text-primary me-2 mt-1 fs-6"></i>
+                        <div>
+                            Unggah dokumen invoice / purchase order dalam format PDF (misal: Olsera/IQOS). Sistem otomatis membaca nomor pembelian, tanggal beli, jatuh tempo, mencocokkan produk, stok, dan harga beli satuan.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import_supplier_id" class="form-label fw-semibold small">Pilih Supplier <span class="text-danger">*</span></label>
+                        <select class="form-select @error('nid_supplier') is-invalid @enderror" id="import_supplier_id" name="nid_supplier" required>
+                            <option value="">-- Pilih Supplier --</option>
+                            @foreach($suppliers as $s)
+                                <option value="{{ $s->nid }}" {{ (string)old('nid_supplier') === (string)$s->nid ? 'selected' : '' }}>
+                                    {{ $s->cname }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('nid_supplier')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import_outlet_id" class="form-label fw-semibold small">Outlet Tujuan Stok <span class="text-danger">*</span></label>
+                        @if($isOutletLocked)
+                            @php
+                                $lockedOutlet = $outlets->firstWhere('nid', $outletId);
+                            @endphp
+                            <input type="text" class="form-control bg-light" value="{{ $lockedOutlet ? $lockedOutlet->cname : 'Outlet Terkunci' }}" readonly>
+                            <input type="hidden" name="nid_outlet" value="{{ $outletId }}">
+                        @else
+                            <select class="form-select @error('nid_outlet') is-invalid @enderror" id="import_outlet_id" name="nid_outlet" required>
+                                <option value="">-- Pilih Outlet --</option>
+                                @foreach($outlets as $o)
+                                    <option value="{{ $o->nid }}" {{ (string)($outletId ?? old('nid_outlet')) === (string)$o->nid ? 'selected' : '' }}>
+                                        {{ $o->cname }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('nid_outlet')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        @endif
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="import_pdf_file" class="form-label fw-semibold small">File PDF (.pdf) <span class="text-danger">*</span></label>
+                        <input class="form-control @error('pdf_file') is-invalid @enderror" type="file" id="import_pdf_file" name="pdf_file" accept=".pdf,application/pdf" required>
+                        @error('pdf_file')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="modal-footer bg-light px-4 py-3 border-top">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger px-4">
+                        <i class="bi bi-upload me-1"></i> Mulai Import
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -557,15 +637,15 @@
     }
 
     function getItemsForType(itemType, selectedOutletId) {
-        return itemType === 'INGREDIENT'
-            ? getIngredientsForOutlet(selectedOutletId)
-            : getProductsForOutlet(selectedOutletId);
+        return itemType === 'INGREDIENT' ?
+            getIngredientsForOutlet(selectedOutletId) :
+            getProductsForOutlet(selectedOutletId);
     }
 
     function getPlaceholderForType(itemType) {
-        return itemType === 'INGREDIENT'
-            ? '-- Cari atau pilih bahan baku --'
-            : '-- Cari atau pilih produk --';
+        return itemType === 'INGREDIENT' ?
+            '-- Cari atau pilih bahan baku --' :
+            '-- Cari atau pilih produk --';
     }
 
     function addRow(itemId = '', qty = 1, cost = 0, itemType = 'PRODUCT') {
@@ -763,7 +843,9 @@
 
         const subtotalText = document.getElementById(`subtotal-${idx}`);
         if (subtotalText) {
-            subtotalText.textContent = 'Rp ' + subtotal.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+            subtotalText.textContent = 'Rp ' + subtotal.toLocaleString('id-ID', {
+                maximumFractionDigits: 2
+            });
         }
 
         recalculateTotals();
@@ -788,7 +870,9 @@
         const totalAmountEl = document.getElementById('createTotalAmount');
 
         if (totalQtyEl) totalQtyEl.textContent = totalQty.toLocaleString('id-ID');
-        if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + totalAmount.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+        if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + totalAmount.toLocaleString('id-ID', {
+            maximumFractionDigits: 2
+        });
     }
 
     function updateRowNumbers() {
