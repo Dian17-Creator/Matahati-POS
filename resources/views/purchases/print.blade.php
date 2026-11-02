@@ -233,17 +233,29 @@
             </thead>
             <tbody>
                 @forelse($purchase->details as $index => $item)
+                    @php
+                        $isIng = $item->isIngredient();
+                        $itemName = $isIng
+                            ? ($item->ingredient?->cname ?? '-')
+                            : ($item->product?->cname ?? '-');
+                        $itemUnit = $isIng
+                            ? ($item->ingredient?->csatuan ?: 'PCS')
+                            : 'PCS';
+                    @endphp
                     <tr>
                         <td class="text-center text-muted">{{ $index + 1 }}</td>
                         <td>
-                            <div class="fw-semibold text-dark">{{ $item->product?->cname ?? '-' }}</div>
-                            @if($item->product && $item->product->csku)
-                                <div class="text-muted small" style="font-size: 11px;">SKU: {{ $item->product->csku }}</div>
-                            @endif
+                            <div class="fw-semibold text-dark">{{ $itemName }}</div>
+                            <div class="text-muted small" style="font-size: 11px;">
+                                {{ $isIng ? 'Bahan Baku' : 'Produk' }}
+                                @if(!$isIng && $item->product && $item->product->csku)
+                                    &bull; SKU: {{ $item->product->csku }}
+                                @endif
+                            </div>
                         </td>
-                        <td class="text-end">Rp {{ number_format($item->ncost ?? 0, 0, ',', '.') }}</td>
-                        <td class="text-center fw-bold">{{ number_format($item->nqty ?? 0, 0, ',', '.') }}</td>
-                        <td class="text-end fw-semibold">Rp {{ number_format($item->nsubtotal ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-end">Rp {{ rtrim(rtrim(number_format((float) ($item->ncost ?? 0), 2, ',', '.'), '0'), ',') }}</td>
+                        <td class="text-center fw-bold">{{ number_format($item->nqty ?? 0, 0, ',', '.') }} {{ $itemUnit }}</td>
+                        <td class="text-end fw-semibold">Rp {{ rtrim(rtrim(number_format((float) ($item->nsubtotal ?? 0), 2, ',', '.'), '0'), ',') }}</td>
                     </tr>
                 @empty
                     <tr>
@@ -256,7 +268,7 @@
                     <td colspan="3" class="text-end fw-bold py-2">TOTAL ITEM & KUANTITAS:</td>
                     <td class="text-center fw-bold py-2">{{ number_format($purchase->details->sum('nqty'), 0, ',', '.') }}</td>
                     <td class="text-end fw-bold py-2 fs-6 text-danger" style="color: #b63352 !important;">
-                        Rp {{ number_format($purchase->ntotal_amount ?? 0, 0, ',', '.') }}
+                        Rp {{ rtrim(rtrim(number_format((float) ($purchase->ntotal_amount ?? 0), 2, ',', '.'), '0'), ',') }}
                     </td>
                 </tr>
             </tfoot>

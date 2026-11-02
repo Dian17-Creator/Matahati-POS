@@ -3,6 +3,7 @@
 @section('title', 'Detail Pembelian - ' . $purchase->cno_purchase)
 
 @push('styles')
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <style>
     .purchase-status-bar {
         border-radius: 8px 8px 0 0;
@@ -236,16 +237,16 @@
     </div>
 </div>
 
-<!-- Section Produk Pesanan -->
+<!-- Section Item Pesanan -->
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center gap-2">
-            <h6 class="mb-0 fw-bold">Produk Pesanan</h6>
+            <h6 class="mb-0 fw-bold">Daftar Item Pesanan</h6>
             <span class="badge bg-light text-dark border">{{ $purchase->details->count() }} Item</span>
         </div>
         @if($purchase->cstatus === 'PENDING')
         <button type="button" class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addProductModal">
-            <i class="bi bi-plus-lg me-1"></i> Tambah Produk
+            <i class="bi bi-plus-lg me-1"></i> Tambah Item
         </button>
         @endif
     </div>
@@ -256,7 +257,8 @@
                 <thead class="bg-light text-secondary small">
                     <tr>
                         <th class="py-3 ps-3" style="width: 50px;">NO.</th>
-                        <th class="py-3">PRODUK</th>
+                        <th class="py-3">ITEM (PRODUK / BAHAN BAKU)</th>
+                        <th class="py-3 text-center">TIPE</th>
                         <th class="py-3 text-center">STOK SAAT INI</th>
                         <th class="py-3 text-center">KUANTITAS BELI</th>
                         <th class="py-3 text-end">HARGA BELI SATUAN</th>
@@ -268,49 +270,76 @@
                 </thead>
                 <tbody class="small">
                     @forelse($purchase->details as $index => $item)
+                    @php
+                        $isIng = $item->isIngredient();
+                        $ingModel = $item->ingredient;
+                        $prodModel = $item->product;
+                        $itemUnit = $isIng ? ($ingModel?->csatuan ?: 'PCS') : 'PCS';
+                        $currentStock = $isIng
+                            ? rtrim(rtrim(number_format((float) ($ingModel?->nstock ?? 0), 2, ',', '.'), '0'), ',')
+                            : ($prodModel?->nqty ?? 0);
+                    @endphp
                     <tr class="align-middle" style="border-bottom: 1px solid #f8f9fa;">
                         <td class="ps-3 text-muted text-center">{{ $index + 1 }}</td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                @if(!empty($item->product?->cphotos))
-                                <img src="{{ asset($item->product->cphotos) }}"
-                                     alt="{{ $item->product->cname }}"
-                                     class="rounded border flex-shrink-0"
-                                     style="width: 44px; height: 44px; object-fit: cover; background-color: #f8fafc;"
-                                     onerror="this.onerror=null; this.src=''; this.classList.add('d-none'); if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
-                                <div class="rounded border bg-light text-muted d-none align-items-center justify-content-center flex-shrink-0"
-                                     style="width: 44px; height: 44px; font-size: 1.1rem;">
-                                    <i class="bi bi-image"></i>
+                                @if($isIng)
+                                <div class="rounded border bg-warning-subtle text-warning-emphasis d-flex align-items-center justify-content-center flex-shrink-0"
+                                     style="width: 44px; height: 44px; font-size: 1.15rem;">
+                                    <i class="bi bi-basket2-fill"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">{{ $ingModel?->cname ?? 'Bahan baku dihapus' }}</div>
+                                    <div class="text-muted small">Satuan: {{ $itemUnit }}</div>
                                 </div>
                                 @else
-                                <div class="rounded border bg-light text-muted d-flex align-items-center justify-content-center flex-shrink-0"
-                                     style="width: 44px; height: 44px; font-size: 1.1rem;">
-                                    <i class="bi bi-image"></i>
-                                </div>
+                                    @if(!empty($prodModel?->cphotos))
+                                    <img src="{{ asset($prodModel->cphotos) }}"
+                                         alt="{{ $prodModel->cname }}"
+                                         class="rounded border flex-shrink-0"
+                                         style="width: 44px; height: 44px; object-fit: cover; background-color: #f8fafc;"
+                                         onerror="this.onerror=null; this.src=''; this.classList.add('d-none'); if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+                                    <div class="rounded border bg-light text-muted d-none align-items-center justify-content-center flex-shrink-0"
+                                         style="width: 44px; height: 44px; font-size: 1.1rem;">
+                                        <i class="bi bi-image"></i>
+                                    </div>
+                                    @else
+                                    <div class="rounded border bg-light text-muted d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="width: 44px; height: 44px; font-size: 1.1rem;">
+                                        <i class="bi bi-image"></i>
+                                    </div>
+                                    @endif
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ $prodModel?->cname ?? 'Produk dihapus' }}</div>
+                                        <div class="text-muted small">{{ $prodModel?->category?->cname ?? '-' }}</div>
+                                    </div>
                                 @endif
-                                <div>
-                                    <div class="fw-bold text-dark">{{ $item->product?->cname ?? 'Produk dihapus' }}</div>
-                                    <div class="text-muted small">{{ $item->product?->category?->cname ?? '-' }}</div>
-                                </div>
                             </div>
                         </td>
                         <td class="text-center">
+                            @if($isIng)
+                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Bahan Baku</span>
+                            @else
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Produk</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
                             <span class="badge bg-light text-dark border">
-                                {{ $item->product?->nqty ?? 0 }} unit
+                                {{ $currentStock }} {{ $itemUnit }}
                             </span>
                         </td>
                         <td class="text-center fw-bold fs-6 text-primary">
-                            +{{ $item->nqty }}
+                            +{{ $item->nqty }} <span class="fw-normal small text-muted">{{ $itemUnit }}</span>
                         </td>
                         <td class="text-end">
-                            Rp {{ number_format($item->ncost, 0, ',', '.') }}
+                            Rp {{ rtrim(rtrim(number_format((float) $item->ncost, 2, ',', '.'), '0'), ',') }}
                         </td>
                         <td class="text-end fw-bold text-dark">
-                            Rp {{ number_format($item->nsubtotal, 0, ',', '.') }}
+                            Rp {{ rtrim(rtrim(number_format((float) $item->nsubtotal, 2, ',', '.'), '0'), ',') }}
                         </td>
                         @if($purchase->cstatus === 'PENDING')
                         <td class="text-center">
-                            <form action="{{ route('purchases.remove-item', [$purchase->nid, $item->nid]) }}" method="POST" onsubmit="return confirm('Hapus produk ini dari pesanan?')">
+                            <form action="{{ route('purchases.remove-item', [$purchase->nid, $item->nid]) }}" method="POST" onsubmit="return confirm('Hapus item ini dari pesanan?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-outline-danger btn-sm p-1" title="Hapus Item">
@@ -322,13 +351,13 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 7 : 6 }}" class="text-center py-5 text-muted">
+                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 8 : 7 }}" class="text-center py-5 text-muted">
                             <i class="bi bi-box-arrow-in-down fs-2 d-block text-secondary opacity-50 mb-2"></i>
-                            Belum ada produk dalam pesanan pembelian ini.
+                            Belum ada item dalam pesanan pembelian ini.
                             @if($purchase->cstatus === 'PENDING')
                             <div class="mt-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addProductModal">
-                                    <i class="bi bi-plus-lg me-1"></i> Tambah Produk Sekarang
+                                    <i class="bi bi-plus-lg me-1"></i> Tambah Item Sekarang
                                 </button>
                             </div>
                             @endif
@@ -339,11 +368,11 @@
                 @if($purchase->details->isNotEmpty())
                 <tfoot class="bg-light">
                     <tr>
-                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 5 : 4 }}" class="text-end fw-bold py-3">
+                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 6 : 5 }}" class="text-end fw-bold py-3">
                             GRAND TOTAL PEMBELIAN:
                         </td>
                         <td class="text-end fw-bold fs-5 text-primary py-3">
-                            Rp {{ number_format($purchase->ntotal_amount, 0, ',', '.') }}
+                            Rp {{ rtrim(rtrim(number_format((float) $purchase->ntotal_amount, 2, ',', '.'), '0'), ',') }}
                         </td>
                         @if($purchase->cstatus === 'PENDING')
                         <td></td>
@@ -356,7 +385,7 @@
     </div>
 </div>
 
-<!-- Modal Tambah Produk (Sesuai Screenshot Olsera) -->
+<!-- Modal Tambah Item (Produk / Bahan Baku) -->
 @if($purchase->cstatus === 'PENDING')
 <div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -364,17 +393,37 @@
             <form action="{{ route('purchases.add-item', $purchase->nid) }}" method="POST">
                 @csrf
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold" id="addProductModalLabel">Tambah Produk ke Pesanan</h5>
+                    <h5 class="modal-title fw-bold" id="addProductModalLabel">Tambah Item ke Pesanan</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label class="form-label fw-semibold small">Tipe Item <span class="text-danger">*</span></label>
+                        <select name="citem_type" id="add_item_type_select" class="form-select">
+                            <option value="PRODUCT" {{ old('citem_type', 'PRODUCT') === 'PRODUCT' ? 'selected' : '' }}>Produk</option>
+                            <option value="INGREDIENT" {{ old('citem_type') === 'INGREDIENT' ? 'selected' : '' }}>Bahan Baku</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="add_product_select_group">
                         <label class="form-label fw-semibold small">Pilih Produk <span class="text-danger">*</span></label>
-                        <select name="nid_product" id="product_select" class="form-select" required>
-                            <option value="">-- Pilih Produk --</option>
+                        <select name="nid_product" id="product_select" class="form-select">
+                            <option value="">-- Cari atau pilih produk --</option>
                             @foreach($products as $p)
                             <option value="{{ $p->nid }}" data-price="{{ $p->nprice }}">
-                                {{ $p->cname }} (Stok saat ini: {{ $p->nqty }})
+                                {{ $p->cname }} (Stok saat ini: {{ $p->nqty }} PCS)
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="add_ingredient_select_group">
+                        <label class="form-label fw-semibold small">Pilih Bahan Baku <span class="text-danger">*</span></label>
+                        <select name="nid_ingredient" id="ingredient_select" class="form-select" disabled>
+                            <option value="">-- Cari atau pilih bahan baku --</option>
+                            @foreach($ingredients ?? [] as $ing)
+                            <option value="{{ $ing->nid }}" data-price="{{ $ing->nprice ?? 0 }}">
+                                {{ $ing->cname }} (Stok saat ini: {{ rtrim(rtrim(number_format((float) $ing->nstock, 2, ',', '.'), '0'), ',') }} {{ $ing->csatuan ?: 'PCS' }})
                             </option>
                             @endforeach
                         </select>
@@ -387,7 +436,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small">Harga Beli Satuan (Rp) <span class="text-danger">*</span></label>
-                            <input type="number" name="ncost" id="input_cost" class="form-control" min="0" step="100" placeholder="0" required>
+                            <input type="number" name="ncost" id="input_cost" class="form-control" min="0" step="any" placeholder="0" required>
                         </div>
                     </div>
 
@@ -425,7 +474,7 @@
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info small mb-3">
-                        <i class="bi bi-info-circle me-1"></i> <strong>Perhatian:</strong> Mengonfirmasi penerimaan barang akan mengubah status PO menjadi <strong>Telah Diproses</strong> dan <strong>otomatis menambahkan stok</strong> produk yang dipesan ke outlet <strong>{{ $purchase->outlet?->cname }}</strong>.
+                        <i class="bi bi-info-circle me-1"></i> <strong>Perhatian:</strong> Mengonfirmasi penerimaan barang akan mengubah status PO menjadi <strong>Telah Diproses</strong> dan <strong>otomatis menambahkan stok</strong> Produk / Bahan Baku ke outlet <strong>{{ $purchase->outlet?->cname }}</strong>.
                     </div>
 
                     <div class="mb-3">
@@ -512,19 +561,108 @@
 </div>
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const inputQty = document.getElementById('input_qty');
         const inputCost = document.getElementById('input_cost');
         const displaySubtotal = document.getElementById('display_subtotal');
+        const typeSelect = document.getElementById('add_item_type_select');
+        const prodGroup = document.getElementById('add_product_select_group');
+        const ingGroup = document.getElementById('add_ingredient_select_group');
+        const prodSelectEl = document.getElementById('product_select');
+        const ingSelectEl = document.getElementById('ingredient_select');
+
+        let prodTomSelect = null;
+        let ingTomSelect = null;
 
         function calculateSubtotal() {
             if (inputQty && inputCost && displaySubtotal) {
                 const qty = parseFloat(inputQty.value) || 0;
                 const cost = parseFloat(inputCost.value) || 0;
                 const subtotal = qty * cost;
-                displaySubtotal.innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(subtotal);
+                displaySubtotal.innerText = 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(subtotal);
             }
+        }
+
+        if (prodSelectEl && typeof TomSelect !== 'undefined') {
+            prodTomSelect = new TomSelect(prodSelectEl, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih produk --',
+                allowEmptyOption: true,
+                onChange: function(val) {
+                    const opt = prodSelectEl.querySelector(`option[value="${val}"]`);
+                    if (opt && inputCost && (!inputCost.value || parseFloat(inputCost.value) === 0)) {
+                        const defPrice = parseFloat(opt.getAttribute('data-price') || 0);
+                        if (defPrice > 0) {
+                            inputCost.value = defPrice;
+                            calculateSubtotal();
+                        }
+                    }
+                }
+            });
+        }
+
+        if (ingSelectEl && typeof TomSelect !== 'undefined') {
+            ingTomSelect = new TomSelect(ingSelectEl, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih bahan baku --',
+                allowEmptyOption: true,
+                onChange: function(val) {
+                    const opt = ingSelectEl.querySelector(`option[value="${val}"]`);
+                    if (opt && inputCost && (!inputCost.value || parseFloat(inputCost.value) === 0)) {
+                        const defPrice = parseFloat(opt.getAttribute('data-price') || 0);
+                        if (defPrice > 0) {
+                            inputCost.value = defPrice;
+                            calculateSubtotal();
+                        }
+                    }
+                }
+            });
+        }
+
+        function syncAddItemTypeUI() {
+            if (!typeSelect || !prodGroup || !ingGroup) return;
+            const isIng = typeSelect.value === 'INGREDIENT';
+
+            if (isIng) {
+                prodGroup.classList.add('d-none');
+                ingGroup.classList.remove('d-none');
+                if (prodSelectEl) {
+                    prodSelectEl.disabled = true;
+                    prodSelectEl.required = false;
+                }
+                if (ingSelectEl) {
+                    ingSelectEl.disabled = false;
+                    ingSelectEl.required = true;
+                }
+                if (prodTomSelect) prodTomSelect.disable();
+                if (ingTomSelect) ingTomSelect.enable();
+            } else {
+                ingGroup.classList.add('d-none');
+                prodGroup.classList.remove('d-none');
+                if (ingSelectEl) {
+                    ingSelectEl.disabled = true;
+                    ingSelectEl.required = false;
+                }
+                if (prodSelectEl) {
+                    prodSelectEl.disabled = false;
+                    prodSelectEl.required = true;
+                }
+                if (ingTomSelect) ingTomSelect.disable();
+                if (prodTomSelect) prodTomSelect.enable();
+            }
+        }
+
+        if (typeSelect) {
+            typeSelect.addEventListener('change', function() {
+                if (inputCost) inputCost.value = '';
+                calculateSubtotal();
+                syncAddItemTypeUI();
+            });
+            syncAddItemTypeUI();
         }
 
         if (inputQty && inputCost) {

@@ -35,7 +35,8 @@ class ProductController extends Controller
     }
     public function apiIndex(Request $request)
     {
-        $query = MposProduct::with('category')->where('cstatus', 'ACTIVE');
+        $query = MposProduct::with('category')
+            ->where('cstatus', 'ACTIVE');
 
         if ($request->filled('nid_outlet')) {
             $query->where('nid_outlet', $request->input('nid_outlet'));
@@ -110,8 +111,18 @@ class ProductController extends Controller
             $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        if ($request->has('nid_category') && $request->nid_category != '') {
-            $query->where('nid_category', $request->nid_category);
+        $matchedCategoryIds = [];
+        if ($request->filled('nid_category')) {
+            $selectedCategory = MposGrpProduct::find($request->nid_category);
+            if ($selectedCategory) {
+                $matchedCategoryIds = MposGrpProduct::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $selectedCategory->cname))])
+                    ->pluck('nid')
+                    ->all();
+            } else {
+                $matchedCategoryIds = [(int) $request->nid_category];
+            }
+
+            $query->whereIn('nid_category', $matchedCategoryIds);
         }
 
         if ($request->filled('search')) {
@@ -120,7 +131,7 @@ class ProductController extends Controller
         }
 
         // Group by cname so we only show 1 row per product name
-        $query->whereIn('nid', function($q) use ($request, $selectedOutletId, $allowedOutletIds) {
+        $query->whereIn('nid', function($q) use ($request, $selectedOutletId, $allowedOutletIds, $matchedCategoryIds) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_product')
               ->groupBy('cname');
@@ -130,7 +141,9 @@ class ProductController extends Controller
             } elseif (!$this->isSuperAdminUser()) {
                 $q->whereIn('nid_outlet', $allowedOutletIds);
             }
-            if ($request->has('nid_category') && $request->nid_category != '') {
+            if (!empty($matchedCategoryIds)) {
+                $q->whereIn('nid_category', $matchedCategoryIds);
+            } elseif ($request->filled('nid_category')) {
                 $q->where('nid_category', $request->nid_category);
             }
         });
@@ -157,12 +170,32 @@ class ProductController extends Controller
 
         $categories = $categoriesQuery->orderBy('cname')->get();
 
-        $ingredients = MposIngredients::all();
+        $ingredientsQuery = MposIngredients::query();
+        if (!$this->isSuperAdminUser()) {
+            $ingredientsQuery->where(function ($iq) use ($allowedOutletIds) {
+                $iq->whereIn('nid_outlet', $allowedOutletIds)
+                   ->orWhereNull('nid_outlet');
+            });
+        }
+        $ingredients = $ingredientsQuery->orderBy('cname')
+            ->get(['nid', 'cname', 'nid_outlet', 'csatuan', 'nstock'])
+            ->groupBy(fn ($item) => strtoupper(trim((string) $item->cname)))
+            ->map(function ($group) use ($selectedOutletId) {
+                if (!empty($selectedOutletId)) {
+                    $matched = $group->firstWhere('nid_outlet', (int) $selectedOutletId);
+                    if ($matched) {
+                        return $matched;
+                    }
+                }
+                return $group->sortByDesc('nstock')->first();
+            })
+            ->sortBy('cname', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
 
         return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
         $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient'])->findOrFail($id);
         $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
@@ -173,10 +206,57 @@ class ProductController extends Controller
               ->groupBy('cname');
         })->orderBy('cname')->get();
 
-        $ingredients = \App\Models\MposIngredients::all();
+        $activeOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet') ?: $product->nid_outlet;
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+
+        $materialsQuery = MposIngredients::query();
+        if (!$this->isSuperAdminUser()) {
+            $materialsQuery->where(function ($mq) use ($allowedOutletIds) {
+                $mq->whereIn('nid_outlet', $allowedOutletIds)
+                   ->orWhereNull('nid_outlet');
+            });
+        }
+
+        $rawMaterials = $materialsQuery
+            ->orderBy('cname')
+            ->get(['nid', 'cname', 'nid_outlet', 'csatuan', 'nstock']);
+
+        // Kelompokkan berdasarkan nama bahan baku & utamakan stok dari outlet produk / outlet aktif
+        $availableMaterials = $rawMaterials
+            ->groupBy(fn ($item) => strtoupper(trim((string) $item->cname)))
+            ->map(function ($group) use ($activeOutletId, $product) {
+                return $group->firstWhere('nid_outlet', (int) $product->nid_outlet)
+                    ?? $group->firstWhere('nid_outlet', (int) $activeOutletId)
+                    ?? $group->sortByDesc('nstock')->first();
+            })
+            ->sortBy('cname', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $ingredients = $availableMaterials;
         $outlets = \App\Models\MposOutlet::orderBy('cname')->get();
 
-        return view('products.show', compact('product', 'customerTypes', 'categories', 'ingredients', 'outlets'));
+        $existingRecipeData = $product->recipes->map(function ($r) {
+            return [
+                'id' => (string) $r->nid,
+                'nid' => $r->nid,
+                'productId' => $r->nid_ingredient,
+                'name' => strtoupper((string) (optional($r->ingredient)->cname ?? 'BAHAN BAKU')),
+                'qty' => (float) ($r->nqty ?? 1),
+                'unit' => optional($r->ingredient)->csatuan ?: 'PCS',
+                'conversion' => 1,
+            ];
+        })->values()->all();
+
+        $materialsJson = collect($availableMaterials ?? [])->map(function ($m) {
+            return [
+                'nid' => $m->nid,
+                'cname' => $m->cname,
+                'nstock' => (float) ($m->nstock ?? 0),
+                'csatuan' => $m->csatuan ?: 'PCS',
+            ];
+        })->values()->all();
+
+        return view('products.show', compact('product', 'customerTypes', 'categories', 'ingredients', 'availableMaterials', 'outlets', 'existingRecipeData', 'materialsJson'));
     }
 
     public function store(Request $request)
@@ -210,7 +290,7 @@ class ProductController extends Controller
             'nqty.*' => 'required_with:has_recipe|numeric|min:0.01',
         ], $messages);
 
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty']);
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         $data['nqty'] = $request->input('stock_qty') ?: 0;
@@ -245,9 +325,30 @@ class ProductController extends Controller
 
                     if ($request->has('has_recipe')) {
                         foreach ($ingredients as $index => $ingredientId) {
+                            $srcIng = MposIngredients::find($ingredientId);
+                            $targetIngId = $ingredientId;
+                            if ($srcIng) {
+                                $matchedIng = MposIngredients::where('nid_outlet', $outletId)
+                                    ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $srcIng->cname))])
+                                    ->first();
+                                if (!$matchedIng) {
+                                    $ingPayload = [
+                                        'cname' => $srcIng->cname,
+                                        'nid_outlet' => $outletId,
+                                        'csatuan' => $srcIng->csatuan ?: 'PCS',
+                                        'nstock' => 0,
+                                    ];
+                                    if (MposIngredients::hasPriceColumn()) {
+                                        $ingPayload['nprice'] = (float) ($srcIng->nprice ?? 0);
+                                    }
+                                    $matchedIng = MposIngredients::create($ingPayload);
+                                }
+                                $targetIngId = $matchedIng->nid;
+                            }
+
                             MposRecipe::create([
                                 'nid_product' => $product->nid,
-                                'nid_ingredient' => $ingredientId,
+                                'nid_ingredient' => $targetIngId,
                                 'nqty' => $qtys[$index],
                             ]);
                         }
@@ -295,8 +396,9 @@ class ProductController extends Controller
             'nqty.*' => 'required_with:has_recipe|numeric|min:0.01',
         ], $messages);
 
-        $product = MposProduct::findOrFail($id);
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty']);
+        $product = MposProduct::with('recipes')->findOrFail($id);
+        $shouldSyncRecipe = $request->boolean('sync_recipe');
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         if ($request->has('stock_qty')) {
@@ -326,26 +428,30 @@ class ProductController extends Controller
             // Update current product
             $product->update($data);
 
-            // Selalu hapus resep lama untuk product current
-            MposRecipe::where('nid_product', $id)->delete();
-
             $ingredients = $request->nid_ingredient ?? [];
             $qtys = $request->nqty ?? [];
 
-            if ($request->has('has_recipe') && count($ingredients) !== count(array_unique($ingredients))) {
-                DB::rollBack();
-                return back()->with('error', 'Terdapat bahan baku yang duplikat untuk resep ini.')->withInput();
-            }
+            if ($shouldSyncRecipe) {
+                if ($request->has('has_recipe') && count($ingredients) !== count(array_unique($ingredients))) {
+                    DB::rollBack();
+                    return back()->with('error', 'Terdapat bahan baku yang duplikat untuk resep ini.')->withInput();
+                }
 
-            if ($request->has('has_recipe')) {
-                foreach ($ingredients as $index => $ingredientId) {
-                    MposRecipe::create([
-                        'nid_product' => $product->nid,
-                        'nid_ingredient' => $ingredientId,
-                        'nqty' => $qtys[$index],
-                    ]);
+                // Hapus resep lama untuk product current jika disinkronkan dari modal Edit Produk
+                MposRecipe::where('nid_product', $id)->delete();
+
+                if ($request->has('has_recipe')) {
+                    foreach ($ingredients as $index => $ingredientId) {
+                        MposRecipe::create([
+                            'nid_product' => $product->nid,
+                            'nid_ingredient' => $ingredientId,
+                            'nqty' => $qtys[$index],
+                        ]);
+                    }
                 }
             }
+
+            $currentRecipes = MposRecipe::with('ingredient')->where('nid_product', $product->nid)->get();
 
             // Loop untuk memproses produk di outlet tambahan / outlet yang dicentang
             foreach ($request->outlet_ids as $outletId) {
@@ -363,16 +469,34 @@ class ProductController extends Controller
                     // Jika sudah ada, UPDATE data produk tersebut dengan data yang baru
                     $existingProduct->update($data);
 
-                    // Selalu hapus resep lama untuk product target ini
-                    MposRecipe::where('nid_product', $existingProduct->nid)->delete();
+                    if ($shouldSyncRecipe) {
+                        MposRecipe::where('nid_product', $existingProduct->nid)->delete();
 
-                    if ($request->has('has_recipe')) {
-                        foreach ($ingredients as $index => $ingredientId) {
-                            MposRecipe::create([
-                                'nid_product' => $existingProduct->nid,
-                                'nid_ingredient' => $ingredientId,
-                                'nqty' => $qtys[$index],
-                            ]);
+                        if ($request->has('has_recipe')) {
+                            foreach ($ingredients as $index => $ingredientId) {
+                                $srcIng = MposIngredients::find($ingredientId);
+                                $targetIngId = $ingredientId;
+                                if ($srcIng) {
+                                    $matchedIng = MposIngredients::where('nid_outlet', $outletId)
+                                        ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $srcIng->cname))])
+                                        ->first();
+                                    if (!$matchedIng) {
+                                        $matchedIng = MposIngredients::create([
+                                            'cname' => $srcIng->cname,
+                                            'nid_outlet' => $outletId,
+                                            'csatuan' => $srcIng->csatuan ?: 'PCS',
+                                            'nstock' => 0,
+                                        ]);
+                                    }
+                                    $targetIngId = $matchedIng->nid;
+                                }
+
+                                MposRecipe::create([
+                                    'nid_product' => $existingProduct->nid,
+                                    'nid_ingredient' => $targetIngId,
+                                    'nqty' => $qtys[$index],
+                                ]);
+                            }
                         }
                     }
                 } else {
@@ -388,15 +512,33 @@ class ProductController extends Controller
 
                         $newProduct = MposProduct::create($newProductData);
 
-                        // Duplicate resep untuk produk baru
-                        if ($request->has('has_recipe')) {
-                            foreach ($ingredients as $index => $ingredientId) {
-                                MposRecipe::create([
-                                    'nid_product' => $newProduct->nid,
-                                    'nid_ingredient' => $ingredientId,
-                                    'nqty' => $qtys[$index],
-                                ]);
+                        // Duplicate resep untuk produk baru dengan bahan baku di outlet tujuan
+                        foreach ($currentRecipes as $rec) {
+                            $targetIngId = $rec->nid_ingredient;
+                            if ($rec->ingredient) {
+                                $matchedIng = MposIngredients::where('nid_outlet', $outletId)
+                                    ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $rec->ingredient->cname))])
+                                    ->first();
+                                if (!$matchedIng) {
+                                    $ingPayload = [
+                                        'cname' => $rec->ingredient->cname,
+                                        'nid_outlet' => $outletId,
+                                        'csatuan' => $rec->ingredient->csatuan ?: 'PCS',
+                                        'nstock' => 0,
+                                    ];
+                                    if (MposIngredients::hasPriceColumn()) {
+                                        $ingPayload['nprice'] = (float) ($rec->ingredient->nprice ?? 0);
+                                    }
+                                    $matchedIng = MposIngredients::create($ingPayload);
+                                }
+                                $targetIngId = $matchedIng->nid;
                             }
+
+                            MposRecipe::create([
+                                'nid_product' => $newProduct->nid,
+                                'nid_ingredient' => $targetIngId,
+                                'nqty' => $rec->nqty,
+                            ]);
                         }
                     }
                 }

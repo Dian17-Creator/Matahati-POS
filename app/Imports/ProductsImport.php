@@ -129,7 +129,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nqty' => $stockQty,
                         'cphotos' => $photo,
                         'cstatus' => $status,
-                        'fcombo' => 0
+                        'fcombo' => 0,
                     ]);
                     $this->results['success']++;
                 }

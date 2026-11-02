@@ -37,7 +37,7 @@
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
-            <form action="{{ route('products.index') }}" method="GET" class="d-flex gap-2" id="filterForm">
+            <form action="{{ route('products.index') }}" method="GET" class="d-flex flex-wrap gap-2" id="filterForm">
                 <select name="nid_category" class="form-select form-select-sm" style="width: 160px;" id="categoryFilter">
                     <option value="">Semua Kategori</option>
                     @foreach($categories as $category)
@@ -66,10 +66,8 @@
     <div class="card-body p-0" id="table-container">
         <div class="table-responsive">
             @php
-                $hasAnyRecipe = false;
                 $hasAnyCombo = false;
                 foreach($products as $p) {
-                    if ($p->recipes->count() > 0) $hasAnyRecipe = true;
                     if ($p->fcombo) $hasAnyCombo = true;
                 }
             @endphp
@@ -81,11 +79,8 @@
                         <th>Kategori</th>
                         <th>Outlet</th>
                         <th>Harga POS / Online</th>
-                        <th>Stok / Qty</th>
+                        <th class="text-center">Stok / Qty</th>
                         <th>Status</th>
-                        @if($hasAnyRecipe)
-                        <th>Resep</th>
-                        @endif
                         @if($hasAnyCombo)
                         <th>Kombo</th>
                         @endif
@@ -141,19 +136,6 @@
                                 <span class="badge bg-secondary">{{ $product->cstatus }}</span>
                             @endif
                         </td>
-                        @if($hasAnyRecipe)
-                        <td>
-                            @if($product->recipes->count() > 0)
-                                <ul class="list-unstyled mb-0 small">
-                                    @foreach($product->recipes as $recipe)
-                                        <li><i class="bi bi-check2 text-success"></i> {{ $recipe->ingredient->cname ?? 'Bahan Terhapus' }} ({{ $recipe->nqty }} {{ $recipe->ingredient->csatuan ?? '' }})</li>
-                                    @endforeach
-                                </ul>
-                            @else
-                                <span class="text-muted small">-</span>
-                            @endif
-                        </td>
-                        @endif
                         @if($hasAnyCombo)
                         <td>
                             @if($product->fcombo)
@@ -266,7 +248,7 @@
                                             @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
 
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-12 mb-3">
                                             <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
                                                 <option value="Active" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'active' ? 'selected' : '' }}>Aktif</option>
@@ -286,79 +268,11 @@
                                         </div>
                                         
                                         <!-- Switches -->
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-12 mb-3">
                                             <div class="form-check form-switch mt-2">
                                                 <input class="form-check-input" type="checkbox" role="switch" id="fcombo_{{ $product->nid }}" name="fcombo" value="1" {{ (old('modal_id') == $product->nid ? old('fcombo') : $product->fcombo) ? 'checked' : '' }}>
                                                 <label class="form-check-label" for="fcombo_{{ $product->nid }}">Produk Kombo?</label>
                                             </div>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <div class="form-check form-switch mt-2">
-                                                @php $hasRecipe = old('modal_id') == $product->nid ? old('has_recipe') : $product->recipes->count() > 0; @endphp
-                                                <input class="form-check-input toggle-recipe-switch" type="checkbox" role="switch" id="has_recipe_{{ $product->nid }}" name="has_recipe" value="1" data-target="recipe-section-{{ $product->nid }}" {{ $hasRecipe ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="has_recipe_{{ $product->nid }}">Gunakan Resep?</label>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Recipe Section -->
-                                        <div class="col-md-12" id="recipe-section-{{ $product->nid }}" @if(!$hasRecipe) style="display: none;" @endif>
-                                            <hr>
-                                            <label class="form-label text-muted small fw-bold text-uppercase">Bahan Baku Resep</label>
-                                            <div id="edit-ingredients-container-{{ $product->nid }}">
-                                                @php
-                                                    $oldIngredients = old('modal_id') == $product->nid ? old('nid_ingredient', []) : $product->recipes->pluck('nid_ingredient')->toArray();
-                                                    $oldQtys = old('modal_id') == $product->nid ? old('nqty', []) : $product->recipes->pluck('nqty')->toArray();
-                                                @endphp
-                                                @if(count($oldIngredients) > 0)
-                                                    @for($i = 0; $i < count($oldIngredients); $i++)
-                                                    <div class="row mb-2 recipe-item-row align-items-center">
-                                                        <div class="col-7">
-                                                            <select class="form-select" name="nid_ingredient[]" {{ $hasRecipe ? 'required' : '' }}>
-                                                                <option value="">Pilih Bahan Baku</option>
-                                                                @foreach($ingredients as $ingredient)
-                                                                    <option value="{{ $ingredient->nid }}" {{ $oldIngredients[$i] == $ingredient->nid ? 'selected' : '' }}>
-                                                                        {{ $ingredient->cname }} ({{ $ingredient->csatuan }})
-                                                                    </option>
-                                                                @endforeach
-                                                            </select>
-                                                        </div>
-                                                        <div class="col-3">
-                                                            <input type="number" step="any" min="0.01" class="form-control" name="nqty[]" value="{{ $oldQtys[$i] ?? '' }}" {{ $hasRecipe ? 'required' : '' }} placeholder="Qty">
-                                                        </div>
-                                                        <div class="col-2">
-                                                            <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.recipe-item-row').remove()" title="Hapus baris">
-                                                                <i class="bi bi-x-lg"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    @endfor
-                                                @else
-                                                    <div class="row mb-2 recipe-item-row align-items-center">
-                                                        <div class="col-7">
-                                                            <select class="form-select" name="nid_ingredient[]" {{ $hasRecipe ? 'required' : '' }}>
-                                                                <option value="">Pilih Bahan Baku</option>
-                                                                @foreach($ingredients as $ingredient)
-                                                                    <option value="{{ $ingredient->nid }}">
-                                                                        {{ $ingredient->cname }} ({{ $ingredient->csatuan }})
-                                                                    </option>
-                                                                @endforeach
-                                                            </select>
-                                                        </div>
-                                                        <div class="col-3">
-                                                            <input type="number" step="any" min="0.01" class="form-control" name="nqty[]" value="1" {{ $hasRecipe ? 'required' : '' }} placeholder="Qty">
-                                                        </div>
-                                                        <div class="col-2">
-                                                            <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.recipe-item-row').remove()" title="Hapus baris">
-                                                                <i class="bi bi-x-lg"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                            
-                                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addRecipeIngredient('edit-ingredients-container-{{ $product->nid }}')">
-                                                <i class="bi bi-plus-lg"></i> Tambah Bahan Baku
-                                            </button>
                                         </div>
                                     </div>
                                     <div class="modal-footer mt-3">
@@ -396,7 +310,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="{{ 7 + ($hasAnyRecipe ? 1 : 0) + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
+                        <td colspan="{{ 7 + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -480,7 +394,7 @@
                         <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice_online') is-invalid @enderror @endif" id="nprice_online" name="nprice_online" value="{{ old('modal_id') == 'create' ? old('nprice_online') : '' }}">
                         @if(old('modal_id') == 'create') @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="mb-3">
+                    <div class="col-md-6 mb-3">
                         <label for="stock_qty" class="form-label">Stok / Qty Awal</label>
                         <input type="number" min="0" class="form-control @if(old('modal_id') == 'create') @error('stock_qty') is-invalid @enderror @endif" id="stock_qty" name="stock_qty" value="{{ old('modal_id') == 'create' ? old('stock_qty') : '0' }}">
                         @if(old('modal_id') == 'create') @error('stock_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
@@ -500,78 +414,12 @@
                     </div>
                     
                     <!-- Switches -->
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-12 mb-3">
                         <div class="form-check form-switch mt-2">
                             <input class="form-check-input" type="checkbox" role="switch" id="fcombo" name="fcombo" value="1" {{ old('modal_id') == 'create' && old('fcombo') ? 'checked' : '' }}>
                             <label class="form-check-label" for="fcombo">Produk Kombo?</label>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="form-check form-switch mt-2">
-                            @php $hasRecipeCreate = old('modal_id') == 'create' && old('has_recipe'); @endphp
-                            <input class="form-check-input toggle-recipe-switch" type="checkbox" role="switch" id="has_recipe_create" name="has_recipe" value="1" data-target="recipe-section-create" {{ $hasRecipeCreate ? 'checked' : '' }}>
-                            <label class="form-check-label" for="has_recipe_create">Gunakan Resep?</label>
-                        </div>
-                    </div>
-                    
-                    <!-- Recipe Section -->
-                    <div class="col-md-12" id="recipe-section-create" @if(!$hasRecipeCreate) style="display: none;" @endif>
-                        <hr>
-                        <label class="form-label text-muted small fw-bold text-uppercase">Bahan Baku Resep</label>
-                        <div id="create-ingredients-container">
-                            @php
-                                $createOldIngredients = old('modal_id') == 'create' ? old('nid_ingredient', []) : [];
-                                $createOldQtys = old('modal_id') == 'create' ? old('nqty', []) : [];
-                            @endphp
-                            
-                            @if(count($createOldIngredients) > 0)
-                                @for($i = 0; $i < count($createOldIngredients); $i++)
-                                <div class="row mb-2 recipe-item-row align-items-center">
-                                    <div class="col-7">
-                                        <select class="form-select" name="nid_ingredient[]" {{ $hasRecipeCreate ? 'required' : '' }}>
-                                            <option value="">Pilih Bahan Baku</option>
-                                            @foreach($ingredients as $ingredient)
-                                                <option value="{{ $ingredient->nid }}" {{ $createOldIngredients[$i] == $ingredient->nid ? 'selected' : '' }}>{{ $ingredient->cname }} ({{ $ingredient->csatuan }})</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-3">
-                                        <input type="number" step="any" min="0.01" class="form-control" name="nqty[]" value="{{ $createOldQtys[$i] ?? '' }}" {{ $hasRecipeCreate ? 'required' : '' }} placeholder="Qty">
-                                    </div>
-                                    <div class="col-2">
-                                        <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.recipe-item-row').remove()" title="Hapus baris">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                @endfor
-                            @else
-                                <div class="row mb-2 recipe-item-row align-items-center">
-                                    <div class="col-7">
-                                        <select class="form-select" name="nid_ingredient[]" {{ $hasRecipeCreate ? 'required' : '' }}>
-                                            <option value="">Pilih Bahan Baku</option>
-                                            @foreach($ingredients as $ingredient)
-                                                <option value="{{ $ingredient->nid }}">{{ $ingredient->cname }} ({{ $ingredient->csatuan }})</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-3">
-                                        <input type="number" step="any" min="0.01" class="form-control" name="nqty[]" value="1" {{ $hasRecipeCreate ? 'required' : '' }} placeholder="Qty">
-                                    </div>
-                                    <div class="col-2">
-                                        <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.recipe-item-row').remove()" title="Hapus baris">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            @endif
-                        </div>
-                        
-                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addRecipeIngredient('create-ingredients-container')">
-                            <i class="bi bi-plus-lg"></i> Tambah Bahan Baku
-                        </button>
-                    </div>
-                    
                 </div>
                 <div class="modal-footer mt-3">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -627,73 +475,7 @@
 
 @push('scripts')
 <script>
-    const ingredientOptions = `
-        <option value="">Pilih Bahan Baku</option>
-        @foreach($ingredients as $ingredient)
-            <option value="{{ $ingredient->nid }}">{{ $ingredient->cname }} ({{ $ingredient->csatuan }})</option>
-        @endforeach
-    `;
-
-    function addRecipeIngredient(containerId) {
-        const container = document.getElementById(containerId);
-        const row = document.createElement('div');
-        row.className = 'row mb-2 recipe-item-row align-items-center';
-        
-        // Find if the section is currently required (based on switch)
-        const isRequired = container.closest('.modal-content').querySelector('.toggle-recipe-switch').checked ? 'required' : '';
-
-        row.innerHTML = `
-            <div class="col-7">
-                <select class="form-select" name="nid_ingredient[]" ${isRequired}>
-                    ${ingredientOptions}
-                </select>
-            </div>
-            <div class="col-3">
-                <input type="number" step="any" min="0.01" class="form-control" name="nqty[]" value="1" ${isRequired} placeholder="Qty">
-            </div>
-            <div class="col-2">
-                <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.recipe-item-row').remove()" title="Hapus baris">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-        `;
-        container.appendChild(row);
-    }
-
-
     function initModalsJS() {
-        // Handle Toggle Recipe Switch
-        function handleRecipeSwitchChange() {
-            const targetId = this.getAttribute('data-target');
-            const section = document.getElementById(targetId);
-            if (!section) return;
-            const inputs = section.querySelectorAll('select, input:not([type="button"])');
-            
-            if (this.checked) {
-                section.style.display = 'block';
-                inputs.forEach(input => {
-                    input.setAttribute('required', 'required');
-                    input.removeAttribute('disabled');
-                });
-            } else {
-                section.style.display = 'none';
-                inputs.forEach(input => {
-                    input.removeAttribute('required');
-                    input.setAttribute('disabled', 'disabled');
-                });
-            }
-        }
-
-        const toggleSwitches = document.querySelectorAll('.toggle-recipe-switch');
-        toggleSwitches.forEach(function(switchElem) {
-            // Remove old event listeners to prevent duplicate triggers
-            switchElem.removeEventListener('change', handleRecipeSwitchChange);
-            switchElem.addEventListener('change', handleRecipeSwitchChange);
-            
-            // Trigger immediately to disable inputs if the switch is initially off
-            switchElem.dispatchEvent(new Event('change'));
-        });
-        
         // Handle Dropdown Outlet Text Update
         function updateDropdownText() {
             document.querySelectorAll('.dropdown').forEach(dropdown => {

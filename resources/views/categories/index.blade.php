@@ -459,7 +459,8 @@
                 <div class="olsera-category-list px-4 pb-4" id="categoryListContainer">
                     @forelse ($categories as $category)
                         @php
-                            $prodCount = (int) ($productCounts[$category->cname] ?? 0);
+                            $catKey = strtoupper(trim((string) $category->cname));
+                            $prodCount = (int) ($productCounts[$catKey] ?? ($productCounts[$category->cname] ?? 0));
                         @endphp
                         <div class="olsera-category-item"
                             data-category-name="{{ strtolower($category->cname) }}"
@@ -505,7 +506,8 @@
 <!-- POP-UP DETAIL / EDIT & KONFIRMASI HAPUS UNTUK SETIAP KATEGORI -->
 @foreach ($categories as $category)
     @php
-        $prodCount = (int) ($productCounts[$category->cname] ?? 0);
+        $catKey = strtoupper(trim((string) $category->cname));
+        $prodCount = (int) ($productCounts[$catKey] ?? ($productCounts[$category->cname] ?? 0));
         $linkedRecords = $categoryOutletsMap->get($category->cname, collect());
         $categoryOutletIds = $linkedRecords->pluck('nid_outlet')->toArray();
     @endphp

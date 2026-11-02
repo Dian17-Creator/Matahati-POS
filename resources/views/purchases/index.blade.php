@@ -338,7 +338,7 @@
 
 <!-- Modal Pembelian Baru (Fit & Clean Layout) -->
 <div class="modal fade" id="createPurchaseModal" tabindex="-1" aria-labelledby="createPurchaseModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 880px;">
+    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 960px;">
         <div class="modal-content border-0 shadow">
             <form action="{{ route('purchases.store') }}" method="POST" id="createPurchaseForm">
                 @csrf
@@ -393,26 +393,27 @@
                         </div>
                     </div>
 
-                    <!-- Header Section Produk Pesanan -->
+                    <!-- Header Section Item Pesanan -->
                     <div class="d-flex justify-content-between align-items-center pt-3 border-top">
                         <div>
                             <span class="fw-bold text-dark fs-6">
-                                <i class="bi bi-box-seam me-1 text-primary"></i> Produk Pesanan
+                                <i class="bi bi-box-seam me-1 text-primary"></i> Item Pesanan
                             </span>
-                            <span class="text-muted small ms-2 d-none d-sm-inline">Tambahkan produk yang dibeli</span>
+                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong> atau <strong>Bahan Baku</strong> yang dibeli</span>
                         </div>
                         <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewItemRow">
-                            <i class="bi bi-plus-lg me-1"></i> Tambah Produk
+                            <i class="bi bi-plus-lg me-1"></i> Tambah Baris
                         </button>
                     </div>
 
-                    <!-- Table Produk Tanpa Box/Card Wrapper -->
+                    <!-- Table Item Tanpa Box/Card Wrapper -->
                     <div class="table-responsive mt-2" style="overflow: visible;">
                         <table class="table align-middle mb-0" id="createItemsTable">
                             <thead>
                                 <tr>
                                     <th style="width: 35px;" class="text-center py-2 text-muted text-nowrap">No</th>
-                                    <th class="py-2 text-center text-nowrap">PRODUK</th>
+                                    <th style="width: 135px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                    <th class="py-2 text-center text-nowrap">PRODUK / BAHAN BAKU</th>
                                     <th style="width: 115px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
                                     <th style="width: 80px;" class="text-center py-2 text-nowrap">QTY</th>
                                     <th style="width: 155px;" class="text-center py-1 text-nowrap">HARGA BELI</th>
@@ -421,7 +422,7 @@
                                 </tr>
                             </thead>
                             <tbody id="createItemsTableBody" class="small">
-                                <!-- Baris produk via JS -->
+                                <!-- Baris produk / bahan baku via JS -->
                             </tbody>
                         </table>
                     </div>
@@ -459,6 +460,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script>
     const allProducts = @json($products ?? []);
+    const allIngredients = @json($ingredients ?? []);
     let rowIndex = 0;
     const tsInstances = {};
 
@@ -470,25 +472,33 @@
         return "{{ $outletId }}";
     }
 
+    function formatStockNumber(val) {
+        const num = parseFloat(val || 0);
+        if (Number.isNaN(num)) return '0';
+        return Number.isInteger(num) ? String(num) : String(parseFloat(num.toFixed(2)));
+    }
+
     function getProductsForOutlet(selectedOutletId) {
-        // Group all products by name
         const byName = new Map();
         allProducts.forEach(p => {
-            if (!byName.has(p.cname)) {
-                byName.set(p.cname, []);
+            const key = String(p.cname || '').trim().toUpperCase();
+            if (!key) return;
+            if (!byName.has(key)) {
+                byName.set(key, []);
             }
-            byName.get(p.cname).push(p);
+            byName.get(key).push(p);
         });
 
         const list = [];
-        byName.forEach((prods, name) => {
+        byName.forEach((prods) => {
             const match = prods.find(p => String(p.nid_outlet) === String(selectedOutletId));
             if (match) {
                 list.push({
                     nid: match.nid,
                     cname: match.cname,
                     nstock: match.nqty || 0,
-                    nprice: match.nprice || 0
+                    nprice: match.nprice || 0,
+                    csatuan: 'PCS'
                 });
             } else {
                 const tmpl = prods[0];
@@ -496,7 +506,8 @@
                     nid: tmpl.nid,
                     cname: tmpl.cname,
                     nstock: 0,
-                    nprice: tmpl.nprice || 0
+                    nprice: tmpl.nprice || 0,
+                    csatuan: 'PCS'
                 });
             }
         });
@@ -505,10 +516,62 @@
         return list;
     }
 
-    function addRow(productId = '', qty = 1, cost = 0) {
+    function getIngredientsForOutlet(selectedOutletId) {
+        const byName = new Map();
+        allIngredients.forEach(ing => {
+            const key = String(ing.cname || '').trim().toUpperCase();
+            if (!key) return;
+            if (!byName.has(key)) {
+                byName.set(key, []);
+            }
+            byName.get(key).push(ing);
+        });
+
+        const list = [];
+        byName.forEach((ings) => {
+            const match = ings.find(i => String(i.nid_outlet) === String(selectedOutletId));
+            if (match) {
+                list.push({
+                    nid: match.nid,
+                    cname: match.cname,
+                    nstock: match.nstock || 0,
+                    nprice: match.nprice || 0,
+                    csatuan: match.csatuan || 'PCS'
+                });
+            } else {
+                const tmpl = ings[0];
+                list.push({
+                    nid: tmpl.nid,
+                    cname: tmpl.cname,
+                    nstock: 0,
+                    nprice: tmpl.nprice || 0,
+                    csatuan: tmpl.csatuan || 'PCS'
+                });
+            }
+        });
+
+        list.sort((a, b) => a.cname.localeCompare(b.cname));
+        return list;
+    }
+
+    function getItemsForType(itemType, selectedOutletId) {
+        return itemType === 'INGREDIENT'
+            ? getIngredientsForOutlet(selectedOutletId)
+            : getProductsForOutlet(selectedOutletId);
+    }
+
+    function getPlaceholderForType(itemType) {
+        return itemType === 'INGREDIENT'
+            ? '-- Cari atau pilih bahan baku --'
+            : '-- Cari atau pilih produk --';
+    }
+
+    function addRow(itemId = '', qty = 1, cost = 0, itemType = 'PRODUCT') {
         const tbody = document.getElementById('createItemsTableBody');
         const outletId = getSelectedOutletId();
-        const productList = getProductsForOutlet(outletId);
+        const normalizedType = itemType === 'INGREDIENT' ? 'INGREDIENT' : 'PRODUCT';
+        const itemList = getItemsForType(normalizedType, outletId);
+        const placeholderText = getPlaceholderForType(normalizedType);
         const currentIdx = rowIndex++;
 
         const tr = document.createElement('tr');
@@ -517,9 +580,15 @@
         tr.innerHTML = `
             <td class="text-center text-muted fw-semibold align-middle row-number py-2"></td>
             <td class="py-2">
-                <select name="items[${currentIdx}][nid_product]" class="form-select form-select-sm item-product-select" id="product_select_${currentIdx}">
-                    <option value="">-- Cari atau pilih produk --</option>
-                    ${productList.map(p => `<option value="${p.nid}" ${String(productId) === String(p.nid) ? 'selected' : ''} data-stock="${p.nstock}">${p.cname}</option>`).join('')}
+                <select name="items[${currentIdx}][citem_type]" class="form-select form-select-sm fw-semibold item-type-select" id="type_select_${currentIdx}" data-row="${currentIdx}">
+                    <option value="PRODUCT" ${normalizedType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
+                    <option value="INGREDIENT" ${normalizedType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                </select>
+            </td>
+            <td class="py-2">
+                <select name="items[${currentIdx}][item_id]" class="form-select form-select-sm item-product-select" id="product_select_${currentIdx}">
+                    <option value="">${placeholderText}</option>
+                    ${itemList.map(p => `<option value="${p.nid}" ${String(itemId) === String(p.nid) ? 'selected' : ''} data-stock="${p.nstock}" data-unit="${p.csatuan}">${p.cname}</option>`).join('')}
                 </select>
             </td>
             <td class="text-center align-middle py-2">
@@ -531,7 +600,7 @@
             <td class="py-2">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-white text-muted px-2 border-end-0">Rp</span>
-                    <input type="number" name="items[${currentIdx}][ncost]" class="form-control form-control-sm text-end fw-semibold item-cost-input border-start-0 ps-1" value="${cost}" min="0" step="100" data-row="${currentIdx}">
+                    <input type="number" name="items[${currentIdx}][ncost]" class="form-control form-control-sm text-end fw-semibold item-cost-input border-start-0 ps-1" value="${cost}" min="0" step="any" data-row="${currentIdx}">
                 </div>
             </td>
             <td class="text-end align-middle fw-bold text-dark py-2 item-subtotal-text" id="subtotal-${currentIdx}">
@@ -546,6 +615,7 @@
 
         tbody.appendChild(tr);
 
+        const typeSelectEl = tr.querySelector('.item-type-select');
         const selectEl = tr.querySelector('.item-product-select');
         const qtyInput = tr.querySelector('.item-qty-input');
         const costInput = tr.querySelector('.item-cost-input');
@@ -555,7 +625,7 @@
         const ts = new TomSelect(selectEl, {
             create: false,
             maxItems: 1,
-            placeholder: '-- Cari atau pilih produk --',
+            placeholder: placeholderText,
             allowEmptyOption: true,
             sortField: {
                 field: "text",
@@ -567,34 +637,98 @@
                     return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
                 },
                 option: function(data, escape) {
-                    const stockMatch = data.text ? data.text.match(/\(Stok:\s*(\d+)\)/) : null;
-                    const stock = stockMatch ? stockMatch[1] : (data.nstock !== undefined ? data.nstock : (data.stock !== undefined ? data.stock : '-'));
+                    if (!data.value) {
+                        return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                    }
+                    const stockVal = data.nstock !== undefined ? data.nstock : (data.stock !== undefined ? data.stock : '-');
+                    const unitVal = data.csatuan || data.unit || 'PCS';
+                    const stockLabel = stockVal === '-' ? '-' : `${formatStockNumber(stockVal)} ${unitVal}`;
                     const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
                     return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
                         '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
-                        '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stock) + '</span>' +
+                        '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
                         '</div>';
                 }
             }
         });
         tsInstances[currentIdx] = ts;
 
+        function populateOptionsForRow(rowType, selectedOutletId, keepByName = '') {
+            const list = getItemsForType(rowType, selectedOutletId);
+            const ph = getPlaceholderForType(rowType);
+
+            ts.settings.placeholder = ph;
+            ts.inputState();
+            ts.clear(true);
+            ts.clearOptions();
+
+            list.forEach(item => {
+                ts.addOption({
+                    value: String(item.nid),
+                    text: item.cname,
+                    cname: item.cname,
+                    nstock: item.nstock,
+                    csatuan: item.csatuan || 'PCS'
+                });
+            });
+            ts.refreshOptions(false);
+
+            if (keepByName) {
+                const matched = list.find(it => String(it.cname).trim().toLowerCase() === String(keepByName).trim().toLowerCase());
+                if (matched) {
+                    ts.setValue(String(matched.nid), true);
+                    const stockBadge = document.getElementById(`stock-badge-${currentIdx}`);
+                    if (stockBadge) {
+                        stockBadge.textContent = `${formatStockNumber(matched.nstock)} ${matched.csatuan || 'PCS'}`;
+                    }
+                    return;
+                }
+            }
+
+            const stockBadge = document.getElementById(`stock-badge-${currentIdx}`);
+            if (stockBadge) {
+                stockBadge.textContent = '-';
+            }
+        }
+
+        // Pastikan metadata nstock & csatuan terset pada opsi awal
+        populateOptionsForRow(normalizedType, outletId);
+        if (itemId) {
+            ts.setValue(String(itemId), true);
+        }
+
+        typeSelectEl.addEventListener('change', function() {
+            const newType = this.value === 'INGREDIENT' ? 'INGREDIENT' : 'PRODUCT';
+            costInput.value = 0;
+            populateOptionsForRow(newType, getSelectedOutletId());
+            recalculateSubtotal(currentIdx);
+        });
+
         ts.on('change', function(val) {
             const currentOutletId = getSelectedOutletId();
-            const currentList = getProductsForOutlet(currentOutletId);
-            const selectedProduct = currentList.find(p => String(p.nid) === String(val));
+            const currentType = typeSelectEl ? typeSelectEl.value : 'PRODUCT';
+            const currentList = getItemsForType(currentType, currentOutletId);
+            const selectedItem = currentList.find(p => String(p.nid) === String(val));
             const stockBadge = document.getElementById(`stock-badge-${currentIdx}`);
 
-            if (selectedProduct) {
-                stockBadge.textContent = `${selectedProduct.nstock} unit`;
-                if (parseFloat(costInput.value || 0) === 0) {
-                    costInput.value = parseFloat(selectedProduct.nprice || 0);
+            if (selectedItem) {
+                stockBadge.textContent = `${formatStockNumber(selectedItem.nstock)} ${selectedItem.csatuan || 'PCS'}`;
+                if (parseFloat(costInput.value || 0) === 0 && parseFloat(selectedItem.nprice || 0) > 0) {
+                    costInput.value = parseFloat(selectedItem.nprice || 0);
                 }
             } else {
                 stockBadge.textContent = '-';
             }
             recalculateSubtotal(currentIdx);
         });
+
+        tr._refreshForOutlet = function(newOutletId) {
+            const currentType = typeSelectEl ? typeSelectEl.value : 'PRODUCT';
+            const curVal = ts.getValue();
+            const curOption = curVal ? ts.options[curVal] : null;
+            const curName = curOption ? (curOption.cname || curOption.text || '') : '';
+            populateOptionsForRow(currentType, newOutletId, curName);
+        };
 
         qtyInput.addEventListener('input', () => recalculateSubtotal(currentIdx));
         costInput.addEventListener('input', () => recalculateSubtotal(currentIdx));
@@ -629,7 +763,7 @@
 
         const subtotalText = document.getElementById(`subtotal-${idx}`);
         if (subtotalText) {
-            subtotalText.textContent = 'Rp ' + subtotal.toLocaleString('id-ID');
+            subtotalText.textContent = 'Rp ' + subtotal.toLocaleString('id-ID', { maximumFractionDigits: 2 });
         }
 
         recalculateTotals();
@@ -654,7 +788,7 @@
         const totalAmountEl = document.getElementById('createTotalAmount');
 
         if (totalQtyEl) totalQtyEl.textContent = totalQty.toLocaleString('id-ID');
-        if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + totalAmount.toLocaleString('id-ID');
+        if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + totalAmount.toLocaleString('id-ID', { maximumFractionDigits: 2 });
     }
 
     function updateRowNumbers() {
@@ -666,27 +800,12 @@
 
     function refreshAllProductSelects() {
         const outletId = getSelectedOutletId();
-        const productList = getProductsForOutlet(outletId);
-
         document.querySelectorAll('#createItemsTableBody tr').forEach(tr => {
-            const rowIdx = tr.getAttribute('data-row-id');
-            const ts = tsInstances[rowIdx];
-            if (ts) {
-                const currentVal = ts.getValue();
-                ts.clearOptions();
-                productList.forEach(p => {
-                    ts.addOption({
-                        value: p.nid,
-                        text: p.cname,
-                        cname: p.cname,
-                        nstock: p.nstock
-                    });
-                });
-                if (currentVal) {
-                    ts.setValue(currentVal, true);
-                }
+            if (typeof tr._refreshForOutlet === 'function') {
+                tr._refreshForOutlet(outletId);
             }
         });
+        recalculateTotals();
     }
 
     document.addEventListener('DOMContentLoaded', function() {

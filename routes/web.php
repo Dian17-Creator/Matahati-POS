@@ -10,6 +10,7 @@ use App\Http\Controllers\Master\ComboController;
 use App\Http\Controllers\Master\CustomerTypeController;
 use App\Http\Controllers\Master\PriceCategoryController;
 use App\Http\Controllers\Master\ProductPriceController;
+use App\Http\Controllers\Master\ProductRecipeController;
 use App\Http\Controllers\Master\CustomerController;
 use App\Http\Controllers\Master\OutletController;
 use App\Http\Controllers\Master\PosUserController;
@@ -89,6 +90,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('products/{product}/prices', [ProductPriceController::class, 'store'])->name('products.prices.store');
     Route::put('products/{product}/prices/{price}', [ProductPriceController::class, 'update'])->name('products.prices.update');
     Route::delete('products/{product}/prices/{price}', [ProductPriceController::class, 'destroy'])->name('products.prices.destroy');
+    Route::post('products/{product}/recipes', [ProductRecipeController::class, 'store'])->name('products.recipes.store');
+    Route::put('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'update'])->name('products.recipes.update');
+    Route::delete('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'destroy'])->name('products.recipes.destroy');
     Route::resource('ingredients', IngredientController::class);
 
     Route::resource('combos', ComboController::class);

@@ -30,8 +30,8 @@
                 </td>
                 <td>{{ $item->outlet?->cname ?? '-' }}</td>
                 <td class="text-end fw-bold">
-                    Rp {{ number_format($item->ntotal_amount, 0, ',', '.') }}
-                    <div class="text-muted fw-normal small" style="font-size: 0.75rem;">{{ $item->details_count }} Produk</div>
+                    Rp {{ rtrim(rtrim(number_format((float) $item->ntotal_amount, 2, ',', '.'), '0'), ',') }}
+                    <div class="text-muted fw-normal small" style="font-size: 0.75rem;">{{ $item->details_count }} Item</div>
                 </td>
                 <td class="text-center">
                     @if($item->cpayment_status === 'PAID')
