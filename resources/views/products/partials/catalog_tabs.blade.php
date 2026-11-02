@@ -22,6 +22,7 @@
     }
 
     .catalog-horizontal-nav {
+        width: 100%;
         padding: 0;
         margin: 0;
         overflow-x: auto;
@@ -35,9 +36,10 @@
     }
 
     .catalog-nav-tab {
-        min-width: 190px;
-        padding: 12px 28px;
-        font-size: 0.84rem;
+        flex: 1 1 0;
+        min-width: 120px;
+        padding: 12px 16px;
+        font-size: 0.86rem;
         font-weight: 500;
         color: #334155;
         text-decoration: none;

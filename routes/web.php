@@ -17,6 +17,7 @@ use App\Http\Controllers\Master\PosUserController;
 use App\Http\Controllers\Master\PaymentController;
 use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\Master\SupplierController;
+use App\Http\Controllers\Master\InventoryController;
 use App\Http\Controllers\Purchase\PurchaseController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
@@ -94,8 +95,14 @@ Route::middleware(['auth'])->group(function () {
     Route::put('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'update'])->name('products.recipes.update');
     Route::delete('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'destroy'])->name('products.recipes.destroy');
     Route::resource('ingredients', IngredientController::class);
-
     Route::resource('combos', ComboController::class);
+    // Inventori Routes
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::get('/', [InventoryController::class, 'index'])->name('index');
+        Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
+        Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
+        Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');
+    });
 
     // POS Management Routes
     Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');

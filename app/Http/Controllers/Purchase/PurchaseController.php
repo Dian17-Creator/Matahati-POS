@@ -8,6 +8,8 @@ use App\Models\MposOutlet;
 use App\Models\MposProduct;
 use App\Models\MposPurchaseD;
 use App\Models\MposPurchaseH;
+use App\Models\MposStockInD;
+use App\Models\MposStockInH;
 use App\Models\MposSupplier;
 use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
@@ -788,15 +790,49 @@ class PurchaseController extends Controller
 
         DB::beginTransaction();
         try {
-            // 1. Update status PO menjadi RECEIVED
+            $receivedDate = Carbon::parse($request->input('dreceived'));
+            $receivedBy = $request->input('creceived_by') ?: (Auth::user()?->email ?: (Auth::user()?->cname ?: 'Admin'));
+
+            // 1. Generate nomor dan dokumen Stok Masuk (IN...) otomatis
+            $stockInNumber = MposStockInH::generateStockInNumber($receivedDate);
+            $totalQty = (int) $purchase->details->sum('nqty');
+
+            $stockIn = MposStockInH::create([
+                'cno_stock_in' => $stockInNumber,
+                'dstock_in' => $receivedDate,
+                'nid_purchase' => $purchase->nid,
+                'nid_supplier' => $purchase->nid_supplier,
+                'nid_outlet' => $purchase->nid_outlet,
+                'nid_user' => Auth::id() ?? 1,
+                'creceived_by' => $receivedBy,
+                'cstatus' => MposStockInH::STATUS_POSTED,
+                'cnote' => $purchase->cno_purchase,
+                'ntotal_qty' => $totalQty,
+                'ntotal_cost' => (float) $purchase->ntotal_amount,
+                'dcreated' => Carbon::now(),
+            ]);
+
+            // 2. Update status PO menjadi RECEIVED
             $purchase->cstatus = MposPurchaseH::STATUS_RECEIVED;
-            $purchase->dreceived = Carbon::parse($request->input('dreceived'));
-            $purchase->cno_reference = $request->input('cno_reference');
-            $purchase->creceived_by = $request->input('creceived_by') ?: (Auth::user()?->cname ?: 'Admin');
+            $purchase->dreceived = $receivedDate;
+            $purchase->cno_reference = $request->input('cno_reference') ?: $stockInNumber;
+            $purchase->creceived_by = $receivedBy;
             $purchase->save();
 
-            // 2. Tambah stok sesuai tipe item (Produk -> mpos_product, Bahan Baku -> mpos_ingredients)
+            // 3. Tambah stok sesuai tipe item (Produk -> mpos_product, Bahan Baku -> mpos_ingredients) & catat mpos_stock_in_d
             foreach ($purchase->details as $item) {
+                MposStockInD::create([
+                    'nid_stock_in' => $stockIn->nid,
+                    'citem_type' => $item->citem_type,
+                    'nid_product' => $item->nid_product,
+                    'nid_ingredient' => $item->nid_ingredient,
+                    'nqty' => (int) $item->nqty,
+                    'ncost' => (float) $item->ncost,
+                    'nsubtotal' => (float) $item->nsubtotal,
+                    'cserial_no' => null,
+                    'crack' => null,
+                    'dcreated' => Carbon::now(),
+                ]);
                 if ($item->isIngredient()) {
                     $ingredient = $item->ingredient;
                     if ($ingredient) {
