@@ -497,7 +497,8 @@
                     nid: match.nid,
                     cname: match.cname,
                     nstock: match.nqty || 0,
-                    nprice: match.nprice || 0,
+                    nprice: (match.nprice_buy !== undefined && match.nprice_buy !== null) ? parseFloat(match.nprice_buy) : 0,
+                    nprice_buy: parseFloat(match.nprice_buy || 0),
                     csatuan: 'PCS'
                 });
             } else {
@@ -506,7 +507,8 @@
                     nid: tmpl.nid,
                     cname: tmpl.cname,
                     nstock: 0,
-                    nprice: tmpl.nprice || 0,
+                    nprice: (tmpl.nprice_buy !== undefined && tmpl.nprice_buy !== null) ? parseFloat(tmpl.nprice_buy) : 0,
+                    nprice_buy: parseFloat(tmpl.nprice_buy || 0),
                     csatuan: 'PCS'
                 });
             }
@@ -713,9 +715,7 @@
 
             if (selectedItem) {
                 stockBadge.textContent = `${formatStockNumber(selectedItem.nstock)} ${selectedItem.csatuan || 'PCS'}`;
-                if (parseFloat(costInput.value || 0) === 0 && parseFloat(selectedItem.nprice || 0) > 0) {
-                    costInput.value = parseFloat(selectedItem.nprice || 0);
-                }
+                costInput.value = parseFloat(selectedItem.nprice || 0);
             } else {
                 stockBadge.textContent = '-';
             }

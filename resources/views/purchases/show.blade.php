@@ -410,7 +410,7 @@
                         <select name="nid_product" id="product_select" class="form-select">
                             <option value="">-- Cari atau pilih produk --</option>
                             @foreach($products as $p)
-                            <option value="{{ $p->nid }}" data-price="{{ $p->nprice }}">
+                            <option value="{{ $p->nid }}" data-price="{{ $p->nprice_buy ?? 0 }}">
                                 {{ $p->cname }} (Stok saat ini: {{ $p->nqty }} PCS)
                             </option>
                             @endforeach
@@ -593,12 +593,10 @@
                 allowEmptyOption: true,
                 onChange: function(val) {
                     const opt = prodSelectEl.querySelector(`option[value="${val}"]`);
-                    if (opt && inputCost && (!inputCost.value || parseFloat(inputCost.value) === 0)) {
+                    if (opt && inputCost) {
                         const defPrice = parseFloat(opt.getAttribute('data-price') || 0);
-                        if (defPrice > 0) {
-                            inputCost.value = defPrice;
-                            calculateSubtotal();
-                        }
+                        inputCost.value = defPrice;
+                        calculateSubtotal();
                     }
                 }
             });

@@ -130,7 +130,7 @@ class PurchaseController extends Controller
         if (!$this->isSuperAdminUser()) {
             $productsQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
-        $products = $productsQuery->orderBy('cname')->get(['nid', 'cname', 'nid_outlet', 'nprice', 'nqty']);
+        $products = $productsQuery->orderBy('cname')->get(['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty']);
 
         $ingredientsQuery = MposIngredients::query();
         if (!$this->isSuperAdminUser()) {
