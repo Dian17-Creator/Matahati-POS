@@ -278,6 +278,7 @@ class ProductController extends Controller
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
+            'nprice_buy' => 'nullable|numeric|min:0',
             'cstatus' => 'required|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
@@ -293,6 +294,7 @@ class ProductController extends Controller
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
+        $data['nprice_buy'] = $request->input('nprice_buy') ?: 0.00;
         $data['nqty'] = $request->input('stock_qty') ?: 0;
 
         if ($request->hasFile('photo')) {
@@ -384,6 +386,7 @@ class ProductController extends Controller
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
+            'nprice_buy' => 'nullable|numeric|min:0',
             'cstatus' => 'required|string',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'outlet_ids' => 'required|array|min:1',
@@ -401,6 +404,9 @@ class ProductController extends Controller
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
+        if ($request->has('nprice_buy')) {
+            $data['nprice_buy'] = $request->input('nprice_buy') ?: 0.00;
+        }
         if ($request->has('stock_qty')) {
             $data['nqty'] = $request->input('stock_qty') ?: 0;
         }

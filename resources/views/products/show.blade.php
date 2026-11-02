@@ -761,6 +761,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         <input type="hidden" name="modal_id" value="{{ $product->nid }}_info">
                         <input type="hidden" name="nprice" value="{{ $product->nprice }}">
                         <input type="hidden" name="nprice_online" value="{{ $product->nprice_online }}">
+                        <input type="hidden" name="nprice_buy" value="{{ $product->nprice_buy }}">
 
                         <div class="row">
                             <div class="col-md-4 text-center mb-3">
@@ -906,14 +907,21 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         @endif
 
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <div class="harga-box mb-3">
+                                    <div class="title mb-1">Harga Beli</div>
+                                    <div class="price price-display">Rp {{ number_format($product->nprice_buy ?? 0, 0, ',', '.') }}</div>
+                                    <input type="number" step="any" min="0" class="form-control d-none price-input" name="nprice_buy" value="{{ $product->nprice_buy ?? 0 }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
                                 <div class="harga-box mb-3">
                                     <div class="title mb-1">Harga POS</div>
                                     <div class="price price-display">Rp {{ number_format($product->nprice, 0, ',', '.') }}</div>
                                     <input type="number" step="any" min="0" class="form-control d-none price-input" name="nprice" value="{{ $product->nprice }}" required>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="harga-box mb-3">
                                     <div class="title mb-1">Harga Online</div>
                                     <div class="price price-display">Rp {{ number_format($product->nprice_online, 0, ',', '.') }}</div>
@@ -944,6 +952,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         <input type="hidden" name="cstatus" value="{{ $product->cstatus }}">
                         <input type="hidden" name="nprice" value="{{ $product->nprice }}">
                         <input type="hidden" name="nprice_online" value="{{ $product->nprice_online }}">
+                        <input type="hidden" name="nprice_buy" value="{{ $product->nprice_buy }}">
 
                         @foreach($productOutlets as $oid)
                         <input type="hidden" name="outlet_ids[]" value="{{ $oid }}">

@@ -78,7 +78,7 @@
                         <th>Nama Produk</th>
                         <th>Kategori</th>
                         <th>Outlet</th>
-                        <th>Harga POS / Online</th>
+                        <th>Harga</th>
                         <th class="text-center">Stok / Qty</th>
                         <th>Status</th>
                         @if($hasAnyCombo)
@@ -127,6 +127,7 @@
                         <td>
                             <div class="fw-bold text-dark" title="Harga POS">Rp {{ number_format($product->nprice, 0, ',', '.') }}</div>
                             <div class="small text-muted" title="Harga Online">Online: Rp {{ number_format($product->nprice_online, 0, ',', '.') }}</div>
+                            <div class="small text-secondary" title="Harga Beli">Beli: Rp {{ number_format($product->nprice_buy ?? 0, 0, ',', '.') }}</div>
                         </td>
                         <td class="text-center">{{ $product->nqty }}</td>
                         <td>
@@ -237,12 +238,17 @@
                                             </div>
                                             @if(old('modal_id') == $product->nid) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                                         </div>
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="nprice_buy_{{ $product->nid }}" class="form-label">Harga Beli</label>
+                                            <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_buy') is-invalid @enderror @endif" id="nprice_buy_{{ $product->nid }}" name="nprice_buy" value="{{ old('modal_id') == $product->nid ? old('nprice_buy') : ($product->nprice_buy ?? 0) }}" placeholder="0">
+                                            @if(old('modal_id') == $product->nid) @error('nprice_buy') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                        </div>
+                                        <div class="col-md-4 mb-3">
                                             <label for="nprice_{{ $product->nid }}" class="form-label">Harga POS</label>
                                             <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice') is-invalid @enderror @endif" id="nprice_{{ $product->nid }}" name="nprice" value="{{ old('modal_id') == $product->nid ? old('nprice') : $product->nprice }}" required>
                                             @if(old('modal_id') == $product->nid) @error('nprice') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
-                                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-4 mb-3">
                                             <label for="nprice_online_{{ $product->nid }}" class="form-label">Harga Online</label>
                                             <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_online') is-invalid @enderror @endif" id="nprice_online_{{ $product->nid }}" name="nprice_online" value="{{ old('modal_id') == $product->nid ? old('nprice_online') : $product->nprice_online }}">
                                             @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
@@ -384,12 +390,17 @@
                         </div>
                         @if(old('modal_id') == 'create') @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                        <label for="nprice_buy" class="form-label">Harga Beli</label>
+                        <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice_buy') is-invalid @enderror @endif" id="nprice_buy" name="nprice_buy" value="{{ old('modal_id') == 'create' ? old('nprice_buy') : '' }}" placeholder="0">
+                        @if(old('modal_id') == 'create') @error('nprice_buy') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label for="nprice" class="form-label">Harga POS</label>
                         <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice') is-invalid @enderror @endif" id="nprice" name="nprice" value="{{ old('modal_id') == 'create' ? old('nprice') : '' }}" required>
                         @if(old('modal_id') == 'create') @error('nprice') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="nprice_online" class="form-label">Harga Online</label>
                         <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice_online') is-invalid @enderror @endif" id="nprice_online" name="nprice_online" value="{{ old('modal_id') == 'create' ? old('nprice_online') : '' }}">
                         @if(old('modal_id') == 'create') @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
