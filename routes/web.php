@@ -108,6 +108,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('purchases')->name('purchases.')->group(function () {
         Route::get('/', [PurchaseController::class, 'index'])->name('index');
         Route::post('/', [PurchaseController::class, 'store'])->name('store');
+        Route::post('/import-pdf', [PurchaseController::class, 'importPdf'])->name('import-pdf');
         Route::get('/{id}', [PurchaseController::class, 'show'])->name('show');
         Route::post('/{id}/items', [PurchaseController::class, 'addItem'])->name('add-item');
         Route::delete('/{id}/items/{detailId}', [PurchaseController::class, 'removeItem'])->name('remove-item');
