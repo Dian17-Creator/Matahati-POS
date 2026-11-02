@@ -8,13 +8,36 @@ use App\Models\MposSalesH;
 use App\Models\MposShift;
 use App\Models\MposUser;
 use App\Models\Muser;
+use App\Services\RecipeStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class TransactionController extends Controller
 {
+    protected static ?bool $salesDHasCostCol = null;
+    protected static ?bool $salesHHasCostCols = null;
+
+    protected static function hasSalesDCostColumn(): bool
+    {
+        if (static::$salesDHasCostCol === null) {
+            static::$salesDHasCostCol = Schema::hasColumn('mpos_sales_d', 'ncost');
+        }
+
+        return static::$salesDHasCostCol;
+    }
+
+    protected static function hasSalesHCostColumns(): bool
+    {
+        if (static::$salesHHasCostCols === null) {
+            static::$salesHHasCostCols = Schema::hasColumn('mpos_sales_h', 'ntotal_cost')
+                && Schema::hasColumn('mpos_sales_h', 'ntotal_profit');
+        }
+
+        return static::$salesHHasCostCols;
+    }
     public function index(Request $request)
     {
         try {
@@ -332,13 +355,22 @@ class TransactionController extends Controller
             $detailsToInsert = [];
             $nsubtotal = 0;
             $nitem = 0;
+            $ntotalCost = 0.0;
             $requestedQtys = [];
+            $recipeStockService = app(RecipeStockService::class);
+            $hasDetailCostCol = static::hasSalesDCostColumn();
 
             if ($request->has('details') && is_array($request->details) && count($request->details) > 0) {
                 $productIds = collect($validated['details'])->pluck('nid_product')->unique()->all();
 
-                // Use lockForUpdate with category to ensure stock and tracking integrity
-                $products = MposProduct::with('category')->whereIn('nid', $productIds)->lockForUpdate()->get()->keyBy('nid');
+                // Use lockForUpdate with category & recipes to ensure stock and tracking integrity
+                $products = MposProduct::with(['category', 'recipes.ingredient'])
+                    ->whereIn('nid', $productIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('nid');
+
+                $unitCosts = $recipeStockService->calculateUnitCosts($products, (int) $validated['nid_outlet']);
 
                 foreach ($validated['details'] as $item) {
                     $productId = $item['nid_product'];
@@ -385,8 +417,9 @@ class TransactionController extends Controller
 
                     $qty = (int) $item['nqty'];
                     $itemSubtotal = $price * $qty;
+                    $unitCost = (float) ($unitCosts[(int) $product->nid] ?? 0.0);
 
-                    $detailsToInsert[] = [
+                    $detailRow = [
                         'nid_product' => $product->nid,
                         'cname' => $product->cname,
                         'nqty' => $qty,
@@ -395,8 +428,15 @@ class TransactionController extends Controller
                         'cnote' => $item['cnote'] ?? null,
                     ];
 
+                    if ($hasDetailCostCol) {
+                        $detailRow['ncost'] = $unitCost;
+                    }
+
+                    $detailsToInsert[] = $detailRow;
+
                     $nsubtotal += $itemSubtotal;
                     $nitem += $qty;
+                    $ntotalCost += ($unitCost * $qty);
                 }
             }
 
@@ -465,33 +505,22 @@ class TransactionController extends Controller
                 }
             }
 
-            // Stock reduction if status becomes PAID
-            if ($status === MposSalesH::STATUS_PAID && !empty($requestedQtys)) {
-                foreach ($requestedQtys as $productId => $totalReqQty) {
-                    $product = $products->get($productId);
-                    if (!$product) continue;
-
-                    // Cek apakah kategori produk melacak stok (ftrack_stock)
-                    $isTrackStock = true;
-                    if ($product->category && isset($product->category->ftrack_stock)) {
-                        $isTrackStock = (bool) $product->category->ftrack_stock;
-                    }
-
-                    // Hanya cek & kurangi stok jika kategori diatur untuk kelola stok
-                    if ($isTrackStock) {
-                        if ($product->nqty < $totalReqQty) {
-                            DB::rollBack();
-                            return response()->json([
-                                'success' => false,
-                                'message' => "Stok tidak cukup untuk '{$product->cname}'. Sisa stok: {$product->nqty}",
-                            ], 422);
-                        }
-                        // Deduct stock
-                        $product->nqty -= $totalReqQty;
-                        $product->save();
-                    }
+            // Stock reduction (produk & bahan baku resep/kombo) saat status transaksi lunas/selesai
+            if (($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED) && !empty($requestedQtys)) {
+                $deductResult = $recipeStockService->deductForSale($requestedQtys, (int) $validated['nid_outlet']);
+                if (! $deductResult['success']) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => $deductResult['message'],
+                    ], 422);
                 }
             }
+
+            $netSalesAmount = max(0, $nsubtotal - $ndiscount);
+            $ntotalCostRounded = round($ntotalCost, 2);
+            $ntotalProfitRounded = round($netSalesAmount - $ntotalCostRounded, 2);
+            $hasHeaderCostCols = static::hasSalesHCostColumns();
 
             $ndpAmount = (float) ($validated['ndp_amount'] ?? 0);
             if (($validated['cordertype'] ?? '') === MposSalesH::ORDER_TYPE_RESERVATION && $ndpAmount == 0 && $npaid > 0) {
@@ -518,7 +547,7 @@ class TransactionController extends Controller
                     $paymentDate = now();
                 }
 
-                $existingDraft->update([
+                $draftUpdateData = [
                     'nid_customer' => $validated['nid_customer'] ?? null,
                     'nid_user' => $nidUser,
                     'nid_shift' => $activeShift->nid,
@@ -544,7 +573,13 @@ class TransactionController extends Controller
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
                     'cpdf_url' => $pdfUrl,
                     'dpayment_date' => $paymentDate,
-                ]);
+                ];
+                if ($hasHeaderCostCols) {
+                    $draftUpdateData['ntotal_cost'] = $ntotalCostRounded;
+                    $draftUpdateData['ntotal_profit'] = $ntotalProfitRounded;
+                }
+
+                $existingDraft->update($draftUpdateData);
                 $salesH = $existingDraft;
 
                 // Hapus detail item lama di mpos_sales_d
@@ -553,7 +588,7 @@ class TransactionController extends Controller
                 $isPaidOrCompleted = ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED);
                 $paymentDate = $isPaidOrCompleted ? now() : null;
 
-                $salesH = MposSalesH::create([
+                $headerCreateData = [
                     'cnotransaction' => $cnotransaction,
                     'dtransaction' => now(),
                     'dpayment_date' => $paymentDate,
@@ -582,7 +617,13 @@ class TransactionController extends Controller
                     'cstatus' => $status,
                     'ccancel_note' => $validated['ccancel_note'] ?? null,
                     'cpdf_url' => $validated['cpdf_url'] ?? null,
-                ]);
+                ];
+                if ($hasHeaderCostCols) {
+                    $headerCreateData['ntotal_cost'] = $ntotalCostRounded;
+                    $headerCreateData['ntotal_profit'] = $ntotalProfitRounded;
+                }
+
+                $salesH = MposSalesH::create($headerCreateData);
 
                 if (empty($salesH->cpdf_url)) {
                     $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
@@ -748,6 +789,8 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            $wasStockDeducted = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED], true);
+
             // Catat alasan pembatalan pada transaksi asli (tanpa mengubah status cstatus)
             $transaction->cvoid_note = $request->cvoid_note;
             if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
@@ -757,8 +800,7 @@ class TransactionController extends Controller
 
             // Buat transaksi reversal baru
             $reversalTrxNo = $transaction->cnotransaction . '-VOID';
-
-            $reversalTransaction = MposSalesH::create([
+            $reversalHeaderData = [
                 'cnotransaction' => $reversalTrxNo,
                 'dtransaction' => now(),
                 'nid_parent_transaction' => $transaction->nid,
@@ -783,11 +825,20 @@ class TransactionController extends Controller
                 'cnote' => $transaction->cnote,
                 'cstatus' => MposSalesH::STATUS_VOID,
                 'cvoid_note' => $request->cvoid_note,
-            ]);
+            ];
+            if (static::hasSalesHCostColumns()) {
+                $reversalHeaderData['ntotal_cost'] = -1 * abs((float) ($transaction->ntotal_cost ?? 0));
+                $reversalHeaderData['ntotal_profit'] = -1 * (float) ($transaction->ntotal_profit ?? 0);
+            }
+
+            $reversalTransaction = MposSalesH::create($reversalHeaderData);
+
+            $reversedQtys = [];
+            $hasDetailCostCol = static::hasSalesDCostColumn();
 
             if ($transaction->details) {
                 foreach ($transaction->details as $detail) {
-                    MposSalesD::create([
+                    $revDetailRow = [
                         'nid_transaction' => $reversalTransaction->nid,
                         'nid_product' => $detail->nid_product,
                         'cname' => $detail->cname,
@@ -795,8 +846,22 @@ class TransactionController extends Controller
                         'nprice' => $detail->nprice,
                         'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
                         'cnote' => $detail->cnote,
-                    ]);
+                    ];
+                    if ($hasDetailCostCol) {
+                        $revDetailRow['ncost'] = (float) ($detail->ncost ?? 0);
+                    }
+                    MposSalesD::create($revDetailRow);
+
+                    $remainingQty = max(0, (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0));
+                    if ($remainingQty > 0 && !empty($detail->nid_product)) {
+                        $prodId = (int) $detail->nid_product;
+                        $reversedQtys[$prodId] = ($reversedQtys[$prodId] ?? 0) + $remainingQty;
+                    }
                 }
+            }
+
+            if ($wasStockDeducted && !empty($reversedQtys)) {
+                app(RecipeStockService::class)->restoreForReversal($reversedQtys, (int) $transaction->nid_outlet);
             }
 
             if ($transaction->nid_shift) {
@@ -862,6 +927,8 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            $wasStockDeducted = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED], true);
+
             // Catat alasan refund pada transaksi asli (tanpa mengubah status cstatus)
             $transaction->crefund_note = $request->crefund_note;
             if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND) {
@@ -871,8 +938,7 @@ class TransactionController extends Controller
 
             // Buat transaksi reversal refund baru
             $reversalTrxNo = $transaction->cnotransaction . '-REFUND';
-
-            $reversalTransaction = MposSalesH::create([
+            $reversalHeaderData = [
                 'cnotransaction' => $reversalTrxNo,
                 'dtransaction' => now(),
                 'nid_parent_transaction' => $transaction->nid,
@@ -897,11 +963,20 @@ class TransactionController extends Controller
                 'cnote' => $transaction->cnote,
                 'cstatus' => MposSalesH::STATUS_REFUND,
                 'crefund_note' => $request->crefund_note,
-            ]);
+            ];
+            if (static::hasSalesHCostColumns()) {
+                $reversalHeaderData['ntotal_cost'] = -1 * abs((float) ($transaction->ntotal_cost ?? 0));
+                $reversalHeaderData['ntotal_profit'] = -1 * (float) ($transaction->ntotal_profit ?? 0);
+            }
+
+            $reversalTransaction = MposSalesH::create($reversalHeaderData);
+
+            $reversedQtys = [];
+            $hasDetailCostCol = static::hasSalesDCostColumn();
 
             if ($transaction->details) {
                 foreach ($transaction->details as $detail) {
-                    MposSalesD::create([
+                    $revDetailRow = [
                         'nid_transaction' => $reversalTransaction->nid,
                         'nid_product' => $detail->nid_product,
                         'cname' => $detail->cname,
@@ -909,8 +984,22 @@ class TransactionController extends Controller
                         'nprice' => $detail->nprice,
                         'nsubtotal' => -1 * abs((float) $detail->nsubtotal),
                         'cnote' => $detail->cnote,
-                    ]);
+                    ];
+                    if ($hasDetailCostCol) {
+                        $revDetailRow['ncost'] = (float) ($detail->ncost ?? 0);
+                    }
+                    MposSalesD::create($revDetailRow);
+
+                    $remainingQty = max(0, (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0));
+                    if ($remainingQty > 0 && !empty($detail->nid_product)) {
+                        $prodId = (int) $detail->nid_product;
+                        $reversedQtys[$prodId] = ($reversedQtys[$prodId] ?? 0) + $remainingQty;
+                    }
                 }
+            }
+
+            if ($wasStockDeducted && !empty($reversedQtys)) {
+                app(RecipeStockService::class)->restoreForReversal($reversedQtys, (int) $transaction->nid_outlet);
             }
 
             if ($transaction->nid_shift) {
@@ -1024,10 +1113,15 @@ class TransactionController extends Controller
                 ], 422);
             }
 
+            $wasStockDeducted = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED], true);
+            $hasDetailCostCol = static::hasSalesDCostColumn();
+
             $totalActionAmount = 0;
+            $totalActionCost = 0.0;
             $totalActionQty = 0;
             $processedItems = [];
             $reversalDetailsToCreate = [];
+            $reversedQtys = [];
 
             foreach ($request->items as $itemReq) {
                 $detailId = $itemReq['detail_id'];
@@ -1071,12 +1165,19 @@ class TransactionController extends Controller
                 $detail->save();
 
                 $nprice = (float) $detail->nprice;
+                $unitCost = (float) ($detail->ncost ?? 0);
                 $nsubtotal = $requestQty * $nprice;
 
                 $totalActionAmount += $nsubtotal;
+                $totalActionCost += ($requestQty * $unitCost);
                 $totalActionQty += $requestQty;
 
-                $reversalDetailsToCreate[] = [
+                if (!empty($detail->nid_product)) {
+                    $prodId = (int) $detail->nid_product;
+                    $reversedQtys[$prodId] = ($reversedQtys[$prodId] ?? 0) + (int) $requestQty;
+                }
+
+                $revDetailRow = [
                     'nid_product' => $detail->nid_product,
                     'cname' => $detail->cname,
                     'nqty' => -1 * abs($requestQty),
@@ -1084,6 +1185,10 @@ class TransactionController extends Controller
                     'nsubtotal' => -1 * abs($nsubtotal),
                     'cnote' => $detail->cnote,
                 ];
+                if ($hasDetailCostCol) {
+                    $revDetailRow['ncost'] = $unitCost;
+                }
+                $reversalDetailsToCreate[] = $revDetailRow;
 
                 $processedItems[] = [
                     'detail_id' => $detail->nid,
@@ -1094,6 +1199,10 @@ class TransactionController extends Controller
                 ];
             }
 
+            if ($wasStockDeducted && !empty($reversedQtys)) {
+                app(RecipeStockService::class)->restoreForReversal($reversedQtys, (int) $transaction->nid_outlet);
+            }
+
             // Buat record Transaksi Partial Reversal Baru
             $existingPartialCount = MposSalesH::where('nid_parent_transaction', $transaction->nid)->count();
             $seq = $existingPartialCount + 1;
@@ -1101,7 +1210,7 @@ class TransactionController extends Controller
 
             $statusToSet = $actionType === 'VOID' ? MposSalesH::STATUS_VOID : MposSalesH::STATUS_REFUND;
 
-            $reversalTransaction = MposSalesH::create([
+            $partialHeaderData = [
                 'cnotransaction' => $reversalTrxNo,
                 'dtransaction' => now(),
                 'nid_parent_transaction' => $transaction->nid,
@@ -1127,7 +1236,13 @@ class TransactionController extends Controller
                 'cstatus' => $statusToSet,
                 'cvoid_note' => $actionType === 'VOID' ? $request->reason : null,
                 'crefund_note' => $actionType === 'REFUND' ? $request->reason : null,
-            ]);
+            ];
+            if (static::hasSalesHCostColumns()) {
+                $partialHeaderData['ntotal_cost'] = -1 * abs(round($totalActionCost, 2));
+                $partialHeaderData['ntotal_profit'] = -1 * round($totalActionAmount - $totalActionCost, 2);
+            }
+
+            $reversalTransaction = MposSalesH::create($partialHeaderData);
 
             foreach ($reversalDetailsToCreate as &$revDetail) {
                 $revDetail['nid_transaction'] = $reversalTransaction->nid;
@@ -1213,7 +1328,11 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->lockForUpdate()->first();
+            $transaction = MposSalesH::with('details')
+                ->where('nid', $id)
+                ->orWhere('cnotransaction', $id)
+                ->lockForUpdate()
+                ->first();
 
             if (!$transaction) {
                 DB::rollBack();
@@ -1223,6 +1342,8 @@ class TransactionController extends Controller
                 ], 404);
             }
 
+            $wasAlreadyPaid = in_array($transaction->cstatus, [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED], true);
+
             $settleAmount = (float) $validated['namount'];
             $newPaid = (float) $transaction->npaid + $settleAmount;
             $grandTotal = (float) $transaction->ngrandtotal;
@@ -1230,6 +1351,29 @@ class TransactionController extends Controller
             $newRemaining = max(0, $grandTotal - $newPaid);
             $status = ($newRemaining <= 0) ? MposSalesH::STATUS_PAID : MposSalesH::STATUS_PENDING;
             $change = max(0, $newPaid - $grandTotal);
+
+            // Potong stok produk & bahan baku saat transaksi PENDING/DRAFT berubah menjadi PAID
+            if ($status === MposSalesH::STATUS_PAID && !$wasAlreadyPaid) {
+                $requestedQtys = [];
+                foreach ($transaction->details as $detail) {
+                    $activeQty = max(0, (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0));
+                    if ($activeQty > 0 && !empty($detail->nid_product)) {
+                        $prodId = (int) $detail->nid_product;
+                        $requestedQtys[$prodId] = ($requestedQtys[$prodId] ?? 0) + $activeQty;
+                    }
+                }
+
+                if (!empty($requestedQtys)) {
+                    $deductResult = app(RecipeStockService::class)->deductForSale($requestedQtys, (int) $transaction->nid_outlet);
+                    if (! $deductResult['success']) {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => $deductResult['message'],
+                        ], 422);
+                    }
+                }
+            }
 
             $transaction->update([
                 'npaid' => $newPaid,

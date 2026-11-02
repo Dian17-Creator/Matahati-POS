@@ -36,9 +36,14 @@ class ProductPriceController extends Controller
                 'nprice' => $request->nprice,
             ]);
 
-            return redirect()->back()->with('success', 'Tingkatan harga berhasil ditambahkan.');
+            return redirect()->back()
+                ->with('success', 'Tingkatan harga berhasil ditambahkan.')
+                ->with('active_tab', 'harga');
         } catch (\Exception $e) {
-            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
+            return back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage())
+                ->with('active_tab', 'harga')
+                ->withInput();
         }
     }
 
@@ -69,9 +74,14 @@ class ProductPriceController extends Controller
                 'nprice' => $request->nprice,
             ]);
 
-            return redirect()->back()->with('success', 'Tingkatan harga berhasil diperbarui.');
+            return redirect()->back()
+                ->with('success', 'Tingkatan harga berhasil diperbarui.')
+                ->with('active_tab', 'harga');
         } catch (\Exception $e) {
-            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage())->withInput();
+            return back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage())
+                ->with('active_tab', 'harga')
+                ->withInput();
         }
     }
 
@@ -81,9 +91,13 @@ class ProductPriceController extends Controller
             $productPrice = MposProductPrice::where('nid', $price)->where('nid_product', $product)->firstOrFail();
             $productPrice->delete();
 
-            return redirect()->back()->with('success', 'Tingkatan harga berhasil dihapus.');
+            return redirect()->back()
+                ->with('success', 'Tingkatan harga berhasil dihapus.')
+                ->with('active_tab', 'harga');
         } catch (\Exception $e) {
-            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            return back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage())
+                ->with('active_tab', 'harga');
         }
     }
 }

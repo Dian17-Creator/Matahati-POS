@@ -40,6 +40,15 @@ class MposOutlet extends Model
         );
     }
 
+    public function ingredients()
+    {
+        return $this->hasMany(
+            MposIngredients::class,
+            'nid_outlet',
+            'nid'
+        );
+    }
+
     public function sales()
     {
         return $this->hasMany(

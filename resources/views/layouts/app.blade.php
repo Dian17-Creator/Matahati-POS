@@ -747,6 +747,9 @@
                             <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs(['products.*', 'categories.*']) ? 'active' : '' }}">
                                 <span>Produk</span>
                             </a>
+                            <a href="{{ route('ingredients.index') }}" class="sidebar-sub-item {{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
+                                <span>Bahan Baku</span>
+                            </a>
                             <a href="{{ route('combos.index') }}" class="sidebar-sub-item {{ request()->routeIs('combos.*') ? 'active' : '' }}">
                                 <span>Produk Kombo</span>
                             </a>
