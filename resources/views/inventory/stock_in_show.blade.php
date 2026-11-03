@@ -150,9 +150,17 @@
         <div class="col-12 col-md-4">
             <div class="card shadow-sm border-0 h-100 rounded-3">
                 <div class="card-body p-4">
-                    <h6 class="fw-bold text-dark mb-3">Supplier</h6>
+                    <h6 class="fw-bold text-dark mb-3">Diterima Dari</h6>
                     <div class="py-1">
-                        <span class="fw-bold fs-6 text-dark">{{ $stockIn->supplier?->cname ?? '-' }}</span>
+                        @if(!empty($stockIn->targetOutlet))
+                            <span class="fw-bold fs-6 text-primary"><i class="bi bi-shop me-1"></i> {{ $stockIn->targetOutlet->cname }}</span>
+                            <div class="text-muted small">Transfer Antar Outlet</div>
+                        @elseif(!empty($stockIn->supplier))
+                            <span class="fw-bold fs-6 text-dark">{{ $stockIn->supplier->cname }}</span>
+                            <div class="text-muted small">Supplier</div>
+                        @else
+                            <span class="fw-bold fs-6 text-dark">-</span>
+                        @endif
                     </div>
                     @if($stockIn->outlet)
                         <div class="d-flex justify-content-between py-1 mt-2 border-top">
@@ -172,6 +180,12 @@
                     <div class="py-1">
                         <span class="fw-semibold text-secondary small">{{ $stockIn->cnote ?? '-' }}</span>
                     </div>
+                    @if(!empty($stockIn->creason))
+                        <div class="d-flex justify-content-between py-1 mt-2 border-top">
+                            <span class="text-muted small">Alasan</span>
+                            <span class="badge bg-light text-secondary border small">{{ $stockIn->creason }}</span>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
