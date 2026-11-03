@@ -116,7 +116,7 @@
                 <a href="{{ route('inventory.index', ['tab' => 'stok_masuk']) }}" class="btn btn-outline-secondary px-3">
                     <i class="bi bi-arrow-left me-1"></i> Kembali
                 </a>
-                <a href="{{ route('inventory.stock-in.print', $stockIn->nid) }}" target="_blank" class="btn btn-outline-dark px-3">
+                <a href="{{ route('inventory.stock-in.print', $stockIn->cno_stock_in) }}" target="_blank" class="btn btn-outline-dark px-3">
                     <i class="bi bi-printer me-1"></i> Cetak
                 </a>
             </div>
