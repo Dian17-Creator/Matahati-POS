@@ -54,8 +54,11 @@ class ProductsImport implements ToCollection, WithHeadingRow
             }
 
             // Combine name and variant
-            $variantName = isset($row['variant_names']) ? trim($row['variant_names']) : null;
-            if (empty($variantName) || strtolower($variantName) == 'null' || strtolower($variantName) == 'kosong') {
+            $variantName = isset($row['variant_names']) ? trim((string)$row['variant_names']) : null;
+            if (empty($variantName) && isset($row['alternative_variant_name'])) {
+                $variantName = trim((string)$row['alternative_variant_name']);
+            }
+            if (empty($variantName) || strtolower($variantName) === 'null' || strtolower($variantName) === 'kosong') {
                 $cname = $name;
             } else {
                 $cname = $name . ' - ' . $variantName;
@@ -72,20 +75,23 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            // Parse Harga
-            $posSellPrice = isset($row['pos_sell_price']) ? floatval(preg_replace('/[^0-9.]/', '', $row['pos_sell_price'])) : 0;
-            $sellPrice = isset($row['sell_price']) && trim($row['sell_price']) !== '' ? floatval(preg_replace('/[^0-9.]/', '', $row['sell_price'])) : 0;
+            // Parse Harga Jual POS & Online
+            $posSellPrice = isset($row['pos_sell_price']) && trim((string)$row['pos_sell_price']) !== ''
+                ? floatval(preg_replace('/[^0-9.]/', '', (string)$row['pos_sell_price']))
+                : 0;
 
-            // Parse Stock Qty
-            $rawStockQty = isset($row['stock_qty']) ? trim($row['stock_qty']) : '';
-            $stockQty = 0;
-            if ($rawStockQty !== '') {
-                if (!is_numeric($rawStockQty) || intval($rawStockQty) < 0) {
-                    $this->results['failed']++;
-                    $this->results['errors'][] = "Row {$rowNum} ({$cname}): stock_qty tidak valid atau negatif";
-                    continue;
+            $sellPrice = isset($row['sell_price']) && trim((string)$row['sell_price']) !== ''
+                ? floatval(preg_replace('/[^0-9.]/', '', (string)$row['sell_price']))
+                : 0;
+
+            // Parse Harga Beli (buy_price)
+            $rawBuyPrice = $row['buy_price'] ?? $row['buyprice'] ?? $row['harga_beli'] ?? null;
+            $buyPrice = null;
+            if ($rawBuyPrice !== null && trim((string)$rawBuyPrice) !== '') {
+                $cleanedBuyPrice = preg_replace('/[^0-9.]/', '', (string)$rawBuyPrice);
+                if ($cleanedBuyPrice !== '') {
+                    $buyPrice = floatval($cleanedBuyPrice);
                 }
-                $stockQty = intval($rawStockQty);
             }
 
             // Parse foto
@@ -113,9 +119,12 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'cstatus' => $status,
                     ];
 
-                    if ($rawStockQty !== '') {
-                        $updateData['nqty'] = $stockQty;
+                    // Perbarui harga beli (nprice_buy) jika tersedia di baris import
+                    if ($buyPrice !== null) {
+                        $updateData['nprice_buy'] = $buyPrice;
                     }
+
+                    // Abaikan stok: nqty produk lama tidak diubah (tetap sesuai stok berjalan saat ini)
 
                     $existing->update($updateData);
                     $this->results['updated']++;
@@ -126,7 +135,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nid_outlet' => $this->outletId,
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
-                        'nqty' => $stockQty,
+                        'nprice_buy' => $buyPrice ?? 0,
+                        'nqty' => 0, // Abaikan stok import, default 0 untuk produk baru
                         'cphotos' => $photo,
                         'cstatus' => $status,
                         'fcombo' => 0,
