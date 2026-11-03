@@ -280,7 +280,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                 </button> -->
 
                 <div class="dropdown">
-                    <button class="btn btn-primary btn-sm px-3 dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <button class="btn btn-success btn-sm px-3 dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-plus-lg me-1"></i> Tambah
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-1">
@@ -365,7 +365,13 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                             </a>
                         </td>
                         <td class="text-muted small">
-                            {{ $item->outlet?->cname ?? '-' }}
+                            @if(!empty($item->targetOutlet))
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2">
+                                    <i class="bi bi-shop me-1"></i>{{ $item->targetOutlet->cname }}
+                                </span>
+                            @else
+                                {{ $item->outlet?->cname ?? '-' }}
+                            @endif
                         </td>
                         <td class="fw-medium text-dark small">
                             {{ $item->supplier?->cname ?? '-' }}
@@ -562,14 +568,14 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                 </div>
 
                 <!-- Tombol Export -->
-                <button type="button" class="btn btn-primary btn-sm px-3" onclick="alert('Fitur export data stok keluar siap diintegrasikan.')">
+                <!-- <button type="button" class="btn btn-primary btn-sm px-3" onclick="alert('Fitur export data stok keluar siap diintegrasikan.')">
                     <i class="bi bi-box-arrow-up-right me-1"></i> Export
-                </button>
+                </button> -->
 
                 <!-- Tombol Import -->
-                <button type="button" class="btn btn-outline-primary btn-sm px-3" onclick="alert('Fitur import data stok keluar siap diintegrasikan.')">
+                <!-- <button type="button" class="btn btn-outline-primary btn-sm px-3" onclick="alert('Fitur import data stok keluar siap diintegrasikan.')">
                     <i class="bi bi-box-arrow-in-down me-1"></i> Import
-                </button>
+                </button> -->
 
                 <!-- Tombol + Tambah dengan Dropdown (Persis Olsera Image 2) -->
                 <div class="dropdown d-inline-block">
@@ -593,7 +599,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
         </div>
 
         <!-- Baris Filter Baris & Pencarian No Stok Keluar (Persis Olsera) -->
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <!-- <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
             <div>
                 <form action="{{ route('inventory.index') }}" method="GET" class="d-flex align-items-center gap-2">
                     <input type="hidden" name="tab" value="stok_keluar">
@@ -633,7 +639,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                     </div>
                 </form>
             </div>
-        </div>
+        </div> -->
 
         <!-- Tabel Daftar Stok Keluar (Persis Kolom Olsera Image 1 & Image 5) -->
         <div class="table-responsive">

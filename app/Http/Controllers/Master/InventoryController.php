@@ -53,6 +53,26 @@ class InventoryController extends Controller
         $modalProducts = collect();
         $modalIngredients = collect();
 
+        // Auto-healing: konversi mutasi transfer IN yang sebelumnya tersimpan dengan awalan nomor 'OG' menjadi 'IN'
+        $legacyTransferIns = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+            ->where('cno_ref', 'LIKE', 'OG%')
+            ->get();
+
+        if ($legacyTransferIns->isNotEmpty()) {
+            foreach ($legacyTransferIns->groupBy('cno_ref') as $oldRef => $records) {
+                $firstDate = $records->first()->dmutation ?? Carbon::now();
+                $newInRef = MposStockMutation::generateNumber('IN', $firstDate);
+                foreach ($records as $rec) {
+                    $originOutlet = $rec->nid_target_outlet ? MposOutlet::find($rec->nid_target_outlet) : null;
+                    $originName = $originOutlet?->cname ?: 'Outlet Asal';
+                    $rec->cno_ref = $newInRef;
+                    $rec->creason = 'Transfer Antar Toko';
+                    $rec->cnote = 'Transfer dari ' . $originName . ' (' . $oldRef . ')' . ($rec->cnote && !str_contains($rec->cnote, 'Transfer dari') ? ' - ' . $rec->cnote : '');
+                    $rec->save();
+                }
+            }
+        }
+
         if ($activeTab === 'stok_masuk') {
             $stockInQuery = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN);
 
@@ -93,14 +113,14 @@ class InventoryController extends Controller
              ->orderBy('dmutation', 'desc')
              ->get();
 
-            $outletIds = $stockInRows->pluck('nid_outlet')->unique()->filter()->values();
+            $outletIds = $stockInRows->pluck('nid_outlet')->merge($stockInRows->pluck('nid_target_outlet'))->unique()->filter()->values();
             $outletsMap = MposOutlet::whereIn('nid', $outletIds)->get()->keyBy('nid');
             $userIds = $stockInRows->pluck('nid_user')->unique()->filter()->values();
             $usersMap = \App\Models\Muser::whereIn('nid', $userIds)->get()->keyBy('nid');
 
             $stockInDocs = $stockInRows->map(function ($row) use ($outletsMap, $usersMap) {
                 $row->outlet = $outletsMap->get($row->nid_outlet);
-                $row->user = $usersMap->get($row->nid_user);
+                $row->targetOutlet = $outletsMap->get($row->nid_target_outlet);
                 $row->cno_stock_in = $row->cno_ref;
                 $row->dstock_in = $row->dmutation;
                 $row->creceived_by = $row->user?->email ?: ($row->user?->cname ?: 'Admin');
@@ -133,16 +153,11 @@ class InventoryController extends Controller
         } elseif ($activeTab === 'stok_keluar') {
             $stockOutQuery = MposStockMutation::where('ctype', MposStockMutation::TYPE_OUT);
 
+            // Stok keluar HANYA muncul di outlet pengirim/asal (nid_outlet), bukan di outlet tujuan!
             if (!empty($selectedOutletId)) {
-                $stockOutQuery->where(function ($q) use ($selectedOutletId) {
-                    $q->where('nid_outlet', $selectedOutletId)
-                        ->orWhere('nid_target_outlet', $selectedOutletId);
-                });
+                $stockOutQuery->where('nid_outlet', $selectedOutletId);
             } elseif (!$isSuperAdmin) {
-                $stockOutQuery->where(function ($q) use ($allowedOutletIds) {
-                    $q->whereIn('nid_outlet', $allowedOutletIds)
-                        ->orWhereIn('nid_target_outlet', $allowedOutletIds);
-                });
+                $stockOutQuery->whereIn('nid_outlet', $allowedOutletIds);
             }
 
             if (!empty($startDate) && !empty($endDate)) {
@@ -693,6 +708,7 @@ class InventoryController extends Controller
             'cstatus' => $first->cstatus,
             'cnote' => $first->cnote,
             'outlet' => $first->outlet,
+            'targetOutlet' => $first->targetOutlet,
             'user' => $first->user,
             'details' => $items,
             'ntotal_qty' => $items->sum('nqty'),
@@ -730,6 +746,7 @@ class InventoryController extends Controller
             'cstatus' => $first->cstatus,
             'cnote' => $first->cnote,
             'outlet' => $first->outlet,
+            'targetOutlet' => $first->targetOutlet,
             'user' => $first->user,
             'details' => $items,
             'ntotal_qty' => $items->sum('nqty'),
@@ -768,7 +785,12 @@ class InventoryController extends Controller
         try {
             $dStockOut = Carbon::parse($validated['dstock_out'])->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
             $stockOutNumber = MposStockMutation::generateNumber('OUT', $dStockOut);
-            $reason = $validated['creason'] ?: ($validated['ctype'] === 'TRANSFER' ? 'Transfer Antar Toko' : 'Lain-lain');
+
+            $isTransfer = ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet']));
+            $stockInNumber = $isTransfer ? MposStockMutation::generateNumber('IN', $dStockOut) : null;
+
+            $originOutlet = MposOutlet::find($validated['nid_outlet']);
+            $reason = $validated['creason'] ?: ($isTransfer ? 'Transfer Antar Toko' : 'Lain-lain');
 
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['nqty'];
@@ -777,6 +799,9 @@ class InventoryController extends Controller
 
                 $prodId = $item['citem_type'] === 'PRODUCT' ? (int) $item['nid_item'] : null;
                 $ingId = $item['citem_type'] === 'INGREDIENT' ? (int) $item['nid_item'] : null;
+
+                $targetProdId = null;
+                $targetIngId = null;
 
                 // Kurangi stok fisik di outlet asal
                 if ($item['citem_type'] === 'PRODUCT' && $prodId) {
@@ -788,16 +813,21 @@ class InventoryController extends Controller
                         $prod->save();
 
                         // Jika transfer, tambah di outlet tujuan
-                        if ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet'])) {
+                        if ($isTransfer) {
                             $targetProd = MposProduct::where('nid_outlet', $validated['nid_target_outlet'])
-                                ->where(function ($tq) use ($prod) {
-                                    $tq->where('csku', $prod->csku)->whereNotNull('csku')
-                                        ->orWhere('cname', $prod->cname);
-                                })->first();
+                                ->where('cname', $prod->cname)
+                                ->first();
 
                             if ($targetProd) {
                                 $targetProd->nqty = (float) $targetProd->nqty + $qty;
                                 $targetProd->save();
+                                $targetProdId = $targetProd->nid;
+                            } else {
+                                $newProduct = $prod->replicate();
+                                $newProduct->nid_outlet = $validated['nid_target_outlet'];
+                                $newProduct->nqty = $qty;
+                                $newProduct->save();
+                                $targetProdId = $newProduct->nid;
                             }
                         }
                     }
@@ -810,7 +840,7 @@ class InventoryController extends Controller
                         $ing->save();
 
                         // Jika transfer, tambah di outlet tujuan
-                        if ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet'])) {
+                        if ($isTransfer) {
                             $targetIng = MposIngredients::where('nid_outlet', $validated['nid_target_outlet'])
                                 ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ing->cname))])
                                 ->first();
@@ -818,18 +848,31 @@ class InventoryController extends Controller
                             if ($targetIng) {
                                 $targetIng->nstock = (float) $targetIng->nstock + $qty;
                                 $targetIng->save();
+                                $targetIngId = $targetIng->nid;
+                            } else {
+                                $newIngPayload = [
+                                    'cname' => $ing->cname,
+                                    'nid_outlet' => $validated['nid_target_outlet'],
+                                    'csatuan' => $ing->csatuan ?: 'PCS',
+                                    'nstock' => $qty,
+                                ];
+                                if (MposIngredients::hasPriceColumn()) {
+                                    $newIngPayload['nprice'] = (float) ($ing->nprice ?: $cost);
+                                }
+                                $newIng = MposIngredients::create($newIngPayload);
+                                $targetIngId = $newIng->nid;
                             }
                         }
                     }
                 }
 
-                // Catat mutasi OUT
+                // Catat mutasi OUT di outlet asal (OG...)
                 MposStockMutation::create([
                     'cno_ref' => $stockOutNumber,
                     'dmutation' => $dStockOut,
                     'ctype' => MposStockMutation::TYPE_OUT,
                     'nid_outlet' => $validated['nid_outlet'],
-                    'nid_target_outlet' => $validated['ctype'] === 'TRANSFER' ? $validated['nid_target_outlet'] : null,
+                    'nid_target_outlet' => $isTransfer ? $validated['nid_target_outlet'] : null,
                     'nid_user' => Auth::id() ?? 1,
                     'citem_type' => $item['citem_type'],
                     'nid_product' => $prodId,
@@ -845,24 +888,30 @@ class InventoryController extends Controller
                     'dcreated' => Carbon::now(),
                 ]);
 
-                // Jika transfer, catat mutasi pasangannya di outlet tujuan sebagai IN
-                if ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet'])) {
+                // Jika transfer, catat mutasi IN tersendiri di outlet tujuan (IN...) yang mereferensikan OG...
+                if ($isTransfer) {
+                    $originOutletName = $originOutlet?->cname ?: 'Outlet Asal';
+                    $targetNote = 'Transfer dari ' . $originOutletName . ' (' . $stockOutNumber . ')';
+                    if (!empty($validated['cnote'])) {
+                        $targetNote .= ' - ' . $validated['cnote'];
+                    }
+
                     MposStockMutation::create([
-                        'cno_ref' => $stockOutNumber,
+                        'cno_ref' => $stockInNumber,
                         'dmutation' => $dStockOut,
                         'ctype' => MposStockMutation::TYPE_IN,
                         'nid_outlet' => $validated['nid_target_outlet'],
                         'nid_target_outlet' => $validated['nid_outlet'],
                         'nid_user' => Auth::id() ?? 1,
                         'citem_type' => $item['citem_type'],
-                        'nid_product' => $prodId,
-                        'nid_ingredient' => $ingId,
+                        'nid_product' => $targetProdId ?? $prodId,
+                        'nid_ingredient' => $targetIngId ?? $ingId,
                         'nqty' => $qty,
                         'ncost' => $cost,
                         'nsubtotal' => $subtotal,
-                        'creason' => 'Transfer Masuk dari Toko Lain',
+                        'creason' => 'Transfer Antar Toko',
                         'cstatus' => MposStockMutation::STATUS_POSTED,
-                        'cnote' => 'Transfer dari ' . (MposOutlet::find($validated['nid_outlet'])?->cname ?: 'Outlet Lain'),
+                        'cnote' => $targetNote,
                         'dexpired' => !empty($item['dexpired']) ? $item['dexpired'] : null,
                         'crack' => $item['crack'] ?? null,
                         'dcreated' => Carbon::now(),
@@ -873,7 +922,7 @@ class InventoryController extends Controller
             DB::commit();
 
             return redirect()->route('inventory.stock-out.show', $stockOutNumber)
-                ->with('success', "Stok Keluar {$stockOutNumber} berhasil disimpan.");
+                ->with('success', "Stok Keluar {$stockOutNumber} berhasil disimpan." . ($isTransfer ? " Dokumen Stok Masuk {$stockInNumber} juga telah otomatis dibuat di outlet tujuan." : ""));
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()

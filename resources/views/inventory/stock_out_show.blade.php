@@ -1,30 +1,84 @@
 @extends('layouts.app')
 
-@section('title', 'Detail Stok Keluar ' . $stockOut->cno_stock_out)
+@section('title', 'Inventori / Detail Stok Keluar')
+
+@section('sub_header')
+<div class="catalog-headbar-tabs bg-white border-bottom">
+    <div class="d-flex align-items-stretch flex-nowrap catalog-horizontal-nav">
+        <a href="{{ route('inventory.index', ['tab' => 'stok_masuk']) }}" class="catalog-nav-tab">
+            <span>Stok Masuk</span>
+        </a>
+        <a href="{{ route('inventory.index', ['tab' => 'stok_keluar']) }}" class="catalog-nav-tab active">
+            <span>Stok Keluar</span>
+        </a>
+        <a href="{{ route('inventory.index', ['tab' => 'stok_opname']) }}" class="catalog-nav-tab">
+            <span>Stok Opname</span>
+        </a>
+        <a href="{{ route('inventory.index', ['tab' => 'pergerakan_stok']) }}" class="catalog-nav-tab">
+            <span>Pergerakan Stok</span>
+        </a>
+    </div>
+</div>
+
+<style>
+    .catalog-headbar-tabs {
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    }
+
+    .catalog-horizontal-nav {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .catalog-horizontal-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .catalog-nav-tab {
+        flex: 1 1 0;
+        min-width: 120px;
+        padding: 12px 16px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: #334155;
+        text-decoration: none;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 2.5px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .catalog-nav-tab:hover {
+        color: #b63352;
+        background-color: #fff8f9;
+    }
+
+    .catalog-nav-tab.active {
+        color: #b63352;
+        font-weight: 600;
+        background-color: #fff1f2;
+        border-bottom-color: #b63352;
+    }
+
+    @media (max-width: 575.98px) {
+        .catalog-nav-tab {
+            min-width: 0;
+            padding: 11px 16px;
+        }
+    }
+</style>
+@endsection
 
 @section('content')
 <div class="mb-4">
-    <!-- Header Navigasi Tab Inventori -->
-    <div class="catalog-headbar-tabs border-bottom mb-4">
-        <div class="catalog-horizontal-nav d-flex align-items-center">
-            <a href="{{ route('inventory.index', ['tab' => 'stok_masuk']) }}" class="catalog-nav-tab">
-                <span>Stok Masuk</span>
-            </a>
-            <a href="{{ route('inventory.index', ['tab' => 'stok_keluar']) }}" class="catalog-nav-tab active">
-                <span>Stok Keluar</span>
-            </a>
-            <a href="{{ route('inventory.index', ['tab' => 'produksi_stok']) }}" class="catalog-nav-tab">
-                <span>Produksi Stock</span>
-            </a>
-            <a href="{{ route('inventory.index', ['tab' => 'stok_opname']) }}" class="catalog-nav-tab">
-                <span>Stok Opname</span>
-            </a>
-            <a href="{{ route('inventory.index', ['tab' => 'pergerakan_stok']) }}" class="catalog-nav-tab">
-                <span>Pergerakan Stok</span>
-            </a>
-        </div>
-    </div>
-
     <!-- Alert Notifikasi -->
     @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
@@ -136,7 +190,7 @@
                     @php
                         $isIng = $detail->isIngredient();
                         $itemName = $isIng ? ($detail->ingredient?->cname ?: 'Bahan Baku') : ($detail->product?->cname ?: 'Produk');
-                        $itemSku = !$isIng ? ($detail->product?->csku ?: '-') : '-';
+                        $itemCategory = $isIng ? 'Bahan Baku' : ($detail->product?->category?->cname ?: 'Produk');
                         $satuan = $isIng ? ($detail->ingredient?->csatuan ?: '') : 'pcs';
                         $totalDetailQty += (float) $detail->nqty;
                     @endphp
@@ -150,8 +204,7 @@
                                 <div>
                                     <div class="fw-bold text-dark">{{ $itemName }}</div>
                                     <div class="text-muted small">
-                                        <span class="badge bg-light text-secondary border me-1">{{ $isIng ? 'Bahan Baku' : 'Produk' }}</span>
-                                        SKU: {{ $itemSku }}
+                                        <span class="badge bg-light text-secondary border me-1">{{ $itemCategory }}</span>
                                     </div>
                                 </div>
                             </div>
