@@ -102,6 +102,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
         Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
         Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');
+        Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
+        Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');
+        Route::get('/stock-out/{id}/print', [InventoryController::class, 'printStockOut'])->name('stock-out.print');
     });
 
     // POS Management Routes
