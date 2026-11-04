@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class MposProduct extends Model
 {
@@ -26,8 +28,10 @@ class MposProduct extends Model
         'cphotos',
         'cstatus',
         'fcombo',
+        'updated_by',
+        'updated_at',
+        'dcreated',
     ];
-
 
     protected function casts(): array
     {
@@ -37,7 +41,36 @@ class MposProduct extends Model
             'nprice_buy' => 'decimal:2',
             'nqty' => 'integer',
             'fcombo' => 'boolean',
+            'updated_at' => 'datetime',
+            'dcreated' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (MposProduct $product) {
+            if (empty($product->dcreated)) {
+                $product->dcreated = Carbon::now();
+            }
+            if (Auth::check() && empty($product->updated_by)) {
+                $product->updated_by = Auth::id();
+            }
+            if (empty($product->updated_at)) {
+                $product->updated_at = Carbon::now();
+            }
+        });
+
+        static::updating(function (MposProduct $product) {
+            if (Auth::check()) {
+                $product->updated_by = Auth::id();
+            }
+            $product->updated_at = Carbon::now();
+        });
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(Muser::class, 'updated_by', 'nid');
     }
 
 
