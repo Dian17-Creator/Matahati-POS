@@ -27,19 +27,37 @@
         }
     }
 
+    .product-detail-card {
+        background-color: #ffffff;
+        border: 1px solid #d8dee4 !important;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+    }
+
+    .product-detail-card .card-header {
+        background-color: #ffffff;
+        border-bottom: 1px solid #e2e8f0 !important;
+        padding: 0.9rem 1.25rem;
+    }
+
     .modern-nav-container {
+        width: 100%;
         display: flex;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 1.25rem;
     }
 
     .modern-tabs {
-        background-color: #fff;
-        border: 1px solid #e9ecef;
-        border-radius: 10px;
-        padding: 0.3rem;
-        display: inline-flex;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        width: 100%;
+        background-color: #ffffff;
+        border: 1px solid #d8dee4;
+        border-radius: 8px;
+        padding: 0.35rem;
+        display: flex;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+        margin: 0;
     }
 
     .modern-tabs .back-link {
@@ -47,28 +65,49 @@
     }
 
     .modern-tabs .nav-item {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
         margin: 0;
     }
 
     .modern-tabs .nav-link {
-        color: #6c757d;
+        width: 100%;
+        color: #64748b;
         font-weight: 600;
-        border-radius: 8px;
-        padding: 0.5rem 1.25rem;
+        font-size: 0.88rem;
+        border-radius: 6px;
+        padding: 0.65rem 0.75rem;
         transition: all 0.2s ease;
         border: none;
         background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        white-space: nowrap;
     }
 
     .modern-tabs .nav-link:hover {
-        color: #495057;
-        background-color: #f8f9fa;
+        color: #1e293b;
+        background-color: #f8fafc;
     }
 
     .modern-tabs .nav-link.active {
         color: #0d6efd;
         background-color: #e7f1ff;
-        box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.2);
+        box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.25);
+    }
+
+    @media (max-width: 767.98px) {
+        .modern-tabs {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+        }
+        .modern-tabs .nav-item {
+            flex: 0 0 auto;
+            min-width: 130px;
+        }
     }
 
     .info-label {
@@ -106,9 +145,9 @@
     /* Olsera Style - Daftar Tingkat Harga */
     .olsera-price-card {
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+        border: 1px solid #d8dee4 !important;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
     }
 
     .olsera-price-header {
@@ -739,7 +778,8 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
         <!-- Profil Tab -->
         <div class="tab-pane fade {{ $isProfilTabActive ? 'show active' : '' }}" id="profil" role="tabpanel" aria-labelledby="profil-tab">
 
-            <div class="card shadow-sm border-0 mb-3">
+            <!-- Info Umum Card -->
+            <div class="card product-detail-card mb-4">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                     <h5 class="mb-0">Info Umum</h5>
                     <div>
@@ -864,6 +904,18 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                                             <label class="form-check-label" for="info_fcombo">Jadikan Produk Kombo</label>
                                         </div>
                                     </div>
+                                    <div class="col-12 mt-3 pt-3 border-top">
+                                        <div class="row text-muted small g-2">
+                                            <div class="col-sm-6">
+                                                <i class="bi bi-person-check me-1 text-primary"></i> Diubah oleh:
+                                                <span class="fw-semibold text-dark">{{ $product->updatedBy?->cname ?? ($product->updatedBy?->cemail ?? '-') }}</span>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <i class="bi bi-clock-history me-1 text-primary"></i> Terakhir diupdate:
+                                                <span class="fw-semibold text-dark">{{ $product->updated_at ? \Carbon\Carbon::parse($product->updated_at)->format('d M Y H:i:s') : '-' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -871,7 +923,8 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                 </div>
             </div>
 
-            <div class="card shadow-sm border-0 mb-3">
+            <!-- Harga Card -->
+            <div class="card product-detail-card mb-4">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                     <h5 class="mb-0">Harga</h5>
                     <div>
@@ -935,7 +988,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
             </div>
 
             <!-- Stok Card -->
-            <div class="card shadow-sm border-0 mb-3">
+            <div class="card product-detail-card mb-4">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                     <h5 class="mb-0">Stok</h5>
                     <div>

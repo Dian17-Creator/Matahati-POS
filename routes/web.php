@@ -99,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
     // Inventori Routes
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('/', [InventoryController::class, 'index'])->name('index');
+        Route::post('/stock-in', [InventoryController::class, 'storeStockIn'])->name('stock-in.store');
         Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
         Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
         Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');

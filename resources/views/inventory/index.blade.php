@@ -279,13 +279,19 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                     <i class="bi bi-cloud-arrow-up me-1"></i> Import
                 </button> -->
 
+                <!-- Tombol + Tambah langsung membuka Modal Tambah Stok Masuk -->
+                <button type="button" class="btn btn-success btn-sm px-3 shadow-sm fw-semibold" onclick="openStockInModal()">
+                    <i class="bi bi-plus-lg me-1"></i> Tambah
+                </button>
+
+                {{-- Terima dari Pembelian di-comment karena pembelian otomatis masuk ke stok masuk
                 <div class="dropdown">
                     <button class="btn btn-success btn-sm px-3 dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-plus-lg me-1"></i> Tambah
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-1">
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2" style="border-radius: 10px;">
                         <li>
-                            <a class="dropdown-item py-2 small fw-medium" href="#" data-bs-toggle="modal" data-bs-target="#modalTerimaPembelian">
+                            <a class="dropdown-item py-2 px-3 fw-semibold text-secondary" href="#" data-bs-toggle="modal" data-bs-target="#modalTerimaPembelian">
                                 <i class="bi bi-receipt-cutoff me-2 text-primary"></i> Terima dari Pembelian
                             </a>
                         </li>
@@ -293,12 +299,13 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                             <hr class="dropdown-divider my-1">
                         </li>
                         <li>
-                            <a class="dropdown-item py-2 small text-muted" href="#" onclick="alert('Fitur input stok masuk manual tanpa PO akan segera hadir.'); return false;">
-                                <i class="bi bi-box-seam me-2"></i> Tambah Stok Masuk
+                            <a class="dropdown-item py-2 px-3 fw-semibold text-secondary" href="javascript:void(0)" onclick="openStockInModal()">
+                                <i class="bi bi-box-arrow-in-down me-2 text-success"></i> Tambah Stok Masuk
                             </a>
                         </li>
                     </ul>
                 </div>
+                --}}
             </div>
         </div>
 
@@ -412,7 +419,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
             </div>
         </div>
 
-        <!-- MODAL: Terima dari Pembelian -->
+        {{-- MODAL: Terima dari Pembelian di-comment sementara karena pembelian otomatis masuk ke stok masuk
         <div class="modal fade" id="modalTerimaPembelian" tabindex="-1" aria-labelledby="modalTerimaPembelianLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content border-0 shadow">
@@ -495,6 +502,316 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                     }
                 }
             }
+        </script>
+        --}}
+
+        <!-- ==================== MODAL TAMBAH STOK MASUK MANUAL ==================== -->
+        <div class="modal fade" id="createStockInModal" tabindex="-1" aria-labelledby="createStockInModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 960px;">
+                <div class="modal-content border-0 shadow">
+                    <form action="{{ route('inventory.stock-in.store') }}" method="POST" id="createStockInForm">
+                        @csrf
+                        <div class="modal-header bg-light-subtle py-3 border-bottom">
+                            <h5 class="modal-title fw-bold" id="createStockInModalLabel">
+                                <i class="bi bi-box-arrow-in-down me-2 text-success"></i><span>Tambah Stok Masuk</span>
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body p-4">
+                            <!-- Baris 1: Outlet Penerima, Tanggal, Alasan -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold small text-secondary">Outlet Penerima <span class="text-danger">*</span></label>
+                                    <select name="nid_outlet" id="modalStockInOutlet" class="form-select" required {{ $isOutletLocked ? 'disabled' : '' }}>
+                                        @foreach($outlets as $ot)
+                                        <option value="{{ $ot->nid }}" {{ (string)($selectedOutletId ?: $outlets->first()?->nid) === (string)$ot->nid ? 'selected' : '' }}>
+                                            {{ $ot->cname }}
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                    @if($isOutletLocked)
+                                    <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                                    @endif
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold small text-secondary">Tanggal Masuk <span class="text-danger">*</span></label>
+                                    <input type="date" name="dstock_in" class="form-control" value="{{ date('Y-m-d') }}" required>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label class="form-label fw-semibold small text-secondary">Alasan Penerimaan <span class="text-danger">*</span></label>
+                                    <select name="creason" id="modalStockInReason" class="form-select">
+                                        <option value="Koreksi Selisih Stok (Adjustment)">Koreksi Selisih Stok (Adjustment)</option>
+                                        <option value="Saldo Awal">Saldo Awal</option>
+                                        <option value="Temuan Barang Fisik">Temuan Barang Fisik</option>
+                                        <option value="Bonus / Hadiah Supplier">Bonus / Hadiah Supplier</option>
+                                        <option value="Pengembalian Manual">Pengembalian Manual</option>
+                                        <option value="Lain-lain">Lain-lain</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Baris 2: Catatan Penerimaan -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold small text-secondary">Catatan Penerimaan</label>
+                                    <textarea name="cnote" id="modalStockInNote" class="form-control" rows="2" placeholder="Catatan stok masuk (misal: TAMBAHAN STOK TEMUAN OPNAME, SALDO AWAL TOKO, dll)..."></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Header Section Item Stok Masuk -->
+                            <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                                <div>
+                                    <span class="fw-bold text-dark fs-6">
+                                        <i class="bi bi-box-seam me-1 text-success"></i> Item Barang Masuk
+                                    </span>
+                                    <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong> atau <strong>Bahan Baku</strong> yang dimasukkan</span>
+                                </div>
+                                <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewStockInRow">
+                                    <i class="bi bi-plus-lg me-1"></i> Tambah Baris
+                                </button>
+                            </div>
+
+                            <!-- Table Item Dinamis -->
+                            <div class="table-responsive mt-2" style="overflow: visible;">
+                                <table class="table align-middle mb-0" id="stockInItemsTable">
+                                    <thead>
+                                        <tr class="bg-light">
+                                            <th style="width: 35px;" class="text-center py-2 text-muted text-nowrap">No</th>
+                                            <th style="width: 140px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                            <th class="py-2 text-center text-nowrap">PRODUK / BAHAN BAKU</th>
+                                            <th style="width: 110px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
+                                            <th style="width: 90px;" class="text-center py-2 text-nowrap">QTY MASUK</th>
+                                            <th style="width: 140px;" class="text-center py-1 text-nowrap">HARGA BELI / MODAL</th>
+                                            <th style="width: 130px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
+                                            <th style="width: 35px;" class="text-center py-2"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="stockInItemsTableBody" class="small">
+                                        <!-- Baris produk / bahan baku di-generate via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Baris Ringkasan Total Kuantitas & Nilai Masuk -->
+                            <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top bg-light-subtle rounded-3 p-3">
+                                <div class="text-muted small">
+                                    <i class="bi bi-info-circle me-1"></i> Stok produk atau bahan baku akan langsung bertambah secara otomatis setelah disimpan.
+                                </div>
+                                <div class="d-flex align-items-center gap-4 text-end">
+                                    <div>
+                                        <span class="text-secondary small d-block">Total Kuantitas:</span>
+                                        <span class="fw-bold fs-6 text-dark" id="stockInTotalQty">0</span> <span class="small text-muted">unit</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-secondary small d-block">Total Nilai Masuk:</span>
+                                        <span class="fw-bold fs-5 text-success" id="stockInTotalAmount">Rp 0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer bg-light-subtle py-2 px-4 border-top">
+                            <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-success btn-sm px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-check2-circle me-1"></i> Simpan Stok Masuk
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Data Master Produk & Bahan Baku untuk Modal Stok Masuk
+            const stockInProducts = @json($modalProducts);
+            const stockInIngredients = @json($modalIngredients);
+
+            let stockInRowCounter = 0;
+
+            function openStockInModal() {
+                const modalEl = document.getElementById('createStockInModal');
+                const modal = new bootstrap.Modal(modalEl);
+
+                // Reset baris tabel jika kosong
+                const tbody = document.getElementById('stockInItemsTableBody');
+                if (tbody.children.length === 0) {
+                    addStockInRow();
+                }
+
+                modal.show();
+            }
+
+            function addStockInRow() {
+                stockInRowCounter++;
+                const tbody = document.getElementById('stockInItemsTableBody');
+                const tr = document.createElement('tr');
+                tr.id = 'stock-in-row-' + stockInRowCounter;
+
+                tr.innerHTML = `
+                    <td class="text-center text-muted fw-semibold row-number">${tbody.children.length + 1}</td>
+                    <td>
+                        <select name="items[${stockInRowCounter}][citem_type]" class="form-select form-select-sm in-item-type-select" onchange="handleStockInTypeChange(${stockInRowCounter})">
+                            <option value="PRODUCT" selected>Produk</option>
+                            <option value="INGREDIENT">Bahan Baku</option>
+                        </select>
+                    </td>
+                    <td>
+                        <select name="items[${stockInRowCounter}][nid_item]" class="form-select form-select-sm in-item-select" required onchange="handleStockInItemSelect(${stockInRowCounter})">
+                            <option value="">-- Pilih Item --</option>
+                        </select>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-secondary border in-current-stock-badge">-</span>
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" min="0.01" name="items[${stockInRowCounter}][nqty]" class="form-control form-control-sm text-center in-item-qty-input" value="1" required oninput="calculateStockInTotals()">
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light text-muted">Rp</span>
+                            <input type="number" step="1" min="0" name="items[${stockInRowCounter}][ncost]" class="form-control form-control-sm text-end in-item-cost-input" value="0" oninput="calculateStockInTotals()">
+                        </div>
+                    </td>
+                    <td class="text-end fw-semibold text-success in-item-subtotal-display">
+                        Rp 0
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-outline-danger btn-sm border-0 py-0 px-1" onclick="removeStockInRow(${stockInRowCounter})" title="Hapus Baris">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+                populateStockInItemDropdown(stockInRowCounter, 'PRODUCT');
+                renumberStockInRows();
+                calculateStockInTotals();
+            }
+
+            function removeStockInRow(rowId) {
+                const row = document.getElementById('stock-in-row-' + rowId);
+                if (row) {
+                    row.remove();
+                    renumberStockInRows();
+                    calculateStockInTotals();
+                }
+            }
+
+            function renumberStockInRows() {
+                const rows = document.querySelectorAll('#stockInItemsTableBody tr');
+                rows.forEach((r, idx) => {
+                    const numCell = r.querySelector('.row-number');
+                    if (numCell) numCell.textContent = idx + 1;
+                });
+            }
+
+            function handleStockInTypeChange(rowId) {
+                const row = document.getElementById('stock-in-row-' + rowId);
+                const typeSelect = row.querySelector('.in-item-type-select');
+                populateStockInItemDropdown(rowId, typeSelect.value);
+            }
+
+            function populateStockInItemDropdown(rowId, type) {
+                const row = document.getElementById('stock-in-row-' + rowId);
+                const itemSelect = row.querySelector('.in-item-select');
+                itemSelect.innerHTML = '<option value="">-- Cari atau pilih ' + (type === 'PRODUCT' ? 'produk' : 'bahan baku') + ' --</option>';
+
+                if (type === 'PRODUCT') {
+                    stockInProducts.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.nid;
+                        opt.textContent = p.cname + ' (Stok: ' + (p.nqty || 0) + ')';
+                        opt.dataset.stock = p.nqty || 0;
+                        opt.dataset.cost = p.nprice_buy || 0;
+                        itemSelect.appendChild(opt);
+                    });
+                } else {
+                    stockInIngredients.forEach(ing => {
+                        const opt = document.createElement('option');
+                        opt.value = ing.nid;
+                        const satuan = ing.csatuan ? ' ' + ing.csatuan : '';
+                        opt.textContent = ing.cname + ' (Stok: ' + (ing.nstock || 0) + satuan + ')';
+                        opt.dataset.stock = ing.nstock || 0;
+                        opt.dataset.cost = ing.ncost || 0;
+                        itemSelect.appendChild(opt);
+                    });
+                }
+
+                // Reset nilai baris
+                const stockBadge = row.querySelector('.in-current-stock-badge');
+                stockBadge.textContent = '-';
+                stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
+                row.querySelector('.in-item-cost-input').value = 0;
+                calculateStockInTotals();
+            }
+
+            function handleStockInItemSelect(rowId) {
+                const row = document.getElementById('stock-in-row-' + rowId);
+                const itemSelect = row.querySelector('.in-item-select');
+                const selectedOpt = itemSelect.options[itemSelect.selectedIndex];
+                const stockBadge = row.querySelector('.in-current-stock-badge');
+                const costInput = row.querySelector('.in-item-cost-input');
+
+                if (selectedOpt && selectedOpt.value) {
+                    const stock = parseFloat(selectedOpt.dataset.stock || 0);
+                    const cost = parseFloat(selectedOpt.dataset.cost || 0);
+
+                    stockBadge.textContent = stock;
+                    if (stock <= 0) {
+                        stockBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle in-current-stock-badge';
+                    } else if (stock <= 5) {
+                        stockBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle in-current-stock-badge';
+                    } else {
+                        stockBadge.className = 'badge bg-success-subtle text-success border border-success-subtle in-current-stock-badge';
+                    }
+
+                    costInput.value = Math.round(cost);
+                } else {
+                    stockBadge.textContent = '-';
+                    stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
+                    costInput.value = 0;
+                }
+
+                calculateStockInTotals();
+            }
+
+            function calculateStockInTotals() {
+                const rows = document.querySelectorAll('#stockInItemsTableBody tr');
+                let grandQty = 0;
+                let grandAmount = 0;
+
+                rows.forEach(r => {
+                    const qtyInput = r.querySelector('.in-item-qty-input');
+                    const costInput = r.querySelector('.in-item-cost-input');
+                    const subtotalDisplay = r.querySelector('.in-item-subtotal-display');
+
+                    const qty = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
+                    const cost = parseFloat(costInput ? costInput.value : 0) || 0;
+                    const subtotal = qty * cost;
+
+                    grandQty += qty;
+                    grandAmount += subtotal;
+
+                    if (subtotalDisplay) {
+                        subtotalDisplay.textContent = 'Rp ' + Math.round(subtotal).toLocaleString('id-ID');
+                    }
+                });
+
+                const totalQtyEl = document.getElementById('stockInTotalQty');
+                const totalAmountEl = document.getElementById('stockInTotalAmount');
+                if (totalQtyEl) totalQtyEl.textContent = grandQty.toLocaleString('id-ID');
+                if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + Math.round(grandAmount).toLocaleString('id-ID');
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const addInBtn = document.getElementById('btnAddNewStockInRow');
+                if (addInBtn) {
+                    addInBtn.addEventListener('click', addStockInRow);
+                }
+            });
         </script>
 
         {{-- ==================== TAB 2: STOK KELUAR ==================== --}}

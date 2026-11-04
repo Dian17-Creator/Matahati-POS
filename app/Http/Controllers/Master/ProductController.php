@@ -13,6 +13,8 @@ use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class ProductController extends Controller
 {
@@ -197,7 +199,7 @@ class ProductController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient'])->findOrFail($id);
+        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient', 'updatedBy'])->findOrFail($id);
         $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
         
         $categories = \App\Models\MposGrpProduct::whereIn('nid', function($q) {
@@ -296,6 +298,9 @@ class ProductController extends Controller
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         $data['nprice_buy'] = $request->input('nprice_buy') ?: 0.00;
         $data['nqty'] = $request->input('stock_qty') ?: 0;
+        $data['dcreated'] = Carbon::now();
+        $data['updated_by'] = Auth::id() ?? 1;
+        $data['updated_at'] = Carbon::now();
 
         if ($request->hasFile('photo')) {
             $file = $request->file('photo');
@@ -410,6 +415,8 @@ class ProductController extends Controller
         if ($request->has('stock_qty')) {
             $data['nqty'] = $request->input('stock_qty') ?: 0;
         }
+        $data['updated_by'] = Auth::id() ?? 1;
+        $data['updated_at'] = Carbon::now();
 
         if ($request->hasFile('photo')) {
             // Check if other products use this photo before unlink
@@ -515,6 +522,7 @@ class ProductController extends Controller
                     if (!$exists) {
                         $newProductData = $data;
                         $newProductData['nid_outlet'] = $outletId;
+                        $newProductData['dcreated'] = Carbon::now();
 
                         $newProduct = MposProduct::create($newProductData);
 
