@@ -479,7 +479,7 @@
                             <span class="fw-bold text-dark fs-6">
                                 <i class="bi bi-box-seam me-1 text-primary"></i> Item Pesanan
                             </span>
-                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong> atau <strong>Bahan Baku</strong> yang dibeli</span>
+                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong>, <strong>Setengah Jadi</strong>, atau <strong>Bahan Baku</strong> yang dibeli</span>
                         </div>
                         <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewItemRow">
                             <i class="bi bi-plus-lg me-1"></i> Tambah Baris
@@ -538,9 +538,9 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+<script type="application/json" id="purchasesProductsData">@json($products ?? [])</script>
 <script>
-    const allProducts = @json($products ?? []);
-    const allIngredients = @json($ingredients ?? []);
+    const allProducts = JSON.parse(document.getElementById('purchasesProductsData')?.textContent || '[]');
     let rowIndex = 0;
     const tsInstances = {};
 
@@ -558,9 +558,21 @@
         return Number.isInteger(num) ? String(num) : String(parseFloat(num.toFixed(2)));
     }
 
-    function getProductsForOutlet(selectedOutletId) {
+    function normalizeItemType(val) {
+        const raw = String(val || 'PRODUK').trim().toUpperCase();
+        if (raw === 'SETENGAH_JADI') return 'SETENGAH_JADI';
+        if (raw === 'BAHAN_BAKU' || raw === 'INGREDIENT') return 'BAHAN_BAKU';
+        return 'PRODUK';
+    }
+
+    function getItemsForType(itemType, selectedOutletId) {
+        const targetType = normalizeItemType(itemType);
         const byName = new Map();
+
         allProducts.forEach(p => {
+            const pType = normalizeItemType(p.cproduct_type || 'PRODUK');
+            if (pType !== targetType) return;
+
             const key = String(p.cname || '').trim().toUpperCase();
             if (!key) return;
             if (!byName.has(key)) {
@@ -579,7 +591,8 @@
                     nstock: match.nqty || 0,
                     nprice: (match.nprice_buy !== undefined && match.nprice_buy !== null) ? parseFloat(match.nprice_buy) : 0,
                     nprice_buy: parseFloat(match.nprice_buy || 0),
-                    csatuan: 'PCS'
+                    csatuan: match.csatuan || 'PCS',
+                    cproduct_type: match.cproduct_type || 'PRODUK'
                 });
             } else {
                 const tmpl = prods[0];
@@ -589,69 +602,31 @@
                     nstock: 0,
                     nprice: (tmpl.nprice_buy !== undefined && tmpl.nprice_buy !== null) ? parseFloat(tmpl.nprice_buy) : 0,
                     nprice_buy: parseFloat(tmpl.nprice_buy || 0),
-                    csatuan: 'PCS'
+                    csatuan: tmpl.csatuan || 'PCS',
+                    cproduct_type: tmpl.cproduct_type || 'PRODUK'
                 });
             }
         });
 
         list.sort((a, b) => a.cname.localeCompare(b.cname));
         return list;
-    }
-
-    function getIngredientsForOutlet(selectedOutletId) {
-        const byName = new Map();
-        allIngredients.forEach(ing => {
-            const key = String(ing.cname || '').trim().toUpperCase();
-            if (!key) return;
-            if (!byName.has(key)) {
-                byName.set(key, []);
-            }
-            byName.get(key).push(ing);
-        });
-
-        const list = [];
-        byName.forEach((ings) => {
-            const match = ings.find(i => String(i.nid_outlet) === String(selectedOutletId));
-            if (match) {
-                list.push({
-                    nid: match.nid,
-                    cname: match.cname,
-                    nstock: match.nstock || 0,
-                    nprice: match.nprice || 0,
-                    csatuan: match.csatuan || 'PCS'
-                });
-            } else {
-                const tmpl = ings[0];
-                list.push({
-                    nid: tmpl.nid,
-                    cname: tmpl.cname,
-                    nstock: 0,
-                    nprice: tmpl.nprice || 0,
-                    csatuan: tmpl.csatuan || 'PCS'
-                });
-            }
-        });
-
-        list.sort((a, b) => a.cname.localeCompare(b.cname));
-        return list;
-    }
-
-    function getItemsForType(itemType, selectedOutletId) {
-        return itemType === 'INGREDIENT' ?
-            getIngredientsForOutlet(selectedOutletId) :
-            getProductsForOutlet(selectedOutletId);
     }
 
     function getPlaceholderForType(itemType) {
-        return itemType === 'INGREDIENT' ?
-            '-- Cari atau pilih bahan baku --' :
-            '-- Cari atau pilih produk --';
+        const type = normalizeItemType(itemType);
+        if (type === 'BAHAN_BAKU') {
+            return '-- Cari atau pilih bahan baku --';
+        }
+        if (type === 'SETENGAH_JADI') {
+            return '-- Cari atau pilih produk setengah jadi --';
+        }
+        return '-- Cari atau pilih produk --';
     }
 
-    function addRow(itemId = '', qty = 1, cost = 0, itemType = 'PRODUCT') {
+    function addRow(itemId = '', qty = 1, cost = 0, itemType = 'PRODUK') {
         const tbody = document.getElementById('createItemsTableBody');
         const outletId = getSelectedOutletId();
-        const normalizedType = itemType === 'INGREDIENT' ? 'INGREDIENT' : 'PRODUCT';
+        const normalizedType = normalizeItemType(itemType);
         const itemList = getItemsForType(normalizedType, outletId);
         const placeholderText = getPlaceholderForType(normalizedType);
         const currentIdx = rowIndex++;
@@ -663,8 +638,9 @@
             <td class="text-center text-muted fw-semibold align-middle row-number py-2"></td>
             <td class="py-2">
                 <select name="items[${currentIdx}][citem_type]" class="form-select form-select-sm fw-semibold item-type-select" id="type_select_${currentIdx}" data-row="${currentIdx}">
-                    <option value="PRODUCT" ${normalizedType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
-                    <option value="INGREDIENT" ${normalizedType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                    <option value="PRODUK" ${normalizedType === 'PRODUK' ? 'selected' : ''}>Produk</option>
+                    <option value="SETENGAH_JADI" ${normalizedType === 'SETENGAH_JADI' ? 'selected' : ''}>Setengah Jadi</option>
+                    <option value="BAHAN_BAKU" ${normalizedType === 'BAHAN_BAKU' ? 'selected' : ''}>Bahan Baku</option>
                 </select>
             </td>
             <td class="py-2">
@@ -780,7 +756,7 @@
         }
 
         typeSelectEl.addEventListener('change', function() {
-            const newType = this.value === 'INGREDIENT' ? 'INGREDIENT' : 'PRODUCT';
+            const newType = normalizeItemType(this.value);
             costInput.value = 0;
             populateOptionsForRow(newType, getSelectedOutletId());
             recalculateSubtotal(currentIdx);
@@ -788,7 +764,7 @@
 
         ts.on('change', function(val) {
             const currentOutletId = getSelectedOutletId();
-            const currentType = typeSelectEl ? typeSelectEl.value : 'PRODUCT';
+            const currentType = normalizeItemType(typeSelectEl ? typeSelectEl.value : 'PRODUK');
             const currentList = getItemsForType(currentType, currentOutletId);
             const selectedItem = currentList.find(p => String(p.nid) === String(val));
             const stockBadge = document.getElementById(`stock-badge-${currentIdx}`);
@@ -803,7 +779,7 @@
         });
 
         tr._refreshForOutlet = function(newOutletId) {
-            const currentType = typeSelectEl ? typeSelectEl.value : 'PRODUCT';
+            const currentType = normalizeItemType(typeSelectEl ? typeSelectEl.value : 'PRODUK');
             const curVal = ts.getValue();
             const curOption = curVal ? ts.options[curVal] : null;
             const curName = curOption ? (curOption.cname || curOption.text || '') : '';

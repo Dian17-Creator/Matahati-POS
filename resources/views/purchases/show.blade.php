@@ -271,29 +271,20 @@
                 <tbody class="small">
                     @forelse($purchase->details as $index => $item)
                     @php
-                        $isIng = $item->isIngredient();
-                        $ingModel = $item->ingredient;
                         $prodModel = $item->product;
-                        $itemUnit = $isIng ? ($ingModel?->csatuan ?: 'PCS') : 'PCS';
-                        $currentStock = $isIng
-                            ? rtrim(rtrim(number_format((float) ($ingModel?->nstock ?? 0), 2, ',', '.'), '0'), ',')
-                            : ($prodModel?->nqty ?? 0);
+                        $ingModel = $item->ingredient;
+                        $itemUnit = $item->getItemUnit();
+                        $itemTypeLabel = $item->getItemTypeLabel();
+                        $normType = $item->getItemTypeNormalized();
+                        $currentStock = $prodModel ? ($prodModel->nqty ?? 0) : ($ingModel ? (float) ($ingModel->nstock ?? 0) : 0);
+                        $currentStockFormatted = rtrim(rtrim(number_format((float) $currentStock, 2, ',', '.'), '0'), ',');
                     @endphp
                     <tr class="align-middle" style="border-bottom: 1px solid #f8f9fa;">
                         <td class="ps-3 text-muted text-center">{{ $index + 1 }}</td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                @if($isIng)
-                                <div class="rounded border bg-warning-subtle text-warning-emphasis d-flex align-items-center justify-content-center flex-shrink-0"
-                                     style="width: 44px; height: 44px; font-size: 1.15rem;">
-                                    <i class="bi bi-basket2-fill"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-bold text-dark">{{ $ingModel?->cname ?? 'Bahan baku dihapus' }}</div>
-                                    <div class="text-muted small">Satuan: {{ $itemUnit }}</div>
-                                </div>
-                                @else
-                                    @if(!empty($prodModel?->cphotos))
+                                @if($prodModel)
+                                    @if(!empty($prodModel->cphotos))
                                     <img src="{{ asset($prodModel->cphotos) }}"
                                          alt="{{ $prodModel->cname }}"
                                          class="rounded border flex-shrink-0"
@@ -306,26 +297,45 @@
                                     @else
                                     <div class="rounded border bg-light text-muted d-flex align-items-center justify-content-center flex-shrink-0"
                                          style="width: 44px; height: 44px; font-size: 1.1rem;">
-                                        <i class="bi bi-image"></i>
+                                        <i class="bi bi-box-seam"></i>
                                     </div>
                                     @endif
                                     <div>
-                                        <div class="fw-bold text-dark">{{ $prodModel?->cname ?? 'Produk dihapus' }}</div>
-                                        <div class="text-muted small">{{ $prodModel?->category?->cname ?? '-' }}</div>
+                                        <div class="fw-bold text-dark">{{ $prodModel->cname }}</div>
+                                        <div class="text-muted small">{{ $prodModel->category?->cname ? $prodModel->category->cname . ' • ' : '' }}Satuan: {{ $itemUnit }}</div>
+                                    </div>
+                                @elseif($ingModel)
+                                    <div class="rounded border bg-warning-subtle text-warning-emphasis d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="width: 44px; height: 44px; font-size: 1.15rem;">
+                                        <i class="bi bi-basket2-fill"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ $ingModel->cname }}</div>
+                                        <div class="text-muted small">Satuan: {{ $itemUnit }}</div>
+                                    </div>
+                                @else
+                                    <div class="rounded border bg-light text-muted d-flex align-items-center justify-content-center flex-shrink-0"
+                                         style="width: 44px; height: 44px; font-size: 1.1rem;">
+                                        <i class="bi bi-question-circle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-muted">Item dihapus</div>
                                     </div>
                                 @endif
                             </div>
                         </td>
                         <td class="text-center">
-                            @if($isIng)
-                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Bahan Baku</span>
+                            @if($normType === 'BAHAN_BAKU')
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Bahan Baku</span>
+                            @elseif($normType === 'SETENGAH_JADI')
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Setengah Jadi</span>
                             @else
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Produk</span>
                             @endif
                         </td>
                         <td class="text-center">
                             <span class="badge bg-light text-dark border">
-                                {{ $currentStock }} {{ $itemUnit }}
+                                {{ $currentStockFormatted }} {{ $itemUnit }}
                             </span>
                         </td>
                         <td class="text-center fw-bold fs-6 text-primary">
@@ -400,30 +410,29 @@
                     <div class="mb-3">
                         <label class="form-label fw-semibold small">Tipe Item <span class="text-danger">*</span></label>
                         <select name="citem_type" id="add_item_type_select" class="form-select">
-                            <option value="PRODUCT" {{ old('citem_type', 'PRODUCT') === 'PRODUCT' ? 'selected' : '' }}>Produk</option>
-                            <option value="INGREDIENT" {{ old('citem_type') === 'INGREDIENT' ? 'selected' : '' }}>Bahan Baku</option>
+                            <option value="PRODUK" {{ old('citem_type', 'PRODUK') === 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
+                            <option value="SETENGAH_JADI" {{ old('citem_type') === 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
+                            <option value="BAHAN_BAKU" {{ old('citem_type') === 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
                         </select>
                     </div>
 
                     <div class="mb-3" id="add_product_select_group">
-                        <label class="form-label fw-semibold small">Pilih Produk <span class="text-danger">*</span></label>
-                        <select name="nid_product" id="product_select" class="form-select">
-                            <option value="">-- Cari atau pilih produk --</option>
+                        <label class="form-label fw-semibold small">Pilih Item <span class="text-danger">*</span></label>
+                        <select name="nid_product" id="product_select" class="form-select" required>
+                            <option value="">-- Cari atau pilih item --</option>
                             @foreach($products as $p)
-                            <option value="{{ $p->nid }}" data-price="{{ $p->nprice_buy ?? 0 }}">
-                                {{ $p->cname }} (Stok saat ini: {{ $p->nqty }} PCS)
-                            </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="mb-3 d-none" id="add_ingredient_select_group">
-                        <label class="form-label fw-semibold small">Pilih Bahan Baku <span class="text-danger">*</span></label>
-                        <select name="nid_ingredient" id="ingredient_select" class="form-select" disabled>
-                            <option value="">-- Cari atau pilih bahan baku --</option>
-                            @foreach($ingredients ?? [] as $ing)
-                            <option value="{{ $ing->nid }}" data-price="{{ $ing->nprice ?? 0 }}">
-                                {{ $ing->cname }} (Stok saat ini: {{ rtrim(rtrim(number_format((float) $ing->nstock, 2, ',', '.'), '0'), ',') }} {{ $ing->csatuan ?: 'PCS' }})
+                            @php
+                                $pType = strtoupper(trim((string) ($p->cproduct_type ?? 'PRODUK')));
+                                if ($pType === 'PRODUCT') $pType = 'PRODUK';
+                                if ($pType === 'INGREDIENT') $pType = 'BAHAN_BAKU';
+                                $pSatuan = $p->csatuan ?: 'PCS';
+                            @endphp
+                            <option value="{{ $p->nid }}"
+                                data-type="{{ $pType }}"
+                                data-price="{{ $p->nprice_buy ?? 0 }}"
+                                data-stock="{{ $p->nqty ?? 0 }}"
+                                data-unit="{{ $pSatuan }}">
+                                {{ $p->cname }} (Stok saat ini: {{ $p->nqty ?? 0 }} {{ $pSatuan }})
                             </option>
                             @endforeach
                         </select>
@@ -568,13 +577,9 @@
         const inputCost = document.getElementById('input_cost');
         const displaySubtotal = document.getElementById('display_subtotal');
         const typeSelect = document.getElementById('add_item_type_select');
-        const prodGroup = document.getElementById('add_product_select_group');
-        const ingGroup = document.getElementById('add_ingredient_select_group');
         const prodSelectEl = document.getElementById('product_select');
-        const ingSelectEl = document.getElementById('ingredient_select');
 
         let prodTomSelect = null;
-        let ingTomSelect = null;
 
         function calculateSubtotal() {
             if (inputQty && inputCost && displaySubtotal) {
@@ -585,82 +590,68 @@
             }
         }
 
+        // Cache all product options for filtering
+        const originalProductOptions = [];
+        if (prodSelectEl) {
+            Array.from(prodSelectEl.options).forEach(opt => {
+                if (opt.value) {
+                    originalProductOptions.push({
+                        value: opt.value,
+                        text: opt.text,
+                        type: (opt.getAttribute('data-type') || 'PRODUK').toUpperCase(),
+                        price: parseFloat(opt.getAttribute('data-price') || 0),
+                        stock: opt.getAttribute('data-stock') || '0',
+                        unit: opt.getAttribute('data-unit') || 'PCS'
+                    });
+                }
+            });
+        }
+
+        function filterOptionsForType(targetType) {
+            if (!prodTomSelect) return;
+            const normType = (targetType || 'PRODUK').toUpperCase();
+            prodTomSelect.clear(true);
+            prodTomSelect.clearOptions();
+
+            const filtered = originalProductOptions.filter(item => item.type === normType);
+            filtered.forEach(item => {
+                prodTomSelect.addOption({
+                    value: item.value,
+                    text: item.text,
+                    price: item.price,
+                    stock: item.stock,
+                    unit: item.unit
+                });
+            });
+            prodTomSelect.refreshOptions(false);
+        }
+
         if (prodSelectEl && typeof TomSelect !== 'undefined') {
             prodTomSelect = new TomSelect(prodSelectEl, {
                 create: false,
                 maxItems: 1,
-                placeholder: '-- Cari atau pilih produk --',
+                placeholder: '-- Cari atau pilih item --',
                 allowEmptyOption: true,
                 onChange: function(val) {
-                    const opt = prodSelectEl.querySelector(`option[value="${val}"]`);
-                    if (opt && inputCost) {
-                        const defPrice = parseFloat(opt.getAttribute('data-price') || 0);
-                        inputCost.value = defPrice;
+                    if (val && prodTomSelect.options[val] && inputCost) {
+                        const optData = prodTomSelect.options[val];
+                        inputCost.value = parseFloat(optData.price || 0);
                         calculateSubtotal();
                     }
                 }
             });
-        }
 
-        if (ingSelectEl && typeof TomSelect !== 'undefined') {
-            ingTomSelect = new TomSelect(ingSelectEl, {
-                create: false,
-                maxItems: 1,
-                placeholder: '-- Cari atau pilih bahan baku --',
-                allowEmptyOption: true,
-                onChange: function(val) {
-                    const opt = ingSelectEl.querySelector(`option[value="${val}"]`);
-                    if (opt && inputCost && (!inputCost.value || parseFloat(inputCost.value) === 0)) {
-                        const defPrice = parseFloat(opt.getAttribute('data-price') || 0);
-                        if (defPrice > 0) {
-                            inputCost.value = defPrice;
-                            calculateSubtotal();
-                        }
-                    }
-                }
-            });
-        }
-
-        function syncAddItemTypeUI() {
-            if (!typeSelect || !prodGroup || !ingGroup) return;
-            const isIng = typeSelect.value === 'INGREDIENT';
-
-            if (isIng) {
-                prodGroup.classList.add('d-none');
-                ingGroup.classList.remove('d-none');
-                if (prodSelectEl) {
-                    prodSelectEl.disabled = true;
-                    prodSelectEl.required = false;
-                }
-                if (ingSelectEl) {
-                    ingSelectEl.disabled = false;
-                    ingSelectEl.required = true;
-                }
-                if (prodTomSelect) prodTomSelect.disable();
-                if (ingTomSelect) ingTomSelect.enable();
-            } else {
-                ingGroup.classList.add('d-none');
-                prodGroup.classList.remove('d-none');
-                if (ingSelectEl) {
-                    ingSelectEl.disabled = true;
-                    ingSelectEl.required = false;
-                }
-                if (prodSelectEl) {
-                    prodSelectEl.disabled = false;
-                    prodSelectEl.required = true;
-                }
-                if (ingTomSelect) ingTomSelect.disable();
-                if (prodTomSelect) prodTomSelect.enable();
+            if (typeSelect) {
+                filterOptionsForType(typeSelect.value);
             }
         }
 
         if (typeSelect) {
             typeSelect.addEventListener('change', function() {
                 if (inputCost) inputCost.value = '';
+                filterOptionsForType(this.value);
                 calculateSubtotal();
-                syncAddItemTypeUI();
             });
-            syncAddItemTypeUI();
         }
 
         if (inputQty && inputCost) {
