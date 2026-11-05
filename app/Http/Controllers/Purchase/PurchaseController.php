@@ -348,31 +348,47 @@ class PurchaseController extends Controller
             $lines = preg_split('/\r\n|\r|\n/', $fullText);
             $parsedItems = [];
 
-            // Pola 1: Baris tabel lengkap dalam 1 baris
-            // Format: [Nama Produk] [Qty] [Unit] [IDR/Rp] [Harga] [Diskon opsional] [IDR/Rp] [Total]
-            $tableRowPattern = '#^(.+?)\s+(\d+(?:[.,]\d+)?)\s+([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            // Pola 2: Multi-line lookahead (nama produk di baris sebelumnya, angka di baris ini)
-            $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s+([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            // Pola 3: Fallback tanpa unit pengukuran
-            $fallbackPattern = '#^(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            $ignoreKeywords = [
-                'foto', 'nama', 'unit pengukuran', 'no. pembelian', 'kepada :',
-                'iqos matahati', 'jl. ir soekarno', 'penerima :', 'total pembelian',
-                'subtotal', 'jumlah terbayar', 'pembayaran yang belum lunas',
-                'tanggal pembayaran', 'jatuh tempo pembayaran', 'kode supplier',
-                'telepon:', 'email:', 'diskon', 'total harga', 'pembelian'
-            ];
-
-            $cleanLines = [];
-            foreach ($lines as $rawLine) {
-                $line = trim(preg_replace('/\s+/', ' ', $rawLine));
-                if (empty($line)) {
+            // Pre-processing: sambung baris angka yang terpotong/wrapped ke baris baru (khususnya nominal di Olsera APK)
+            $processedLines = [];
+            for ($idx = 0; $idx < count($lines); $idx++) {
+                $cur = trim(preg_replace('/\t+/', ' ', $lines[$idx]));
+                if (empty($cur)) {
                     continue;
                 }
 
+                // Jika baris saat ini adalah angka murni desimal/ribuan dan baris sebelumnya menggantung setelah IDR/Rp
+                if (preg_match('#^[0-9.,]+$#', $cur) && count($processedLines) > 0) {
+                    $lastIdx = count($processedLines) - 1;
+                    if (preg_match('#(?:IDR|Rp|\s)$#i', $processedLines[$lastIdx])) {
+                        $processedLines[$lastIdx] .= ' ' . $cur;
+                        continue;
+                    }
+                }
+
+                $processedLines[] = $cur;
+            }
+
+            // Pola 1: Baris tabel lengkap dalam 1 baris
+            // Format: [Nama Produk] [Qty][Unit] [IDR/Rp] [Harga] [Diskon opsional] [IDR/Rp] [Total]
+            // Catatan: Menggunakan \s* antara nama, qty, dan unit agar fleksibel saat APK Olsera merapatkan karakter, misal ')20pack' atau '30Pack'
+            $tableRowPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+            // Pola 2: Multi-line lookahead (nama produk di baris sebelumnya, angka di baris ini)
+            $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+            // Pola 3: Fallback tanpa unit pengukuran
+            $fallbackPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+            $ignoreKeywords = [
+                'foto', 'nama', 'unit pengukuran', 'pengukuran', 'no. pembelian', 'kepada :',
+                'iqos matahati', 'jl. ir soekarno', 'penerima :', 'total pembelian',
+                'subtotal', 'jumlah terbayar', 'pembayaran yang belum lunas',
+                'tanggal pembayaran', 'jatuh tempo pembayaran', 'kode supplier',
+                'telpon:', 'telepon:', 'email:', 'diskon', 'total harga', 'pembelian'
+            ];
+
+            $cleanLines = [];
+            foreach ($processedLines as $line) {
                 $lowerLine = strtolower($line);
                 $shouldSkip = false;
                 foreach ($ignoreKeywords as $kw) {
