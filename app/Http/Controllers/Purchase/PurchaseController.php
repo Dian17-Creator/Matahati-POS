@@ -323,8 +323,13 @@ class PurchaseController extends Controller
 
             // 1. Ekstrak No Pembelian Supplier / No Referensi
             $supplierPoRef = null;
-            if (preg_match('#(?:\bNo\.?\s*Pembelian|Purchase\s*Order\s*No\.?)\s*[:\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
-                $supplierPoRef = trim($m[1]);
+            if (preg_match('#\b(PO\d{8,}[A-Za-z0-9_-]*)\b#i', $fullText, $mPo)) {
+                $supplierPoRef = trim($mPo[1]);
+            } elseif (preg_match('#(?:\bNo\.?\s*Pembelian|Purchase\s*Order\s*No\.?)\s*[:\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
+                $cand = trim($m[1]);
+                if (!in_array(strtolower($cand), ['penerima', 'tgl', 'tanggal', 'kepada', 'kode'])) {
+                    $supplierPoRef = $cand;
+                }
             }
 
             // 2. Ekstrak Tanggal Beli
@@ -335,25 +340,35 @@ class PurchaseController extends Controller
 
             // 3. Ekstrak Jatuh Tempo
             $dueDate = null;
-            if (preg_match('#(?:\bJatuh\s*Tempo(?:\s*Pembayaran)?|Due\s*Date)\s*[:\s]+([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $m)) {
+            if (preg_match('#(?:\bJatuh\s*Tempo(?:\s*Pembayaran)?|Due\s*Date)\s*[:\s]*([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $m)) {
                 $dueDate = $this->parsePdfDate($m[1]);
             }
 
             // 4. Ekstrak Item-item Pembelian
             $lines = preg_split('/\r\n|\r|\n/', $fullText);
             $parsedItems = [];
-            $tableRowPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s*(Pack|Pcs|Box|Btl|Unit|Slop|Kartun|Kg|Gr|[A-Za-z]+)\s+([0-9.,]+)(?:\s+([0-9.,]+))?\s+([0-9.,]+)$#i';
-            $fallbackPattern = '#^(.+?)\s*(\d+(?:[.,]\d+)?)\s+([0-9.,]+)\s+([0-9.,]+)$#';
+
+            // Pola 1: Baris tabel lengkap dalam 1 baris
+            // Format: [Nama Produk] [Qty] [Unit] [IDR/Rp] [Harga] [Diskon opsional] [IDR/Rp] [Total]
+            $tableRowPattern = '#^(.+?)\s+(\d+(?:[.,]\d+)?)\s+([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+            // Pola 2: Multi-line lookahead (nama produk di baris sebelumnya, angka di baris ini)
+            $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s+([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)(?:\s+(?:[0-9.,]+%?|-))?\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+            // Pola 3: Fallback tanpa unit pengukuran
+            $fallbackPattern = '#^(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
 
             $ignoreKeywords = [
                 'foto', 'nama', 'unit pengukuran', 'no. pembelian', 'kepada :',
                 'iqos matahati', 'jl. ir soekarno', 'penerima :', 'total pembelian',
                 'subtotal', 'jumlah terbayar', 'pembayaran yang belum lunas',
-                'tanggal pembayaran', 'jatuh tempo pembayaran', 'kode supplier'
+                'tanggal pembayaran', 'jatuh tempo pembayaran', 'kode supplier',
+                'telepon:', 'email:', 'diskon', 'total harga', 'pembelian'
             ];
 
+            $cleanLines = [];
             foreach ($lines as $rawLine) {
-                $line = trim($rawLine);
+                $line = trim(preg_replace('/\s+/', ' ', $rawLine));
                 if (empty($line)) {
                     continue;
                 }
@@ -370,20 +385,34 @@ class PurchaseController extends Controller
                     continue;
                 }
 
-                // Ganti tab (\t) menjadi spasi agar pemisahan kolom konsisten
-                $normalizedLine = trim(preg_replace('/\t+/', ' ', $line));
+                $cleanLines[] = $line;
+            }
+
+            for ($i = 0; $i < count($cleanLines); $i++) {
+                $currentLine = $cleanLines[$i];
 
                 $rawItemName = null;
                 $qty = 0;
+                $unit = 'PCS';
                 $cost = 0.0;
                 $subtotal = 0.0;
 
-                if (preg_match($tableRowPattern, $normalizedLine, $matches)) {
+                if (preg_match($tableRowPattern, $currentLine, $matches)) {
                     $rawItemName = trim($matches[1]);
                     $qty = (int) $this->parseIndonesianNumber($matches[2]);
+                    $unit = trim($matches[3]);
                     $cost = $this->parseIndonesianNumber($matches[4]);
-                    $subtotal = isset($matches[6]) ? $this->parseIndonesianNumber($matches[6]) : ($qty * $cost);
-                } elseif (preg_match($fallbackPattern, $normalizedLine, $matches)) {
+                    $subtotal = isset($matches[5]) ? $this->parseIndonesianNumber($matches[5]) : ($qty * $cost);
+                } elseif ($i > 0 && preg_match($numbersOnlyPattern, $currentLine, $matches)) {
+                    $prevLine = $cleanLines[$i - 1];
+                    if (!preg_match($numbersOnlyPattern, $prevLine) && !preg_match($tableRowPattern, $prevLine)) {
+                        $rawItemName = trim($prevLine);
+                        $qty = (int) $this->parseIndonesianNumber($matches[1]);
+                        $unit = trim($matches[2]);
+                        $cost = $this->parseIndonesianNumber($matches[3]);
+                        $subtotal = isset($matches[4]) ? $this->parseIndonesianNumber($matches[4]) : ($qty * $cost);
+                    }
+                } elseif (preg_match($fallbackPattern, $currentLine, $matches)) {
                     $rawItemName = trim($matches[1]);
                     $qty = (int) $this->parseIndonesianNumber($matches[2]);
                     $cost = $this->parseIndonesianNumber($matches[3]);
@@ -396,6 +425,7 @@ class PurchaseController extends Controller
                         'raw_name' => $rawItemName,
                         'clean_name' => $cleanName,
                         'qty' => $qty,
+                        'unit' => strtoupper($unit ?: 'PCS'),
                         'cost' => $cost,
                         'subtotal' => $subtotal > 0 ? $subtotal : ($qty * $cost),
                     ];
@@ -479,7 +509,7 @@ class PurchaseController extends Controller
                     $otherProduct = $otherProductQuery->first();
 
                     if ($otherProduct) {
-                        $product = MposProduct::create([
+                        $productPayload = [
                             'cname' => $otherProduct->cname,
                             'nid_category' => $otherProduct->nid_category,
                             'nid_outlet' => $outletId,
@@ -490,16 +520,23 @@ class PurchaseController extends Controller
                             'cphotos' => $otherProduct->cphotos,
                             'cstatus' => 'ACTIVE',
                             'fcombo' => 0,
-                        ]);
+                        ];
+                        if (MposProduct::hasSatuanColumn()) {
+                            $productPayload['csatuan'] = $otherProduct->csatuan ?: ($item['unit'] ?? 'PCS');
+                        }
+                        if (MposProduct::hasProductTypeColumn()) {
+                            $productPayload['cproduct_type'] = $otherProduct->cproduct_type ?? MposPurchaseD::TYPE_PRODUK;
+                        }
+                        $product = MposProduct::create($productPayload);
                     }
                 }
 
-                // 3. Jika benar-benar belum ada di database, buat produk baru
+                // 4. Jika benar-benar belum ada di database, buat produk baru
                 if (!$product) {
                     $firstCat = \App\Models\MposGrpProduct::where('nid_outlet', $outletId)->first()
                         ?? \App\Models\MposGrpProduct::first();
 
-                    $product = MposProduct::create([
+                    $productPayload = [
                         'cname' => $cname,
                         'nid_category' => $firstCat ? $firstCat->nid : 1,
                         'nid_outlet' => $outletId,
@@ -509,7 +546,14 @@ class PurchaseController extends Controller
                         'nqty' => 0,
                         'cstatus' => 'ACTIVE',
                         'fcombo' => 0,
-                    ]);
+                    ];
+                    if (MposProduct::hasSatuanColumn()) {
+                        $productPayload['csatuan'] = $item['unit'] ?? 'PCS';
+                    }
+                    if (MposProduct::hasProductTypeColumn()) {
+                        $productPayload['cproduct_type'] = MposPurchaseD::TYPE_PRODUK;
+                    }
+                    $product = MposProduct::create($productPayload);
                 } else {
                     // Update nprice_buy bila ada harga baru dari invoice
                     if ($itemCost > 0) {
@@ -520,7 +564,7 @@ class PurchaseController extends Controller
 
                 MposPurchaseD::create([
                     'nid_purchase' => $purchase->nid,
-                    'citem_type' => MposPurchaseD::TYPE_PRODUCT,
+                    'citem_type' => $product->cproduct_type ?? MposPurchaseD::TYPE_PRODUK,
                     'nid_product' => $product->nid,
                     'nid_ingredient' => null,
                     'nqty' => $itemQty,
@@ -576,13 +620,22 @@ class PurchaseController extends Controller
     protected function parseIndonesianNumber(string $str): float
     {
         $clean = trim($str);
+        $clean = preg_replace('/^(?:IDR|Rp)\s*/i', '', $clean);
+        $clean = trim($clean);
+
         if (str_contains($clean, ',') && str_contains($clean, '.')) {
             $clean = str_replace('.', '', $clean);
             $clean = str_replace(',', '.', $clean);
         } elseif (str_contains($clean, '.')) {
-            $clean = str_replace('.', '', $clean);
+            if (preg_match('/\.\d{3}(?:\.|$)/', $clean)) {
+                $clean = str_replace('.', '', $clean);
+            }
         } elseif (str_contains($clean, ',')) {
-            $clean = str_replace(',', '.', $clean);
+            if (preg_match('/,\d{3}(?:,|$)/', $clean)) {
+                $clean = str_replace(',', '', $clean);
+            } else {
+                $clean = str_replace(',', '.', $clean);
+            }
         }
         return (float) preg_replace('/[^0-9.]/', '', $clean);
     }
