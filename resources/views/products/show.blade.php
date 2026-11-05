@@ -111,16 +111,28 @@
     }
 
     .info-label {
-        font-size: 0.85rem;
-        color: #6c757d;
-        margin-bottom: 0.2rem;
+        font-size: 0.78rem;
+        color: #64748b;
+        margin-bottom: 0.15rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
     }
 
     .info-value {
-        font-size: 1rem;
-        font-weight: 500;
-        color: #212529;
-        margin-bottom: 0.8rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0;
+        min-height: 24px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .info-item {
+        padding-bottom: 0.25rem;
     }
 
     .harga-box {
@@ -794,7 +806,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         </button>
                     </div>
                 </div>
-                <div class="card-body p-4">
+                <div class="card-body p-3 p-md-4">
                     <form action="{{ route('products.update', $product->nid) }}" method="POST" enctype="multipart/form-data" id="formUpdateInfo">
                         @csrf
                         @method('PUT')
@@ -803,108 +815,162 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         <input type="hidden" name="nprice_online" value="{{ $product->nprice_online }}">
                         <input type="hidden" name="nprice_buy" value="{{ $product->nprice_buy }}">
 
-                        <div class="row">
-                            <div class="col-md-4 text-center mb-3">
+                        <div class="row g-3">
+                            <div class="col-md-4 col-lg-3 text-center">
                                 @if($product->cphotos)
-                                <img src="{{ asset($product->cphotos) }}" alt="{{ $product->cname }}" class="img-fluid rounded border p-2 mb-3" style="max-height: 250px; width: 100%; object-fit: contain; background-color: #fff;">
+                                <img src="{{ asset($product->cphotos) }}" alt="{{ $product->cname }}" class="img-fluid rounded border p-2 mb-2" style="max-height: 190px; width: 100%; object-fit: contain; background-color: #fff;">
                                 @else
-                                <div class="bg-light text-muted d-flex align-items-center justify-content-center rounded border mb-3" style="height: 250px; width: 100%;">
-                                    <i class="bi bi-image" style="font-size: 4rem;"></i>
+                                <div class="bg-light text-muted d-flex align-items-center justify-content-center rounded border mb-2" style="height: 190px; width: 100%;">
+                                    <i class="bi bi-image" style="font-size: 3.5rem;"></i>
                                 </div>
                                 @endif
-                                <div class="info-input d-none text-start">
-                                    <label class="form-label small text-muted">Ganti Foto Produk</label>
+                                <div class="info-input d-none text-start mt-2">
+                                    <label class="form-label small text-muted mb-1">Ganti Foto Produk</label>
                                     <input type="file" class="form-control form-control-sm" name="photo" accept="image/*">
                                 </div>
                             </div>
-                            <div class="col-md-8">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="info-label">Nama Produk</div>
-                                        <div class="info-value info-display">{{ $product->cname }}</div>
-                                        <input type="text" class="form-control d-none info-input mb-3" name="cname" value="{{ $product->cname }}" required>
-                                        <hr class="mt-0 mb-3 info-display">
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="info-label">Kategori</div>
-                                        <div class="info-value info-display">{{ $product->category->cname ?? '-' }}</div>
-                                        <select class="form-select d-none info-input mb-3" name="nid_category" required>
-                                            <option value="">Pilih Kategori</option>
-                                            @foreach($categories as $category)
-                                            <option value="{{ $category->nid }}" {{ (optional($product->category)->cname == $category->cname) ? 'selected' : '' }}>
-                                                {{ $category->cname }}
-                                            </option>
-                                            @endforeach
-                                        </select>
-                                        <hr class="mt-0 mb-3 info-display">
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="info-label">Outlet</div>
-                                        <div class="info-value info-display">
-                                            @php
-                                            $productOutlets = \App\Models\MposProduct::where('cname', $product->cname)->with('outlet')->get();
-                                            @endphp
-                                            @foreach($productOutlets as $po)
-                                            @if($po->outlet)
-                                            <span class="badge bg-light text-dark border">{{ $po->outlet->cname }}</span>
-                                            @endif
-                                            @endforeach
+                            <div class="col-md-8 col-lg-9">
+                                <div class="row g-2 g-md-3">
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Nama Produk</div>
+                                            <div class="info-value info-display">{{ $product->cname }}</div>
+                                            <input type="text" class="form-control form-control-sm d-none info-input" name="cname" value="{{ $product->cname }}" required>
                                         </div>
-                                        <div class="dropdown d-none info-input mb-3">
-                                            <button class="btn border dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-white" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                                                <span class="selected-text-info">Pilih Outlet...</span>
-                                            </button>
-                                            <ul class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Tipe Produk</div>
+                                            <div class="info-value info-display">
                                                 @php
-                                                $selectedOutletIds = $productOutlets->pluck('nid_outlet')->toArray();
+                                                    $prodType = $product->cproduct_type ?? 'PRODUK';
+                                                    $typeLabels = [
+                                                        'PRODUK' => 'Produk (Barang Jadi)',
+                                                        'SETENGAH_JADI' => 'Setengah Jadi',
+                                                        'BAHAN_BAKU' => 'Bahan Baku',
+                                                    ];
+                                                    $typeBadges = [
+                                                        'PRODUK' => 'bg-success-subtle text-success border border-success-subtle',
+                                                        'SETENGAH_JADI' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+                                                        'BAHAN_BAKU' => 'bg-info-subtle text-info-emphasis border border-info-subtle',
+                                                    ];
                                                 @endphp
-                                                @foreach($outlets as $outlet)
-                                                <li>
-                                                    <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center" style="cursor: pointer;">
-                                                        <input class="form-check-input outlet-checkbox-info" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="info_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array($outlet->nid, $selectedOutletIds) ? 'checked' : '' }}>
-                                                        <label class="form-check-label w-100 ms-2" for="info_outlet_{{ $outlet->nid }}" style="cursor: pointer;">
-                                                            {{ $outlet->cname }}
-                                                            @if($product->nid_outlet == $outlet->nid)
-                                                            <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
-                                                            @endif
-                                                        </label>
-                                                    </div>
-                                                </li>
+                                                <span class="badge {{ $typeBadges[$prodType] ?? 'bg-light text-dark' }}">{{ $typeLabels[$prodType] ?? $prodType }}</span>
+                                            </div>
+                                            <select class="form-select form-select-sm d-none info-input" name="cproduct_type" required>
+                                                <option value="PRODUK" {{ ($product->cproduct_type ?? 'PRODUK') == 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
+                                                <option value="SETENGAH_JADI" {{ ($product->cproduct_type ?? '') == 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
+                                                <option value="BAHAN_BAKU" {{ ($product->cproduct_type ?? '') == 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Kategori</div>
+                                            <div class="info-value info-display">{{ $product->category->cname ?? '-' }}</div>
+                                            <select class="form-select form-select-sm d-none info-input" name="nid_category" required>
+                                                <option value="">Pilih Kategori</option>
+                                                @foreach($categories as $category)
+                                                <option value="{{ $category->nid }}" {{ (optional($product->category)->cname == $category->cname) ? 'selected' : '' }}>
+                                                    {{ $category->cname }}
+                                                </option>
                                                 @endforeach
-                                            </ul>
-                                        </div>
-                                        <hr class="mt-0 mb-3 info-display">
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="info-label">Status</div>
-                                        <div class="info-value info-display">
-                                            @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
-                                            <span class="badge bg-success">{{ $product->cstatus }}</span>
-                                            @else
-                                            <span class="badge bg-secondary">{{ $product->cstatus }}</span>
-                                            @endif
-                                        </div>
-                                        <select class="form-select d-none info-input mb-3" name="cstatus" required>
-                                            <option value="ACTIVE" {{ strtoupper($product->cstatus) == 'ACTIVE' ? 'selected' : '' }}>ACTIVE</option>
-                                            <option value="INACTIVE" {{ strtoupper($product->cstatus) == 'INACTIVE' ? 'selected' : '' }}>INACTIVE</option>
-                                        </select>
-                                        <hr class="mt-0 mb-3 info-display">
-                                    </div>
-                                    <div class="col-12">
-                                        <div class="info-label">Kombo</div>
-                                        <div class="info-value info-display">
-                                            @if($product->fcombo)
-                                            <span class="badge bg-info text-white">Ya</span>
-                                            @else
-                                            <span class="badge bg-light text-dark border">Tidak</span>
-                                            @endif
-                                        </div>
-                                        <div class="form-check form-switch mt-2 d-none info-input mb-3">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="info_fcombo" name="fcombo" value="1" {{ $product->fcombo ? 'checked' : '' }}>
-                                            <label class="form-check-label" for="info_fcombo">Jadikan Produk Kombo</label>
+                                            </select>
                                         </div>
                                     </div>
-                                    <div class="col-12 mt-3 pt-3 border-top">
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Satuan</div>
+                                            <div class="info-value info-display">
+                                                <span class="badge bg-light text-dark border px-2 py-1">{{ $product->csatuan ?: 'PCS' }}</span>
+                                            </div>
+                                            @php
+                                                $currSat = $product->csatuan ?: 'PCS';
+                                            @endphp
+                                            <select class="form-select form-select-sm d-none info-input" name="csatuan">
+                                                @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                                    <option value="{{ $sat }}" {{ strtoupper($currSat) === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Outlet</div>
+                                            <div class="info-value info-display">
+                                                @php
+                                                $productOutlets = \App\Models\MposProduct::where('cname', $product->cname)->with('outlet')->get();
+                                                @endphp
+                                                @forelse($productOutlets as $po)
+                                                    @if($po->outlet)
+                                                    <span class="badge bg-light text-dark border">{{ $po->outlet->cname }}</span>
+                                                    @endif
+                                                @empty
+                                                    <span class="text-muted">-</span>
+                                                @endforelse
+                                            </div>
+                                            <div class="dropdown d-none info-input">
+                                                <button class="btn btn-sm border dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center bg-white" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                                                    <span class="selected-text-info">Pilih Outlet...</span>
+                                                </button>
+                                                <ul class="dropdown-menu w-100 p-2 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                                                    @php
+                                                    $selectedOutletIds = $productOutlets->pluck('nid_outlet')->toArray();
+                                                    @endphp
+                                                    @foreach($outlets as $outlet)
+                                                    <li>
+                                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center" style="cursor: pointer;">
+                                                            <input class="form-check-input outlet-checkbox-info" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="info_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array($outlet->nid, $selectedOutletIds) ? 'checked' : '' }}>
+                                                            <label class="form-check-label w-100 ms-2" for="info_outlet_{{ $outlet->nid }}" style="cursor: pointer;">
+                                                                {{ $outlet->cname }}
+                                                                @if($product->nid_outlet == $outlet->nid)
+                                                                <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
+                                                                @endif
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <div class="info-item">
+                                                    <div class="info-label">Status</div>
+                                                    <div class="info-value info-display">
+                                                        @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
+                                                        <span class="badge bg-success">{{ $product->cstatus }}</span>
+                                                        @else
+                                                        <span class="badge bg-secondary">{{ $product->cstatus }}</span>
+                                                        @endif
+                                                    </div>
+                                                    <select class="form-select form-select-sm d-none info-input" name="cstatus" required>
+                                                        <option value="ACTIVE" {{ strtoupper($product->cstatus) == 'ACTIVE' ? 'selected' : '' }}>ACTIVE</option>
+                                                        <option value="INACTIVE" {{ strtoupper($product->cstatus) == 'INACTIVE' ? 'selected' : '' }}>INACTIVE</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-item">
+                                                    <div class="info-label">Kombo</div>
+                                                    <div class="info-value info-display">
+                                                        @if($product->fcombo)
+                                                        <span class="badge bg-info text-white">Ya</span>
+                                                        @else
+                                                        <span class="badge bg-light text-dark border">Tidak</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="form-check form-switch pt-1 d-none info-input">
+                                                        <input class="form-check-input" type="checkbox" role="switch" id="info_fcombo" name="fcombo" value="1" {{ $product->fcombo ? 'checked' : '' }}>
+                                                        <label class="form-check-label small" for="info_fcombo">Kombo</label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 mt-2 pt-2 border-top">
                                         <div class="row text-muted small g-2">
                                             <div class="col-sm-6">
                                                 <i class="bi bi-person-check me-1 text-primary"></i> Diubah oleh:
@@ -1292,7 +1358,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
                                 @foreach($availableMaterials ?? [] as $mat)
                                 <option value="{{ $mat->nid }}"
                                     data-name="{{ $mat->cname }}"
-                                    data-stock="{{ $mat->nstock ?? 0 }}"
+                                    data-stock="{{ $mat->nqty ?? ($mat->nstock ?? 0) }}"
                                     data-unit="{{ $mat->csatuan ?: 'PCS' }}">
                                     {{ $mat->cname }}
                                 </option>

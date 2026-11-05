@@ -744,14 +744,11 @@
                     </div>
                     <div class="collapse {{ $isProductActive ? 'show' : '' }}" id="menuProductInventory">
                         <div class="nav-sub-menu">
-                            <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs(['products.*', 'categories.*']) ? 'active' : '' }}">
+                            <a href="{{ route('products.index') }}" class="sidebar-sub-item {{ request()->routeIs(['products.*', 'categories.*', 'ingredients.*']) ? 'active' : '' }}">
                                 <span>Produk</span>
                             </a>
                             <a href="{{ route('inventory.index') }}" class="sidebar-sub-item {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
                                 <span>Inventori</span>
-                            </a>
-                            <a href="{{ route('ingredients.index') }}" class="sidebar-sub-item {{ request()->routeIs('ingredients.*') ? 'active' : '' }}">
-                                <span>Bahan Baku</span>
                             </a>
                             <a href="{{ route('combos.index') }}" class="sidebar-sub-item {{ request()->routeIs('combos.*') ? 'active' : '' }}">
                                 <span>Produk Kombo</span>

@@ -83,12 +83,22 @@ class RecipeStockService
                 continue;
             }
 
-            $outletIngredient = $this->resolveLockedOutletIngredient($ingReq['template'], $outletId);
-            $outletIngredient->nstock = round((float) $outletIngredient->nstock - $neededIngQty, 2);
-            $outletIngredient->save();
+            $template = $ingReq['template'];
+            if ($template instanceof MposProduct) {
+                $lockedProd = $this->resolveLockedOutletProductIngredient($template, $outletId);
+                $lockedProd->nqty = max(0, round((float) $lockedProd->nqty - $neededIngQty, 2));
+                $lockedProd->save();
 
-            $ingPrice = MposIngredients::hasPriceColumn() ? (float) ($outletIngredient->nprice ?? 0) : 0.0;
-            $totalIngredientCost += ($neededIngQty * $ingPrice);
+                $prodCost = (float) ($lockedProd->nprice_buy ?: 0);
+                $totalIngredientCost += ($neededIngQty * $prodCost);
+            } else {
+                $outletIngredient = $this->resolveLockedOutletIngredient($template, $outletId);
+                $outletIngredient->nstock = round((float) $outletIngredient->nstock - $neededIngQty, 2);
+                $outletIngredient->save();
+
+                $ingPrice = MposIngredients::hasPriceColumn() ? (float) ($outletIngredient->nprice ?? 0) : 0.0;
+                $totalIngredientCost += ($neededIngQty * $ingPrice);
+            }
         }
 
         return [
@@ -141,12 +151,22 @@ class RecipeStockService
                 continue;
             }
 
-            $outletIngredient = $this->resolveLockedOutletIngredient($ingReq['template'], $outletId);
-            $outletIngredient->nstock = round((float) $outletIngredient->nstock + $restoreIngQty, 2);
-            $outletIngredient->save();
+            $template = $ingReq['template'];
+            if ($template instanceof MposProduct) {
+                $lockedProd = $this->resolveLockedOutletProductIngredient($template, $outletId);
+                $lockedProd->nqty = round((float) $lockedProd->nqty + $restoreIngQty, 2);
+                $lockedProd->save();
 
-            $ingPrice = MposIngredients::hasPriceColumn() ? (float) ($outletIngredient->nprice ?? 0) : 0.0;
-            $totalRestoredCost += ($restoreIngQty * $ingPrice);
+                $prodCost = (float) ($lockedProd->nprice_buy ?: 0);
+                $totalRestoredCost += ($restoreIngQty * $prodCost);
+            } else {
+                $outletIngredient = $this->resolveLockedOutletIngredient($template, $outletId);
+                $outletIngredient->nstock = round((float) $outletIngredient->nstock + $restoreIngQty, 2);
+                $outletIngredient->save();
+
+                $ingPrice = MposIngredients::hasPriceColumn() ? (float) ($outletIngredient->nprice ?? 0) : 0.0;
+                $totalRestoredCost += ($restoreIngQty * $ingPrice);
+            }
         }
 
         return round($totalRestoredCost, 2);
@@ -222,11 +242,12 @@ class RecipeStockService
 
         $recipes = $this->getRecipesForProduct($product);
         foreach ($recipes as $recipe) {
-            if (!$recipe->ingredient) {
+            $ing = $recipe->ingredient ?: $recipe->legacyIngredient;
+            if (!$ing) {
                 continue;
             }
 
-            $ingKey = strtolower(trim((string) $recipe->ingredient->cname));
+            $ingKey = strtolower(trim((string) $ing->cname));
             if ($ingKey === '') {
                 continue;
             }
@@ -238,7 +259,7 @@ class RecipeStockService
 
             if (!isset($ingredientDeductions[$ingKey])) {
                 $ingredientDeductions[$ingKey] = [
-                    'template' => $recipe->ingredient,
+                    'template' => $ing,
                     'qty' => 0.0,
                 ];
             }
@@ -294,19 +315,28 @@ class RecipeStockService
         $recipes = $this->getRecipesForProduct($product);
 
         foreach ($recipes as $recipe) {
-            if (!$recipe->ingredient) {
+            $ing = $recipe->ingredient ?: $recipe->legacyIngredient;
+            if (!$ing) {
                 continue;
             }
 
-            $outletIng = MposIngredients::where('nid_outlet', $outletId)
-                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $recipe->ingredient->cname))])
-                ->first();
+            if ($ing instanceof MposProduct) {
+                $outletProd = MposProduct::where('nid_outlet', $outletId)
+                    ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ing->cname))])
+                    ->first();
+                $prodCost = $outletProd ? (float) ($outletProd->nprice_buy ?: 0) : (float) ($ing->nprice_buy ?: 0);
+                $cost += ((float) $recipe->nqty * $prodCost);
+            } else {
+                $outletIng = MposIngredients::where('nid_outlet', $outletId)
+                    ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ing->cname))])
+                    ->first();
 
-            $ingPrice = $outletIng
-                ? (float) ($outletIng->nprice ?? 0)
-                : (float) ($recipe->ingredient->nprice ?? 0);
+                $ingPrice = $outletIng
+                    ? (float) ($outletIng->nprice ?? 0)
+                    : (float) ($ing->nprice ?? 0);
 
-            $cost += ((float) $recipe->nqty * $ingPrice);
+                $cost += ((float) $recipe->nqty * $ingPrice);
+            }
         }
 
         if ((bool) $product->fcombo) {
@@ -335,10 +365,10 @@ class RecipeStockService
     {
         $recipes = $product->relationLoaded('recipes')
             ? $product->recipes
-            : MposRecipe::with('ingredient')->where('nid_product', $product->nid)->get();
+            : MposRecipe::with(['ingredient', 'legacyIngredient'])->where('nid_product', $product->nid)->get();
 
         if ($recipes->isNotEmpty()) {
-            $recipes->loadMissing('ingredient');
+            $recipes->loadMissing(['ingredient', 'legacyIngredient']);
             return $recipes;
         }
 
@@ -351,7 +381,7 @@ class RecipeStockService
         }
 
         foreach ($siblingProductIds as $siblingId) {
-            $siblingRecipes = MposRecipe::with('ingredient')
+            $siblingRecipes = MposRecipe::with(['ingredient', 'legacyIngredient'])
                 ->where('nid_product', $siblingId)
                 ->get();
 
@@ -458,6 +488,46 @@ class RecipeStockService
         }
 
         return MposIngredients::create($payload);
+    }
+
+    /**
+     * Kunci (lockForUpdate) dan kembalikan record produk bahan baku milik outlet transaksi.
+     */
+    protected function resolveLockedOutletProductIngredient(MposProduct $template, int $outletId): MposProduct
+    {
+        $cleanName = trim((string) $template->cname);
+
+        if ((int) $template->nid_outlet === $outletId) {
+            $locked = MposProduct::where('nid', $template->nid)->lockForUpdate()->first();
+            if ($locked) {
+                return $locked;
+            }
+        }
+
+        $outletProd = MposProduct::where('nid_outlet', $outletId)
+            ->whereRaw('LOWER(cname) = ?', [strtolower($cleanName)])
+            ->lockForUpdate()
+            ->first();
+
+        if ($outletProd) {
+            return $outletProd;
+        }
+
+        if (empty($template->nid_outlet)) {
+            $lockedNull = MposProduct::where('nid', $template->nid)->lockForUpdate()->first();
+            if ($lockedNull) {
+                $lockedNull->nid_outlet = $outletId;
+                $lockedNull->save();
+                return $lockedNull;
+            }
+        }
+
+        $newProd = $template->replicate();
+        $newProd->nid_outlet = $outletId;
+        $newProd->nqty = 0;
+        $newProd->save();
+
+        return $newProd;
     }
 }
 

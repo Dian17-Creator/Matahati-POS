@@ -17,8 +17,32 @@ class MposProduct extends Model
 
     public $timestamps = false;
 
+    public const SATUAN_LIST = [
+        'PCS',
+        'GRAM',
+        'KG',
+        'ML',
+        'LITER',
+        'PACK',
+        'DUS',
+        'BUNGKUS',
+        'BOTOL',
+        'CUP',
+        'SACHET',
+        'PORSI',
+        'KALENG',
+        'TABUNG',
+        'BUTIR',
+        'BIJI',
+    ];
+
+    protected static ?bool $productTypeColumnExists = null;
+    protected static ?bool $satuanColumnExists = null;
+
     protected $fillable = [
         'cname',
+        'cproduct_type',
+        'csatuan',
         'nid_category',
         'nid_outlet',
         'nprice',
@@ -32,6 +56,32 @@ class MposProduct extends Model
         'updated_at',
         'dcreated',
     ];
+
+    public static function hasProductTypeColumn(): bool
+    {
+        if (static::$productTypeColumnExists === null) {
+            try {
+                static::$productTypeColumnExists = \Illuminate\Support\Facades\Schema::hasColumn('mpos_product', 'cproduct_type');
+            } catch (\Throwable $e) {
+                static::$productTypeColumnExists = false;
+            }
+        }
+
+        return static::$productTypeColumnExists;
+    }
+
+    public static function hasSatuanColumn(): bool
+    {
+        if (static::$satuanColumnExists === null) {
+            try {
+                static::$satuanColumnExists = \Illuminate\Support\Facades\Schema::hasColumn('mpos_product', 'csatuan');
+            } catch (\Throwable $e) {
+                static::$satuanColumnExists = false;
+            }
+        }
+
+        return static::$satuanColumnExists;
+    }
 
     protected function casts(): array
     {

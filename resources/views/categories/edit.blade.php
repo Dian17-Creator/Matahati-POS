@@ -30,6 +30,18 @@
                         </div>
                     </div>
 
+                    <div class="mb-3 p-2 bg-light rounded border">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" id="fshow_pos" name="fshow_pos" value="1" {{ old('fshow_pos', !isset($category->fshow_pos) || $category->fshow_pos) ? 'checked' : '' }}>
+                            <label class="form-check-label fw-bold" for="fshow_pos">
+                                Tampilkan di Menu Kasir (POS)
+                            </label>
+                        </div>
+                        <div class="form-text small text-muted" style="font-size: 0.78rem;">
+                            Aktifkan agar kategori dan produk di dalamnya tampil di aplikasi kasir POS. Matikan untuk Bahan Baku, Setengah Jadi, atau Keperluan Internal.
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">Update</button>
                         <a href="{{ route('categories.index') }}" class="btn btn-secondary">Cancel</a>

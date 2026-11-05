@@ -40,6 +40,15 @@ class ProductController extends Controller
         $query = MposProduct::with('category')
             ->where('cstatus', 'ACTIVE');
 
+        if (\App\Models\MposGrpProduct::hasShowPosColumn()) {
+            $query->where(function ($q) {
+                $q->whereDoesntHave('category')
+                  ->orWhereHas('category', function ($cq) {
+                      $cq->where('fshow_pos', 1);
+                  });
+            });
+        }
+
         if ($request->filled('nid_outlet')) {
             $query->where('nid_outlet', $request->input('nid_outlet'));
         } elseif ($request->filled('outlet_id')) {
@@ -194,12 +203,14 @@ class ProductController extends Controller
             ->sortBy('cname', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
+        $satuans = MposProduct::SATUAN_LIST;
+
+        return view('products.index', compact('products', 'categories', 'ingredients', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds', 'satuans'));
     }
 
     public function show(Request $request, string $id)
     {
-        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient', 'updatedBy'])->findOrFail($id);
+        $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient', 'recipes.legacyIngredient', 'updatedBy'])->findOrFail($id);
         $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
         
         $categories = \App\Models\MposGrpProduct::whereIn('nid', function($q) {
@@ -211,17 +222,33 @@ class ProductController extends Controller
         $activeOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet') ?: $product->nid_outlet;
         $allowedOutletIds = $this->getUserAllowedOutletIds();
 
-        $materialsQuery = MposIngredients::query();
-        if (!$this->isSuperAdminUser()) {
+        // Ambil bahan baku dari master mpos_product (kecuali produk yang sedang dibuka)
+        $materialsQuery = MposProduct::where('cstatus', 'ACTIVE')
+            ->where('nid', '!=', $product->nid);
+
+        if (!empty($activeOutletId)) {
+            $materialsQuery->where(function ($mq) use ($activeOutletId) {
+                $mq->where('nid_outlet', $activeOutletId)
+                   ->orWhereNull('nid_outlet');
+            });
+        } elseif (!$this->isSuperAdminUser()) {
             $materialsQuery->where(function ($mq) use ($allowedOutletIds) {
                 $mq->whereIn('nid_outlet', $allowedOutletIds)
                    ->orWhereNull('nid_outlet');
             });
         }
 
+        // Tampilkan produk yang merupakan Bahan Baku atau Setengah Jadi (jika ada kolomnya), atau semua produk jika belum diklasifikasi
+        if (MposProduct::hasProductTypeColumn()) {
+            $materialsQuery->where(function ($mq) {
+                $mq->whereIn('cproduct_type', ['BAHAN_BAKU', 'SETENGAH_JADI'])
+                   ->orWhereNull('cproduct_type');
+            });
+        }
+
         $rawMaterials = $materialsQuery
             ->orderBy('cname')
-            ->get(['nid', 'cname', 'nid_outlet', 'csatuan', 'nstock']);
+            ->get();
 
         // Kelompokkan berdasarkan nama bahan baku & utamakan stok dari outlet produk / outlet aktif
         $availableMaterials = $rawMaterials
@@ -229,7 +256,7 @@ class ProductController extends Controller
             ->map(function ($group) use ($activeOutletId, $product) {
                 return $group->firstWhere('nid_outlet', (int) $product->nid_outlet)
                     ?? $group->firstWhere('nid_outlet', (int) $activeOutletId)
-                    ?? $group->sortByDesc('nstock')->first();
+                    ?? $group->sortByDesc('nqty')->first();
             })
             ->sortBy('cname', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
@@ -238,13 +265,14 @@ class ProductController extends Controller
         $outlets = \App\Models\MposOutlet::orderBy('cname')->get();
 
         $existingRecipeData = $product->recipes->map(function ($r) {
+            $ing = $r->ingredient ?: $r->legacyIngredient;
             return [
                 'id' => (string) $r->nid,
                 'nid' => $r->nid,
                 'productId' => $r->nid_ingredient,
-                'name' => strtoupper((string) (optional($r->ingredient)->cname ?? 'BAHAN BAKU')),
+                'name' => strtoupper((string) ($ing?->cname ?? 'BAHAN BAKU')),
                 'qty' => (float) ($r->nqty ?? 1),
-                'unit' => optional($r->ingredient)->csatuan ?: 'PCS',
+                'unit' => $ing?->csatuan ?: 'PCS',
                 'conversion' => 1,
             ];
         })->values()->all();
@@ -253,12 +281,14 @@ class ProductController extends Controller
             return [
                 'nid' => $m->nid,
                 'cname' => $m->cname,
-                'nstock' => (float) ($m->nstock ?? 0),
+                'nstock' => (float) ($m->nqty ?? 0),
                 'csatuan' => $m->csatuan ?: 'PCS',
             ];
         })->values()->all();
 
-        return view('products.show', compact('product', 'customerTypes', 'categories', 'ingredients', 'availableMaterials', 'outlets', 'existingRecipeData', 'materialsJson'));
+        $satuans = MposProduct::SATUAN_LIST;
+
+        return view('products.show', compact('product', 'customerTypes', 'categories', 'ingredients', 'availableMaterials', 'outlets', 'existingRecipeData', 'materialsJson', 'satuans'));
     }
 
     public function store(Request $request)
@@ -277,6 +307,8 @@ class ProductController extends Controller
 
         $request->validate([
             'cname' => 'required|string|max:255',
+            'cproduct_type' => 'nullable|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU',
+            'csatuan' => 'nullable|string|max:50',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
@@ -294,6 +326,16 @@ class ProductController extends Controller
         ], $messages);
 
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
+        if (MposProduct::hasProductTypeColumn()) {
+            $data['cproduct_type'] = $request->input('cproduct_type', 'PRODUK');
+        } else {
+            unset($data['cproduct_type']);
+        }
+        if (MposProduct::hasSatuanColumn()) {
+            $data['csatuan'] = $request->input('csatuan', 'PCS') ?: 'PCS';
+        } else {
+            unset($data['csatuan']);
+        }
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         $data['nprice_buy'] = $request->input('nprice_buy') ?: 0.00;
@@ -388,6 +430,8 @@ class ProductController extends Controller
 
         $request->validate([
             'cname' => 'required|string|max:255',
+            'cproduct_type' => 'nullable|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU',
+            'csatuan' => 'nullable|string|max:50',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
@@ -407,6 +451,20 @@ class ProductController extends Controller
         $product = MposProduct::with('recipes')->findOrFail($id);
         $shouldSyncRecipe = $request->boolean('sync_recipe');
         $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
+        if (MposProduct::hasProductTypeColumn()) {
+            if ($request->has('cproduct_type')) {
+                $data['cproduct_type'] = $request->input('cproduct_type', 'PRODUK');
+            }
+        } else {
+            unset($data['cproduct_type']);
+        }
+        if (MposProduct::hasSatuanColumn()) {
+            if ($request->has('csatuan')) {
+                $data['csatuan'] = $request->input('csatuan', 'PCS') ?: 'PCS';
+            }
+        } else {
+            unset($data['csatuan']);
+        }
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         if ($request->has('nprice_buy')) {
