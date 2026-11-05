@@ -41,7 +41,25 @@ class MposRecipe extends Model
     public function ingredient()
     {
         return $this->belongsTo(
+            MposProduct::class,
+            'nid_ingredient',
+            'nid'
+        );
+    }
+
+    public function legacyIngredient()
+    {
+        return $this->belongsTo(
             MposIngredients::class,
+            'nid_ingredient',
+            'nid'
+        );
+    }
+
+    public function ingredientProduct()
+    {
+        return $this->belongsTo(
+            MposProduct::class,
             'nid_ingredient',
             'nid'
         );

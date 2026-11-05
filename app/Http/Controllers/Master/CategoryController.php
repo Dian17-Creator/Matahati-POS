@@ -19,6 +19,9 @@ class CategoryController extends Controller
         if ($request->has('nid_outlet') && $request->nid_outlet != '') {
             $query->where('nid_outlet', $request->nid_outlet);
         }
+        if (MposGrpProduct::hasShowPosColumn()) {
+            $query->where('fshow_pos', 1);
+        }
         $categories = $query->get();
         return response()->json([
             'success' => true,
@@ -108,6 +111,8 @@ class CategoryController extends Controller
         ]);
 
         $trackStock = $request->has('ftrack_stock') ? 1 : 0;
+        $showPos = $request->has('fshow_pos') ? 1 : 0;
+        $hasShowPos = MposGrpProduct::hasShowPosColumn();
 
         DB::beginTransaction();
         try {
@@ -117,11 +122,15 @@ class CategoryController extends Controller
                             ->exists();
                 
                 if (!$exists) {
-                    MposGrpProduct::create([
+                    $payload = [
                         'cname' => $request->cname,
                         'nid_outlet' => $outletId,
                         'ftrack_stock' => $trackStock,
-                    ]);
+                    ];
+                    if ($hasShowPos) {
+                        $payload['fshow_pos'] = $showPos;
+                    }
+                    MposGrpProduct::create($payload);
                 }
             }
             DB::commit();
@@ -150,19 +159,29 @@ class CategoryController extends Controller
         $category = MposGrpProduct::findOrFail($id);
         $originalCname = $category->cname;
         $trackStock = $request->has('ftrack_stock') ? 1 : 0;
+        $showPos = $request->has('fshow_pos') ? 1 : 0;
+        $hasShowPos = MposGrpProduct::hasShowPosColumn();
 
         DB::beginTransaction();
         try {
             // Update current category
-            $category->update([
+            $updatePayload = [
                 'cname' => $request->cname,
                 'ftrack_stock' => $trackStock,
-            ]);
+            ];
+            if ($hasShowPos) {
+                $updatePayload['fshow_pos'] = $showPos;
+            }
+            $category->update($updatePayload);
 
-            // Sync ftrack_stock to all categories that share the same cname
-            MposGrpProduct::where('cname', $originalCname)->update([
+            // Sync ftrack_stock & fshow_pos to all categories that share the same cname
+            $syncPayload = [
                 'ftrack_stock' => $trackStock,
-            ]);
+            ];
+            if ($hasShowPos) {
+                $syncPayload['fshow_pos'] = $showPos;
+            }
+            MposGrpProduct::where('cname', $originalCname)->update($syncPayload);
 
             foreach ($request->outlet_ids as $outletId) {
                 if ($category->nid_outlet == $outletId) {
@@ -174,21 +193,22 @@ class CategoryController extends Controller
                             ->first();
 
                 if ($existingCategory) {
-                    $existingCategory->update([
-                        'cname' => $request->cname,
-                        'ftrack_stock' => $trackStock,
-                    ]);
+                    $existingCategory->update($updatePayload);
                 } else {
                     $exists = MposGrpProduct::where('cname', $request->cname)
                                 ->where('nid_outlet', $outletId)
                                 ->exists();
 
                     if (!$exists) {
-                        MposGrpProduct::create([
+                        $createPayload = [
                             'cname' => $request->cname,
                             'nid_outlet' => $outletId,
                             'ftrack_stock' => $trackStock,
-                        ]);
+                        ];
+                        if ($hasShowPos) {
+                            $createPayload['fshow_pos'] = $showPos;
+                        }
+                        MposGrpProduct::create($createPayload);
                     }
                 }
             }

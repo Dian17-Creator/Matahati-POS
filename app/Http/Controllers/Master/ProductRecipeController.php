@@ -15,18 +15,18 @@ class ProductRecipeController extends Controller
     public function store(Request $request, string $product)
     {
         $validated = $request->validate([
-            'nid_ingredient' => 'required|exists:mpos_ingredients,nid',
+            'nid_ingredient' => 'required|exists:mpos_product,nid',
             'nqty' => 'nullable|numeric|min:0.01',
             'outlet_ids' => 'nullable|array',
             'outlet_ids.*' => 'exists:mpos_outlet,nid',
         ], [
             'nid_ingredient.required' => 'Pilih bahan baku terlebih dahulu.',
-            'nid_ingredient.exists' => 'Bahan baku tidak ditemukan di master bahan baku.',
+            'nid_ingredient.exists' => 'Bahan baku tidak ditemukan di master produk.',
             'nqty.min' => 'Kuantitas bahan baku minimal 0.01.',
         ]);
 
         $parentProduct = MposProduct::findOrFail($product);
-        $selectedIngredient = MposIngredients::findOrFail($validated['nid_ingredient']);
+        $selectedIngredient = MposProduct::findOrFail($validated['nid_ingredient']);
 
         $qty = isset($validated['nqty']) ? (float) $validated['nqty'] : 1.0;
         $requestedOutletIds = collect($validated['outlet_ids'] ?? [])
@@ -49,7 +49,7 @@ class ProductRecipeController extends Controller
             $primaryRecipe = null;
 
             foreach ($targetMenuProducts as $menuProd) {
-                $ingredientInOutlet = MposIngredients::where('nid_outlet', $menuProd->nid_outlet)
+                $ingredientInOutlet = MposProduct::where('nid_outlet', $menuProd->nid_outlet)
                     ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $selectedIngredient->cname))])
                     ->first();
 
@@ -61,16 +61,11 @@ class ProductRecipeController extends Controller
                             $ingredientInOutlet->save();
                         }
                     } else {
-                        $ingPayload = [
-                            'cname' => $selectedIngredient->cname,
-                            'nid_outlet' => $menuProd->nid_outlet,
-                            'csatuan' => $selectedIngredient->csatuan ?: 'PCS',
-                            'nstock' => 0,
-                        ];
-                        if (MposIngredients::hasPriceColumn()) {
-                            $ingPayload['nprice'] = (float) ($selectedIngredient->nprice ?? 0);
-                        }
-                        $ingredientInOutlet = MposIngredients::create($ingPayload);
+                        $newIngProduct = $selectedIngredient->replicate();
+                        $newIngProduct->nid_outlet = $menuProd->nid_outlet;
+                        $newIngProduct->nqty = 0;
+                        $newIngProduct->save();
+                        $ingredientInOutlet = $newIngProduct;
                     }
                 }
 
@@ -91,18 +86,19 @@ class ProductRecipeController extends Controller
                 }
 
                 if ((int) $menuProd->nid === (int) $parentProduct->nid) {
-                    $primaryRecipe = $saved->load('ingredient');
+                    $primaryRecipe = $saved->load(['ingredient', 'legacyIngredient']);
                 }
             }
 
             DB::commit();
 
+            $ingItem = $primaryRecipe->ingredient ?: ($primaryRecipe->legacyIngredient ?: $selectedIngredient);
             $itemPayload = [
                 'nid' => $primaryRecipe->nid,
                 'ingredientId' => $primaryRecipe->nid_ingredient,
-                'name' => strtoupper((string) ($primaryRecipe->ingredient->cname ?? $selectedIngredient->cname)),
+                'name' => strtoupper((string) ($ingItem->cname ?? $selectedIngredient->cname)),
                 'qty' => (float) $primaryRecipe->nqty,
-                'unit' => $primaryRecipe->ingredient->csatuan ?: ($selectedIngredient->csatuan ?: 'PCS'),
+                'unit' => $ingItem->csatuan ?: ($selectedIngredient->csatuan ?: 'PCS'),
                 'conversion' => 1,
             ];
 
@@ -136,13 +132,14 @@ class ProductRecipeController extends Controller
         ]);
 
         $parentProduct = MposProduct::findOrFail($product);
-        $recipeRow = MposRecipe::with('ingredient')
+        $recipeRow = MposRecipe::with(['ingredient', 'legacyIngredient'])
             ->where('nid_product', $parentProduct->nid)
             ->where('nid', $recipe)
             ->firstOrFail();
 
         $newQty = (float) $validated['nqty'];
-        $ingredientName = optional($recipeRow->ingredient)->cname;
+        $ing = $recipeRow->ingredient ?: $recipeRow->legacyIngredient;
+        $ingredientName = optional($ing)->cname;
 
         DB::beginTransaction();
         try {
@@ -156,12 +153,17 @@ class ProductRecipeController extends Controller
                     ->pluck('nid');
 
                 if ($siblingProductIds->isNotEmpty()) {
-                    $matchingIngredientIds = MposIngredients::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
+                    $matchingProdIds = MposProduct::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
                         ->pluck('nid');
 
-                    if ($matchingIngredientIds->isNotEmpty()) {
+                    $matchingLegacyIds = MposIngredients::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
+                        ->pluck('nid');
+
+                    $allMatchingIds = $matchingProdIds->merge($matchingLegacyIds)->unique()->filter()->values();
+
+                    if ($allMatchingIds->isNotEmpty()) {
                         MposRecipe::whereIn('nid_product', $siblingProductIds)
-                            ->whereIn('nid_ingredient', $matchingIngredientIds)
+                            ->whereIn('nid_ingredient', $allMatchingIds)
                             ->update(['nqty' => $newQty]);
                     }
                 }
@@ -176,9 +178,9 @@ class ProductRecipeController extends Controller
                     'item' => [
                         'nid' => $recipeRow->nid,
                         'ingredientId' => $recipeRow->nid_ingredient,
-                        'name' => strtoupper((string) ($recipeRow->ingredient->cname ?? 'BAHAN BAKU')),
+                        'name' => strtoupper((string) ($ing?->cname ?? 'BAHAN BAKU')),
                         'qty' => (float) $recipeRow->nqty,
-                        'unit' => $recipeRow->ingredient->csatuan ?: 'PCS',
+                        'unit' => $ing?->csatuan ?: 'PCS',
                         'conversion' => 1,
                     ],
                 ]);
@@ -196,12 +198,13 @@ class ProductRecipeController extends Controller
     public function destroy(Request $request, string $product, string $recipe)
     {
         $parentProduct = MposProduct::findOrFail($product);
-        $recipeRow = MposRecipe::with('ingredient')
+        $recipeRow = MposRecipe::with(['ingredient', 'legacyIngredient'])
             ->where('nid_product', $parentProduct->nid)
             ->where('nid', $recipe)
             ->firstOrFail();
 
-        $ingredientName = optional($recipeRow->ingredient)->cname;
+        $ing = $recipeRow->ingredient ?: $recipeRow->legacyIngredient;
+        $ingredientName = optional($ing)->cname;
 
         DB::beginTransaction();
         try {
@@ -214,12 +217,17 @@ class ProductRecipeController extends Controller
                     ->pluck('nid');
 
                 if ($siblingProductIds->isNotEmpty()) {
-                    $matchingIngredientIds = MposIngredients::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
+                    $matchingProdIds = MposProduct::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
                         ->pluck('nid');
 
-                    if ($matchingIngredientIds->isNotEmpty()) {
+                    $matchingLegacyIds = MposIngredients::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredientName))])
+                        ->pluck('nid');
+
+                    $allMatchingIds = $matchingProdIds->merge($matchingLegacyIds)->unique()->filter()->values();
+
+                    if ($allMatchingIds->isNotEmpty()) {
                         MposRecipe::whereIn('nid_product', $siblingProductIds)
-                            ->whereIn('nid_ingredient', $matchingIngredientIds)
+                            ->whereIn('nid_ingredient', $allMatchingIds)
                             ->delete();
                     }
                 }

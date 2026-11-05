@@ -432,6 +432,31 @@
                                 </div>
                             </div>
                         </div>
+
+                        <hr class="olsera-section-divider">
+
+                        <!-- Field 4: Tampilkan di Menu Kasir (POS) -->
+                        <div class="olsera-switch-row">
+                            <div class="olsera-field-info">
+                                <label class="olsera-field-label" for="fshow_pos_create" style="cursor: pointer;">
+                                    Tampilkan di Menu Kasir (POS)
+                                </label>
+                                <div class="olsera-field-desc">
+                                    Aktifkan agar kategori dan produk di dalamnya tampil di aplikasi kasir POS. Matikan untuk kategori Bahan Baku, Setengah Jadi, atau Keperluan Internal.
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-end">
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input olsera-switch"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="fshow_pos_create"
+                                        name="fshow_pos"
+                                        value="1"
+                                        {{ old('modal_id') == 'create' ? (old('fshow_pos') ? 'checked' : '') : 'checked' }}>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -481,6 +506,9 @@
                             <div class="d-flex align-items-center gap-2 flex-shrink-0">
                                 @if(!$category->ftrack_stock)
                                     <span class="badge bg-light text-secondary border" style="font-size: 0.66rem; font-weight: 500;">Tanpa Stok</span>
+                                @endif
+                                @if(isset($category->fshow_pos) && !$category->fshow_pos)
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.66rem; font-weight: 500;" title="Kategori ini disembunyikan dari aplikasi kasir POS"><i class="bi bi-eye-slash me-1"></i>Sembunyi di POS</span>
                                 @endif
                                 <i class="bi bi-chevron-right olsera-cat-chevron"></i>
                             </div>
@@ -650,6 +678,27 @@
                             </div>
                             <div class="text-muted" style="font-size: 0.74rem; line-height: 1.4;">
                                 Aktifkan untuk barang retail fisik (IQOS/Device/Pod). Matikan untuk Makanan, Minuman, atau Snack agar kasir bisa bertransaksi tanpa batasan stok.
+                            </div>
+                        </div>
+
+                        <!-- Field 4: Tampilkan di Menu Kasir (POS) -->
+                        <div class="p-3 bg-light rounded border mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-check-label fw-bold small text-dark" for="fshow_pos_{{ $category->nid }}" style="cursor: pointer;">
+                                    Tampilkan di Menu Kasir (POS)
+                                </label>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input olsera-switch"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="fshow_pos_{{ $category->nid }}"
+                                        name="fshow_pos"
+                                        value="1"
+                                        {{ old('modal_id') == $category->nid ? (old('fshow_pos') ? 'checked' : '') : (!isset($category->fshow_pos) || $category->fshow_pos ? 'checked' : '') }}>
+                                </div>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.74rem; line-height: 1.4;">
+                                Aktifkan agar kategori dan produk di dalamnya tampil di aplikasi kasir POS. Matikan untuk Bahan Baku, Setengah Jadi, atau Keperluan Internal.
                             </div>
                         </div>
                     </div>

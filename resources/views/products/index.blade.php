@@ -99,7 +99,14 @@
                                 </div>
                             @endif
                         </td>
-                        <td>{{ $product->cname }}</td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ $product->cname }}</div>
+                            @if(isset($product->cproduct_type) && $product->cproduct_type === 'SETENGAH_JADI')
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;">Setengah Jadi</span>
+                            @elseif(isset($product->cproduct_type) && $product->cproduct_type === 'BAHAN_BAKU')
+                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.65rem;">Bahan Baku</span>
+                            @endif
+                        </td>
                         <td>{{ $product->category->cname ?? '-' }}</td>
                         <td>
                             @if(!empty($selectedOutletId) && $product->outlet)
@@ -129,7 +136,10 @@
                             <div class="small text-muted" title="Harga Online">Online: Rp {{ number_format($product->nprice_online, 0, ',', '.') }}</div>
                             <div class="small text-secondary" title="Harga Beli">Beli: Rp {{ number_format($product->nprice_buy ?? 0, 0, ',', '.') }}</div>
                         </td>
-                        <td class="text-center">{{ $product->nqty }}</td>
+                        <td class="text-center">
+                            <span class="fw-semibold">{{ $product->nqty }}</span>
+                            <span class="small text-muted d-block" style="font-size: 0.72rem;">{{ $product->csatuan ?: 'PCS' }}</span>
+                        </td>
                         <td>
                             @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
                                 <span class="badge bg-success">{{ $product->cstatus }}</span>
@@ -185,13 +195,25 @@
                                                 </div>
                                             </div>
                                         @endif
-                                        <div class="col-md-6 mb-3">
-                                            <label for="cname_{{ $product->nid }}" class="form-label">Nama Produk</label>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="cname_{{ $product->nid }}" class="form-label">Nama Produk <span class="text-danger">*</span></label>
                                             <input type="text" class="form-control @if(old('modal_id') == $product->nid) @error('cname') is-invalid @enderror @endif" id="cname_{{ $product->nid }}" name="cname" value="{{ old('modal_id') == $product->nid ? old('cname') : $product->cname }}" required>
                                             @if(old('modal_id') == $product->nid) @error('cname') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="nid_category_{{ $product->nid }}" class="form-label">Kategori</label>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="cproduct_type_{{ $product->nid }}" class="form-label">Tipe Produk <span class="text-danger">*</span></label>
+                                            @php
+                                                $currType = old('modal_id') == $product->nid ? old('cproduct_type') : ($product->cproduct_type ?? 'PRODUK');
+                                            @endphp
+                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('cproduct_type') is-invalid @enderror @endif" id="cproduct_type_{{ $product->nid }}" name="cproduct_type" required>
+                                                <option value="PRODUK" {{ $currType == 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
+                                                <option value="SETENGAH_JADI" {{ $currType == 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
+                                                <option value="BAHAN_BAKU" {{ $currType == 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
+                                            </select>
+                                            @if(old('modal_id') == $product->nid) @error('cproduct_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="nid_category_{{ $product->nid }}" class="form-label">Kategori <span class="text-danger">*</span></label>
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('nid_category') is-invalid @enderror @endif" id="nid_category_{{ $product->nid }}" name="nid_category" required>
                                                 <option value="">Pilih Kategori</option>
                                                 @foreach($categories as $category)
@@ -254,7 +276,19 @@
                                             @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
 
-                                        <div class="col-md-12 mb-3">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="csatuan_{{ $product->nid }}" class="form-label">Satuan</label>
+                                            @php
+                                                $currSat = old('modal_id') == $product->nid ? old('csatuan') : ($product->csatuan ?? 'PCS');
+                                            @endphp
+                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('csatuan') is-invalid @enderror @endif" id="csatuan_{{ $product->nid }}" name="csatuan">
+                                                @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                                    <option value="{{ $sat }}" {{ strtoupper($currSat ?: 'PCS') === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                                                @endforeach
+                                            </select>
+                                            @if(old('modal_id') == $product->nid) @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                        </div>
+                                        <div class="col-md-6 mb-3">
                                             <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
                                             <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
                                                 <option value="Active" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'active' ? 'selected' : '' }}>Aktif</option>
@@ -351,13 +385,22 @@
                             </div>
                         </div>
                     @endif
-                    <div class="col-md-6 mb-3">
-                        <label for="cname" class="form-label">Nama Produk</label>
+                    <div class="col-md-4 mb-3">
+                        <label for="cname" class="form-label">Nama Produk <span class="text-danger">*</span></label>
                         <input type="text" class="form-control @if(old('modal_id') == 'create') @error('cname') is-invalid @enderror @endif" id="cname" name="cname" value="{{ old('modal_id') == 'create' ? old('cname') : '' }}" required>
                         @if(old('modal_id') == 'create') @error('cname') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label for="nid_category" class="form-label">Kategori</label>
+                    <div class="col-md-4 mb-3">
+                        <label for="cproduct_type" class="form-label">Tipe Produk <span class="text-danger">*</span></label>
+                        <select class="form-select @if(old('modal_id') == 'create') @error('cproduct_type') is-invalid @enderror @endif" id="cproduct_type" name="cproduct_type" required>
+                            <option value="PRODUK" {{ (old('modal_id') == 'create' ? old('cproduct_type') : 'PRODUK') == 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
+                            <option value="SETENGAH_JADI" {{ (old('modal_id') == 'create' ? old('cproduct_type') : '') == 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
+                            <option value="BAHAN_BAKU" {{ (old('modal_id') == 'create' ? old('cproduct_type') : '') == 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
+                        </select>
+                        @if(old('modal_id') == 'create') @error('cproduct_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="nid_category" class="form-label">Kategori <span class="text-danger">*</span></label>
                         <select class="form-select @if(old('modal_id') == 'create') @error('nid_category') is-invalid @enderror @endif" id="nid_category" name="nid_category" required>
                             <option value="">Pilih Kategori</option>
                             @foreach($categories as $category)
@@ -405,12 +448,21 @@
                         <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('nprice_online') is-invalid @enderror @endif" id="nprice_online" name="nprice_online" value="{{ old('modal_id') == 'create' ? old('nprice_online') : '' }}">
                         @if(old('modal_id') == 'create') @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="stock_qty" class="form-label">Stok / Qty Awal</label>
-                        <input type="number" min="0" class="form-control @if(old('modal_id') == 'create') @error('stock_qty') is-invalid @enderror @endif" id="stock_qty" name="stock_qty" value="{{ old('modal_id') == 'create' ? old('stock_qty') : '0' }}">
+                        <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == 'create') @error('stock_qty') is-invalid @enderror @endif" id="stock_qty" name="stock_qty" value="{{ old('modal_id') == 'create' ? old('stock_qty') : '0' }}">
                         @if(old('modal_id') == 'create') @error('stock_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                        <label for="csatuan" class="form-label">Satuan</label>
+                        <select class="form-select @if(old('modal_id') == 'create') @error('csatuan') is-invalid @enderror @endif" id="csatuan" name="csatuan">
+                            @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                <option value="{{ $sat }}" {{ (old('modal_id') == 'create' ? old('csatuan') : 'PCS') == $sat ? 'selected' : '' }}>{{ $sat }}</option>
+                            @endforeach
+                        </select>
+                        @if(old('modal_id') == 'create') @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label for="cstatus" class="form-label">Status</label>
                         <select class="form-select @if(old('modal_id') == 'create') @error('cstatus') is-invalid @enderror @endif" id="cstatus" name="cstatus" required>
                             <option value="Active" {{ (old('modal_id') == 'create' ? old('cstatus') : '') == 'Active' ? 'selected' : '' }}>Aktif</option>
