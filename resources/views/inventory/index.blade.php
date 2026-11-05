@@ -624,10 +624,12 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
     </div>
 </div>
 
+<script type="application/json" id="stockInProductsData">@json($modalProducts)</script>
+<script type="application/json" id="stockInIngredientsData">@json($modalIngredients)</script>
 <script>
     // Data Master Produk & Bahan Baku untuk Modal Stok Masuk
-    const stockInProducts = @json($modalProducts);
-    const stockInIngredients = @json($modalIngredients);
+    const stockInProducts = JSON.parse(document.getElementById('stockInProductsData')?.textContent || '[]');
+    const stockInIngredients = JSON.parse(document.getElementById('stockInIngredientsData')?.textContent || '[]');
 
     let stockInRowCounter = 0;
 
@@ -1170,10 +1172,12 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
     </div>
 </div>
 
+<script type="application/json" id="stockOutProductsData">@json($modalProducts)</script>
+<script type="application/json" id="stockOutIngredientsData">@json($modalIngredients)</script>
 <script>
     // Data Master Produk & Bahan Baku untuk Modal Stok Keluar
-    const stockOutProducts = @json($modalProducts);
-    const stockOutIngredients = @json($modalIngredients);
+    const stockOutProducts = JSON.parse(document.getElementById('stockOutProductsData')?.textContent || '[]');
+    const stockOutIngredients = JSON.parse(document.getElementById('stockOutIngredientsData')?.textContent || '[]');
 
     let stockOutRowCounter = 0;
 
