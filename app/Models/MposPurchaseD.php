@@ -9,6 +9,11 @@ class MposPurchaseD extends Model
 {
     use HasFactory;
 
+    public const TYPE_PRODUK = 'PRODUK';
+    public const TYPE_SETENGAH_JADI = 'SETENGAH_JADI';
+    public const TYPE_BAHAN_BAKU = 'BAHAN_BAKU';
+
+    // Legacy aliases for backward compatibility
     public const TYPE_PRODUCT = 'PRODUCT';
     public const TYPE_INGREDIENT = 'INGREDIENT';
 
@@ -39,8 +44,40 @@ class MposPurchaseD extends Model
 
     public function isIngredient(): bool
     {
-        return strtoupper((string) $this->citem_type) === self::TYPE_INGREDIENT
+        return in_array(strtoupper((string) $this->citem_type), [self::TYPE_INGREDIENT, self::TYPE_BAHAN_BAKU], true)
             || (!empty($this->nid_ingredient) && empty($this->nid_product));
+    }
+
+    public function getItemTypeNormalized(): string
+    {
+        $type = strtoupper(trim((string) $this->citem_type));
+        if ($type === self::TYPE_SETENGAH_JADI) {
+            return self::TYPE_SETENGAH_JADI;
+        }
+        if ($type === self::TYPE_BAHAN_BAKU || $type === self::TYPE_INGREDIENT) {
+            return self::TYPE_BAHAN_BAKU;
+        }
+        return self::TYPE_PRODUK;
+    }
+
+    public function getItemTypeLabel(): string
+    {
+        return match ($this->getItemTypeNormalized()) {
+            self::TYPE_SETENGAH_JADI => 'Setengah Jadi',
+            self::TYPE_BAHAN_BAKU => 'Bahan Baku',
+            default => 'Produk',
+        };
+    }
+
+    public function getItemUnit(): string
+    {
+        if ($this->product && !empty($this->product->csatuan)) {
+            return $this->product->csatuan;
+        }
+        if ($this->ingredient && !empty($this->ingredient->csatuan)) {
+            return $this->ingredient->csatuan;
+        }
+        return 'PCS';
     }
 
     public function purchase()

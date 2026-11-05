@@ -131,7 +131,14 @@ class PurchaseController extends Controller
         if (!$this->isSuperAdminUser()) {
             $productsQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
-        $products = $productsQuery->orderBy('cname')->get(['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty']);
+        $productColumns = ['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
+        if (MposProduct::hasProductTypeColumn()) {
+            $productColumns[] = 'cproduct_type';
+        }
+        if (MposProduct::hasSatuanColumn()) {
+            $productColumns[] = 'csatuan';
+        }
+        $products = $productsQuery->orderBy('cname')->get($productColumns);
 
         $ingredientsQuery = MposIngredients::query();
         if (!$this->isSuperAdminUser()) {
@@ -173,7 +180,7 @@ class PurchaseController extends Controller
             'cno_reference' => 'nullable|string|max:100',
             'cnote' => 'nullable|string',
             'items' => 'nullable|array',
-            'items.*.citem_type' => 'nullable|string|in:PRODUCT,INGREDIENT',
+            'items.*.citem_type' => 'nullable|string|in:PRODUCT,INGREDIENT,PRODUK,SETENGAH_JADI,BAHAN_BAKU',
             'items.*.item_id' => 'nullable|integer',
             'items.*.nid_product' => 'nullable|integer',
             'items.*.nid_ingredient' => 'nullable|integer',
@@ -217,15 +224,17 @@ class PurchaseController extends Controller
 
             if ($request->has('items') && is_array($request->input('items'))) {
                 foreach ($request->input('items') as $itemData) {
-                    $rawType = strtoupper(trim((string) ($itemData['citem_type'] ?? MposPurchaseD::TYPE_PRODUCT)));
-                    $itemType = $rawType === MposPurchaseD::TYPE_INGREDIENT
-                        ? MposPurchaseD::TYPE_INGREDIENT
-                        : MposPurchaseD::TYPE_PRODUCT;
+                    $rawType = strtoupper(trim((string) ($itemData['citem_type'] ?? MposPurchaseD::TYPE_PRODUK)));
+                    if (in_array($rawType, [MposPurchaseD::TYPE_BAHAN_BAKU, MposPurchaseD::TYPE_INGREDIENT], true)) {
+                        $itemType = MposPurchaseD::TYPE_BAHAN_BAKU;
+                    } elseif ($rawType === MposPurchaseD::TYPE_SETENGAH_JADI) {
+                        $itemType = MposPurchaseD::TYPE_SETENGAH_JADI;
+                    } else {
+                        $itemType = MposPurchaseD::TYPE_PRODUK;
+                    }
 
                     $selectedId = $itemData['item_id']
-                        ?? ($itemType === MposPurchaseD::TYPE_INGREDIENT
-                            ? ($itemData['nid_ingredient'] ?? null)
-                            : ($itemData['nid_product'] ?? null));
+                        ?? ($itemData['nid_product'] ?? ($itemData['nid_ingredient'] ?? null));
 
                     $qty = (int) ($itemData['nqty'] ?? 0);
                     $cost = (float) ($itemData['ncost'] ?? 0);
@@ -233,18 +242,21 @@ class PurchaseController extends Controller
                     if (!empty($selectedId) && $qty > 0) {
                         $subtotal = $qty * $cost;
 
-                        if ($itemType === MposPurchaseD::TYPE_INGREDIENT) {
-                            if (!MposIngredients::where('nid', $selectedId)->exists()) {
-                                DB::rollBack();
-                                return redirect()->back()
-                                    ->with('error', 'Bahan baku yang dipilih tidak ditemukan.')
-                                    ->withInput()
-                                    ->with('error_modal', 'create_po');
-                            }
-
+                        if (MposProduct::where('nid', $selectedId)->exists()) {
                             MposPurchaseD::create([
                                 'nid_purchase' => $purchase->nid,
-                                'citem_type' => MposPurchaseD::TYPE_INGREDIENT,
+                                'citem_type' => $itemType,
+                                'nid_product' => (int) $selectedId,
+                                'nid_ingredient' => null,
+                                'nqty' => $qty,
+                                'ncost' => $cost,
+                                'nsubtotal' => $subtotal,
+                            ]);
+                        } elseif (MposIngredients::where('nid', $selectedId)->exists()) {
+                            // Fallback jika masih ada data legacy dari mpos_ingredients
+                            MposPurchaseD::create([
+                                'nid_purchase' => $purchase->nid,
+                                'citem_type' => MposPurchaseD::TYPE_BAHAN_BAKU,
                                 'nid_product' => null,
                                 'nid_ingredient' => (int) $selectedId,
                                 'nqty' => $qty,
@@ -252,23 +264,11 @@ class PurchaseController extends Controller
                                 'nsubtotal' => $subtotal,
                             ]);
                         } else {
-                            if (!MposProduct::where('nid', $selectedId)->exists()) {
-                                DB::rollBack();
-                                return redirect()->back()
-                                    ->with('error', 'Produk yang dipilih tidak ditemukan.')
-                                    ->withInput()
-                                    ->with('error_modal', 'create_po');
-                            }
-
-                            MposPurchaseD::create([
-                                'nid_purchase' => $purchase->nid,
-                                'citem_type' => MposPurchaseD::TYPE_PRODUCT,
-                                'nid_product' => (int) $selectedId,
-                                'nid_ingredient' => null,
-                                'nqty' => $qty,
-                                'ncost' => $cost,
-                                'nsubtotal' => $subtotal,
-                            ]);
+                            DB::rollBack();
+                            return redirect()->back()
+                                ->with('error', 'Item yang dipilih tidak ditemukan.')
+                                ->withInput()
+                                ->with('error_modal', 'create_po');
                         }
 
                         $totalAmount += $subtotal;
@@ -598,9 +598,15 @@ class PurchaseController extends Controller
         ])->findOrFail($id);
 
         // Kelompokkan produk per nama, utamakan record di outlet PO
-        $products = MposProduct::where('cstatus', 'ACTIVE')
-            ->orderBy('cname')
-            ->get()
+        $productsQuery = MposProduct::where('cstatus', 'ACTIVE')->orderBy('cname');
+        $productColumns = ['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
+        if (MposProduct::hasProductTypeColumn()) {
+            $productColumns[] = 'cproduct_type';
+        }
+        if (MposProduct::hasSatuanColumn()) {
+            $productColumns[] = 'csatuan';
+        }
+        $products = $productsQuery->get($productColumns)
             ->groupBy(fn ($item) => strtoupper(trim((string) $item->cname)))
             ->map(function ($group) use ($purchase) {
                 $matched = $group->firstWhere('nid_outlet', (int) $purchase->nid_outlet);
@@ -641,29 +647,26 @@ class PurchaseController extends Controller
             return redirect()->back()->with('error', 'Item tidak dapat ditambah karena pesanan sudah diproses atau dibatalkan.');
         }
 
-        $itemType = strtoupper(trim((string) $request->input('citem_type', MposPurchaseD::TYPE_PRODUCT))) === MposPurchaseD::TYPE_INGREDIENT
-            ? MposPurchaseD::TYPE_INGREDIENT
-            : MposPurchaseD::TYPE_PRODUCT;
+        $rawType = strtoupper(trim((string) $request->input('citem_type', MposPurchaseD::TYPE_PRODUK)));
+        if (in_array($rawType, [MposPurchaseD::TYPE_BAHAN_BAKU, MposPurchaseD::TYPE_INGREDIENT], true)) {
+            $itemType = MposPurchaseD::TYPE_BAHAN_BAKU;
+        } elseif ($rawType === MposPurchaseD::TYPE_SETENGAH_JADI) {
+            $itemType = MposPurchaseD::TYPE_SETENGAH_JADI;
+        } else {
+            $itemType = MposPurchaseD::TYPE_PRODUK;
+        }
 
         $rules = [
-            'citem_type' => 'nullable|in:PRODUCT,INGREDIENT',
+            'citem_type' => 'nullable|string|in:PRODUCT,INGREDIENT,PRODUK,SETENGAH_JADI,BAHAN_BAKU',
             'nqty' => 'required|integer|min:1',
             'ncost' => 'required|numeric|min:0',
+            'nid_product' => 'nullable|integer',
+            'nid_ingredient' => 'nullable|integer',
         ];
         $messages = [
             'nqty.min' => 'Jumlah kuantitas minimal 1.',
             'ncost.min' => 'Harga beli tidak boleh negatif.',
         ];
-
-        if ($itemType === MposPurchaseD::TYPE_INGREDIENT) {
-            $rules['nid_ingredient'] = 'required|exists:mpos_ingredients,nid';
-            $messages['nid_ingredient.required'] = 'Pilih bahan baku yang akan ditambahkan.';
-            $messages['nid_ingredient.exists'] = 'Bahan baku tidak ditemukan.';
-        } else {
-            $rules['nid_product'] = 'required|exists:mpos_product,nid';
-            $messages['nid_product.required'] = 'Pilih produk yang akan ditambahkan.';
-            $messages['nid_product.exists'] = 'Produk tidak ditemukan.';
-        }
 
         $validator = Validator::make($request->all(), $rules, $messages);
 
@@ -674,15 +677,47 @@ class PurchaseController extends Controller
                 ->with('error_modal', 'add_product');
         }
 
+        $selectedProductId = (int) $request->input('nid_product');
+        $selectedIngredientId = (int) $request->input('nid_ingredient');
+
+        if (empty($selectedProductId) && empty($selectedIngredientId)) {
+            return redirect()->back()
+                ->with('error', 'Pilih item yang akan ditambahkan.')
+                ->withInput()
+                ->with('error_modal', 'add_product');
+        }
+
         $qty = (int) $request->input('nqty');
         $cost = (float) $request->input('ncost');
         $subtotal = $qty * $cost;
 
-        if ($itemType === MposPurchaseD::TYPE_INGREDIENT) {
-            $ingredientId = (int) $request->input('nid_ingredient');
+        if (!empty($selectedProductId) && MposProduct::where('nid', $selectedProductId)->exists()) {
             $existingItem = MposPurchaseD::where('nid_purchase', $purchase->nid)
-                ->where('citem_type', MposPurchaseD::TYPE_INGREDIENT)
-                ->where('nid_ingredient', $ingredientId)
+                ->where('nid_product', $selectedProductId)
+                ->first();
+
+            if ($existingItem) {
+                $existingItem->nqty += $qty;
+                $existingItem->ncost = $cost;
+                $existingItem->nsubtotal = $existingItem->nqty * $cost;
+                $existingItem->citem_type = $itemType;
+                $existingItem->save();
+            } else {
+                MposPurchaseD::create([
+                    'nid_purchase' => $purchase->nid,
+                    'citem_type' => $itemType,
+                    'nid_product' => $selectedProductId,
+                    'nid_ingredient' => null,
+                    'nqty' => $qty,
+                    'ncost' => $cost,
+                    'nsubtotal' => $subtotal,
+                ]);
+            }
+            $labelMsg = 'Item berhasil ditambahkan ke pesanan.';
+        } elseif (!empty($selectedIngredientId) && MposIngredients::where('nid', $selectedIngredientId)->exists()) {
+            $existingItem = MposPurchaseD::where('nid_purchase', $purchase->nid)
+                ->where('citem_type', MposPurchaseD::TYPE_BAHAN_BAKU)
+                ->where('nid_ingredient', $selectedIngredientId)
                 ->first();
 
             if ($existingItem) {
@@ -693,9 +728,9 @@ class PurchaseController extends Controller
             } else {
                 MposPurchaseD::create([
                     'nid_purchase' => $purchase->nid,
-                    'citem_type' => MposPurchaseD::TYPE_INGREDIENT,
+                    'citem_type' => MposPurchaseD::TYPE_BAHAN_BAKU,
                     'nid_product' => null,
-                    'nid_ingredient' => $ingredientId,
+                    'nid_ingredient' => $selectedIngredientId,
                     'nqty' => $qty,
                     'ncost' => $cost,
                     'nsubtotal' => $subtotal,
@@ -703,32 +738,10 @@ class PurchaseController extends Controller
             }
             $labelMsg = 'Bahan baku berhasil ditambahkan ke pesanan.';
         } else {
-            $productId = (int) $request->input('nid_product');
-            $existingItem = MposPurchaseD::where('nid_purchase', $purchase->nid)
-                ->where(function ($q) {
-                    $q->where('citem_type', MposPurchaseD::TYPE_PRODUCT)
-                      ->orWhereNull('citem_type');
-                })
-                ->where('nid_product', $productId)
-                ->first();
-
-            if ($existingItem) {
-                $existingItem->nqty += $qty;
-                $existingItem->ncost = $cost;
-                $existingItem->nsubtotal = $existingItem->nqty * $cost;
-                $existingItem->save();
-            } else {
-                MposPurchaseD::create([
-                    'nid_purchase' => $purchase->nid,
-                    'citem_type' => MposPurchaseD::TYPE_PRODUCT,
-                    'nid_product' => $productId,
-                    'nid_ingredient' => null,
-                    'nqty' => $qty,
-                    'ncost' => $cost,
-                    'nsubtotal' => $subtotal,
-                ]);
-            }
-            $labelMsg = 'Produk berhasil ditambahkan ke pesanan.';
+            return redirect()->back()
+                ->with('error', 'Item yang dipilih tidak ditemukan.')
+                ->withInput()
+                ->with('error_modal', 'add_product');
         }
 
         // Recalculate total amount

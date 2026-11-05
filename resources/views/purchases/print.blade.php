@@ -234,22 +234,20 @@
             <tbody>
                 @forelse($purchase->details as $index => $item)
                     @php
-                        $isIng = $item->isIngredient();
-                        $itemName = $isIng
-                            ? ($item->ingredient?->cname ?? '-')
-                            : ($item->product?->cname ?? '-');
-                        $itemUnit = $isIng
-                            ? ($item->ingredient?->csatuan ?: 'PCS')
-                            : 'PCS';
+                        $prodModel = $item->product;
+                        $ingModel = $item->ingredient;
+                        $itemName = $prodModel ? $prodModel->cname : ($ingModel ? $ingModel->cname : '-');
+                        $itemUnit = $item->getItemUnit();
+                        $itemTypeLabel = $item->getItemTypeLabel();
                     @endphp
                     <tr>
                         <td class="text-center text-muted">{{ $index + 1 }}</td>
                         <td>
                             <div class="fw-semibold text-dark">{{ $itemName }}</div>
                             <div class="text-muted small" style="font-size: 11px;">
-                                {{ $isIng ? 'Bahan Baku' : 'Produk' }}
-                                @if(!$isIng && $item->product && $item->product->csku)
-                                    &bull; SKU: {{ $item->product->csku }}
+                                {{ $itemTypeLabel }}
+                                @if($prodModel && $prodModel->csku)
+                                    &bull; SKU: {{ $prodModel->csku }}
                                 @endif
                             </div>
                         </td>
