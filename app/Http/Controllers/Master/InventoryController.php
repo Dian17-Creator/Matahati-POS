@@ -747,7 +747,7 @@ class InventoryController extends Controller
         try {
             $dStockIn = Carbon::parse($validated['dstock_in'])->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
             $stockInNumber = MposStockMutation::generateNumber('IN', $dStockIn);
-            $reason = $validated['creason'] ?: 'Penyesuaian Stok Masuk Manual';
+            $reason = !empty($validated['creason']) ? $validated['creason'] : 'Penyesuaian Stok Masuk Manual';
 
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['nqty'];
@@ -893,6 +893,9 @@ class InventoryController extends Controller
     /**
      * Simpan transaksi Stok Keluar baru (manual atau transfer ke toko)
      */
+    /**
+     * Simpan Dokumen Stok Keluar baru (Biasa / Transfer Antar Toko) sebagai DRAF
+     */
     public function storeStockOut(Request $request)
     {
         $validated = $request->validate([
@@ -919,86 +922,28 @@ class InventoryController extends Controller
             $stockOutNumber = MposStockMutation::generateNumber('OUT', $dStockOut);
 
             $isTransfer = ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet']));
-            $stockInNumber = $isTransfer ? MposStockMutation::generateNumber('IN', $dStockOut) : null;
-
-            $originOutlet = MposOutlet::find($validated['nid_outlet']);
-            $reason = $validated['creason'] ?: ($isTransfer ? 'Transfer Antar Toko' : 'Lain-lain');
+            $reason = !empty($validated['creason']) ? $validated['creason'] : ($isTransfer ? 'Transfer Antar Toko' : 'Lain-lain');
 
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['nqty'];
                 $cost = isset($item['ncost']) ? (float) $item['ncost'] : 0.0;
-                $subtotal = $qty * $cost;
 
                 $prodId = $item['citem_type'] === 'PRODUCT' ? (int) $item['nid_item'] : null;
                 $ingId = $item['citem_type'] === 'INGREDIENT' ? (int) $item['nid_item'] : null;
 
-                $targetProdId = null;
-                $targetIngId = null;
-
-                // Kurangi stok fisik di outlet asal
-                if ($item['citem_type'] === 'PRODUCT' && $prodId) {
-                    $prod = MposProduct::lockForUpdate()->find($prodId);
-                    if ($prod) {
-                        $cost = $cost ?: (float) ($prod->nprice_buy ?: 0);
-                        $subtotal = $qty * $cost;
-                        $prod->nqty = max(0, (float) $prod->nqty - $qty);
-                        $prod->save();
-
-                        // Jika transfer, tambah di outlet tujuan
-                        if ($isTransfer) {
-                            $targetProd = MposProduct::where('nid_outlet', $validated['nid_target_outlet'])
-                                ->where('cname', $prod->cname)
-                                ->first();
-
-                            if ($targetProd) {
-                                $targetProd->nqty = (float) $targetProd->nqty + $qty;
-                                $targetProd->save();
-                                $targetProdId = $targetProd->nid;
-                            } else {
-                                $newProduct = $prod->replicate();
-                                $newProduct->nid_outlet = $validated['nid_target_outlet'];
-                                $newProduct->nqty = $qty;
-                                $newProduct->save();
-                                $targetProdId = $newProduct->nid;
-                            }
-                        }
-                    }
-                } elseif ($item['citem_type'] === 'INGREDIENT' && $ingId) {
-                    $ing = MposIngredients::lockForUpdate()->find($ingId);
-                    if ($ing) {
-                        $cost = $cost ?: (float) ($ing->nprice ?? 0);
-                        $subtotal = $qty * $cost;
-                        $ing->nstock = max(0, (float) $ing->nstock - $qty);
-                        $ing->save();
-
-                        // Jika transfer, tambah di outlet tujuan
-                        if ($isTransfer) {
-                            $targetIng = MposIngredients::where('nid_outlet', $validated['nid_target_outlet'])
-                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ing->cname))])
-                                ->first();
-
-                            if ($targetIng) {
-                                $targetIng->nstock = (float) $targetIng->nstock + $qty;
-                                $targetIng->save();
-                                $targetIngId = $targetIng->nid;
-                            } else {
-                                $newIngPayload = [
-                                    'cname' => $ing->cname,
-                                    'nid_outlet' => $validated['nid_target_outlet'],
-                                    'csatuan' => $ing->csatuan ?: 'PCS',
-                                    'nstock' => $qty,
-                                ];
-                                if (MposIngredients::hasPriceColumn()) {
-                                    $newIngPayload['nprice'] = (float) ($ing->nprice ?: $cost);
-                                }
-                                $newIng = MposIngredients::create($newIngPayload);
-                                $targetIngId = $newIng->nid;
-                            }
-                        }
+                // Ambil harga modal default jika 0
+                if ($cost <= 0) {
+                    if ($prodId) {
+                        $p = MposProduct::find($prodId);
+                        $cost = (float) ($p?->nprice_buy ?? 0);
+                    } elseif ($ingId) {
+                        $ing = MposIngredients::find($ingId);
+                        $cost = (float) ($ing?->nprice ?? 0);
                     }
                 }
+                $subtotal = $qty * $cost;
 
-                // Catat mutasi OUT di outlet asal (OG...)
+                // Selalu simpan awal sebagai DRAFT (stok fisik belum terpotong)
                 MposStockMutation::create([
                     'cno_ref' => $stockOutNumber,
                     'dmutation' => $dStockOut,
@@ -1013,48 +958,19 @@ class InventoryController extends Controller
                     'ncost' => $cost,
                     'nsubtotal' => $subtotal,
                     'creason' => $reason,
-                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cstatus' => MposStockMutation::STATUS_DRAFT,
                     'cnote' => $validated['cnote'] ?? null,
                     'dexpired' => !empty($item['dexpired']) ? $item['dexpired'] : null,
                     'crack' => $item['crack'] ?? null,
                     'dcreated' => Carbon::now(),
+                    'dupdated' => Carbon::now(),
                 ]);
-
-                // Jika transfer, catat mutasi IN tersendiri di outlet tujuan (IN...) yang mereferensikan OG...
-                if ($isTransfer) {
-                    $originOutletName = $originOutlet?->cname ?: 'Outlet Asal';
-                    $targetNote = 'Transfer dari ' . $originOutletName . ' (' . $stockOutNumber . ')';
-                    if (!empty($validated['cnote'])) {
-                        $targetNote .= ' - ' . $validated['cnote'];
-                    }
-
-                    MposStockMutation::create([
-                        'cno_ref' => $stockInNumber,
-                        'dmutation' => $dStockOut,
-                        'ctype' => MposStockMutation::TYPE_IN,
-                        'nid_outlet' => $validated['nid_target_outlet'],
-                        'nid_target_outlet' => $validated['nid_outlet'],
-                        'nid_user' => Auth::id() ?? 1,
-                        'citem_type' => $item['citem_type'],
-                        'nid_product' => $targetProdId ?? $prodId,
-                        'nid_ingredient' => $targetIngId ?? $ingId,
-                        'nqty' => $qty,
-                        'ncost' => $cost,
-                        'nsubtotal' => $subtotal,
-                        'creason' => 'Transfer Antar Toko',
-                        'cstatus' => MposStockMutation::STATUS_POSTED,
-                        'cnote' => $targetNote,
-                        'dexpired' => !empty($item['dexpired']) ? $item['dexpired'] : null,
-                        'crack' => $item['crack'] ?? null,
-                        'dcreated' => Carbon::now(),
-                    ]);
-                }
             }
 
             DB::commit();
 
             return redirect()->route('inventory.stock-out.show', $stockOutNumber)
-                ->with('success', "Stok Keluar {$stockOutNumber} berhasil disimpan." . ($isTransfer ? " Dokumen Stok Masuk {$stockInNumber} juga telah otomatis dibuat di outlet tujuan." : ""));
+                ->with('success', "Stok Keluar {$stockOutNumber} berhasil disimpan sebagai Draf. Silakan periksa kembali sebelum diposting.");
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
@@ -1081,6 +997,25 @@ class InventoryController extends Controller
         }
 
         $first = $items->first();
+
+        // Attach live current stock for each detail item
+        foreach ($items as $item) {
+            if ($item->isIngredient()) {
+                $item->current_stock = (float) ($item->ingredient?->nstock ?? 0);
+            } else {
+                $item->current_stock = (float) ($item->product?->nqty ?? 0);
+            }
+        }
+
+        $availableProducts = MposProduct::where('nid_outlet', $first->nid_outlet)
+            ->where('cstatus', 'ACTIVE')
+            ->orderBy('cname')
+            ->get();
+
+        $availableIngredients = MposIngredients::where('nid_outlet', $first->nid_outlet)
+            ->orderBy('cname')
+            ->get();
+
         $stockOut = (object) [
             'nid' => $first->nid,
             'cno_stock_out' => $first->cno_ref,
@@ -1088,15 +1023,479 @@ class InventoryController extends Controller
             'creason' => $first->creason,
             'cstatus' => $first->cstatus,
             'cnote' => $first->cnote,
+            'nid_outlet' => $first->nid_outlet,
+            'nid_target_outlet' => $first->nid_target_outlet,
             'outlet' => $first->outlet,
             'targetOutlet' => $first->targetOutlet,
             'user' => $first->user,
             'details' => $items,
             'ntotal_qty' => $items->sum('nqty'),
             'ntotal_cost' => $items->sum('nsubtotal'),
+            'isDraft' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_DRAFT),
+            'isPosted' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED),
+            'isCancelled' => in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true),
         ];
 
-        return view('inventory.stock_out_show', compact('stockOut'));
+        return view('inventory.stock_out_show', compact('stockOut', 'availableProducts', 'availableIngredients'));
+    }
+
+    /**
+     * Posting Dokumen Stok Keluar (Potong Stok Fisik & Transfer ke Tujuan jika ada)
+     */
+    public function postStockOut(Request $request, string $id)
+    {
+        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'product', 'ingredient'])
+            ->where('ctype', MposStockMutation::TYPE_OUT)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)
+                    ->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Keluar tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        $stockOutNumber = $first->cno_ref;
+
+        if (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED) {
+            return redirect()->back()->with('error', 'Dokumen ini sudah pernah diposting.');
+        }
+
+        if (in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true)) {
+            return redirect()->back()->with('error', 'Dokumen yang telah dibatalkan tidak dapat diposting.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $isTransfer = !empty($first->nid_target_outlet);
+            $stockInNumber = $isTransfer ? MposStockMutation::generateNumber('IN', $first->dmutation) : null;
+            $originOutlet = $first->outlet;
+
+            foreach ($items as $item) {
+                $qty = (float) $item->nqty;
+                $cost = (float) $item->ncost;
+                $subtotal = (float) $item->nsubtotal;
+
+                $targetProdId = null;
+                $targetIngId = null;
+
+                // 1. Kurangi stok fisik di outlet asal
+                if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                    $prod = MposProduct::lockForUpdate()->find($item->nid_product);
+                    if ($prod) {
+                        $prod->nqty = max(0, (float) $prod->nqty - $qty);
+                        $prod->save();
+
+                        // Jika transfer, tambah di outlet tujuan
+                        if ($isTransfer) {
+                            $targetProd = MposProduct::where('nid_outlet', $first->nid_target_outlet)
+                                ->where('cname', $prod->cname)
+                                ->first();
+
+                            if ($targetProd) {
+                                $targetProd->nqty = (float) $targetProd->nqty + $qty;
+                                $targetProd->save();
+                                $targetProdId = $targetProd->nid;
+                            } else {
+                                $newProduct = $prod->replicate();
+                                $newProduct->nid_outlet = $first->nid_target_outlet;
+                                $newProduct->nqty = $qty;
+                                $newProduct->save();
+                                $targetProdId = $newProduct->nid;
+                            }
+                        }
+                    }
+                } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                    $ing = MposIngredients::lockForUpdate()->find($item->nid_ingredient);
+                    if ($ing) {
+                        $ing->nstock = max(0, (float) $ing->nstock - $qty);
+                        $ing->save();
+
+                        // Jika transfer, tambah di outlet tujuan
+                        if ($isTransfer) {
+                            $targetIng = MposIngredients::where('nid_outlet', $first->nid_target_outlet)
+                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ing->cname))])
+                                ->first();
+
+                            if ($targetIng) {
+                                $targetIng->nstock = (float) $targetIng->nstock + $qty;
+                                $targetIng->save();
+                                $targetIngId = $targetIng->nid;
+                            } else {
+                                $newIngPayload = [
+                                    'cname' => $ing->cname,
+                                    'nid_outlet' => $first->nid_target_outlet,
+                                    'csatuan' => $ing->csatuan ?: 'PCS',
+                                    'nstock' => $qty,
+                                ];
+                                if (MposIngredients::hasPriceColumn()) {
+                                    $newIngPayload['nprice'] = (float) ($ing->nprice ?: $cost);
+                                }
+                                $newIng = MposIngredients::create($newIngPayload);
+                                $targetIngId = $newIng->nid;
+                            }
+                        }
+                    }
+                }
+
+                // Update status item OUT menjadi POSTED
+                $item->cstatus = MposStockMutation::STATUS_POSTED;
+                $item->dupdated = Carbon::now();
+                $item->save();
+
+                // Jika transfer, buat mutasi IN untuk outlet tujuan
+                if ($isTransfer) {
+                    $originOutletName = $originOutlet?->cname ?: 'Outlet Asal';
+                    $targetNote = 'Transfer dari ' . $originOutletName . ' (' . $stockOutNumber . ')';
+                    if (!empty($first->cnote)) {
+                        $targetNote .= ' - ' . $first->cnote;
+                    }
+
+                    MposStockMutation::create([
+                        'cno_ref' => $stockInNumber,
+                        'dmutation' => $first->dmutation ?? Carbon::now(),
+                        'ctype' => MposStockMutation::TYPE_IN,
+                        'nid_outlet' => $first->nid_target_outlet,
+                        'nid_target_outlet' => $first->nid_outlet,
+                        'nid_user' => Auth::id() ?? 1,
+                        'citem_type' => $item->citem_type,
+                        'nid_product' => $targetProdId ?? $item->nid_product,
+                        'nid_ingredient' => $targetIngId ?? $item->nid_ingredient,
+                        'nqty' => $qty,
+                        'ncost' => $cost,
+                        'nsubtotal' => $subtotal,
+                        'creason' => 'Transfer Antar Toko',
+                        'cstatus' => MposStockMutation::STATUS_POSTED,
+                        'cnote' => $targetNote,
+                        'dexpired' => $item->dexpired,
+                        'crack' => $item->crack,
+                        'dcreated' => Carbon::now(),
+                        'dupdated' => Carbon::now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-out.show', $stockOutNumber)
+                ->with('success', "Stok Keluar {$stockOutNumber} berhasil diposting. Stok fisik telah dipotong." . ($isTransfer ? " Dokumen Stok Masuk {$stockInNumber} juga telah otomatis dibuat di outlet tujuan." : ""));
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal memposting stok keluar: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Batalkan Dokumen Stok Keluar (Revert Stok jika sudah POSTED, atau batalkan DRAFT)
+     */
+    public function cancelStockOut(Request $request, string $id)
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_OUT)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)
+                    ->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Keluar tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        $stockOutNumber = $first->cno_ref;
+
+        if (in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true)) {
+            return redirect()->back()->with('error', 'Dokumen ini sudah dibatalkan sebelumnya.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $wasPosted = (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED);
+            $isTransfer = !empty($first->nid_target_outlet);
+
+            if ($wasPosted) {
+                // Kembalikan stok fisik jika sebelumnya sudah terposting
+                foreach ($items as $item) {
+                    $qty = (float) $item->nqty;
+
+                    // 1. Kembalikan stok ke outlet asal
+                    if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                        $prod = MposProduct::lockForUpdate()->find($item->nid_product);
+                        if ($prod) {
+                            $prod->nqty = (float) $prod->nqty + $qty;
+                            $prod->save();
+                        }
+                    } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                        $ing = MposIngredients::lockForUpdate()->find($item->nid_ingredient);
+                        if ($ing) {
+                            $ing->nstock = (float) $ing->nstock + $qty;
+                            $ing->save();
+                        }
+                    }
+
+                    // 2. Jika transfer, kurangi stok dari outlet tujuan
+                    if ($isTransfer) {
+                        if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                            $origProd = MposProduct::find($item->nid_product);
+                            $targetProd = MposProduct::lockForUpdate()
+                                ->where('nid_outlet', $first->nid_target_outlet)
+                                ->where('cname', $origProd?->cname ?? '')
+                                ->first();
+                            if ($targetProd) {
+                                $targetProd->nqty = max(0, (float) $targetProd->nqty - $qty);
+                                $targetProd->save();
+                            }
+                        } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                            $origIng = MposIngredients::find($item->nid_ingredient);
+                            $targetIng = MposIngredients::lockForUpdate()
+                                ->where('nid_outlet', $first->nid_target_outlet)
+                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) ($origIng?->cname ?? '')))])
+                                ->first();
+                            if ($targetIng) {
+                                $targetIng->nstock = max(0, (float) $targetIng->nstock - $qty);
+                                $targetIng->save();
+                            }
+                        }
+                    }
+                }
+
+                // 3. Batalkan mutasi IN terkait pada outlet tujuan jika transfer
+                if ($isTransfer) {
+                    MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+                        ->where('nid_outlet', $first->nid_target_outlet)
+                        ->where('cnote', 'LIKE', '%' . $stockOutNumber . '%')
+                        ->update([
+                            'cstatus' => MposStockMutation::STATUS_CANCELLED,
+                            'dupdated' => Carbon::now(),
+                        ]);
+                }
+            }
+
+            // Update semua baris OUT menjadi CANCELLED
+            foreach ($items as $item) {
+                $item->cstatus = MposStockMutation::STATUS_CANCELLED;
+                $item->dupdated = Carbon::now();
+                $item->save();
+            }
+
+            DB::commit();
+
+            $msg = "Dokumen Stok Keluar {$stockOutNumber} telah dibatalkan.";
+            if ($wasPosted) {
+                $msg .= " Stok fisik telah berhasil dikembalikan ke outlet asal" . ($isTransfer ? " dan dikoreksi dari outlet tujuan." : ".");
+            }
+
+            return redirect()->route('inventory.stock-out.show', $stockOutNumber)->with('success', $msg);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal membatalkan transaksi: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update Informasi Dokumen Stok Keluar (Tanggal, Alasan, Catatan)
+     */
+    public function updateStockOutHeader(Request $request, string $id)
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_OUT)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Keluar tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        if (strtoupper((string) $first->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'dstock_out' => 'required|date',
+            'creason' => 'nullable|string|max:100',
+            'cnote' => 'nullable|string|max:500',
+        ]);
+
+        $dStockOut = Carbon::parse($validated['dstock_out'])->setTime(
+            $first->dmutation ? $first->dmutation->hour : Carbon::now()->hour,
+            $first->dmutation ? $first->dmutation->minute : Carbon::now()->minute,
+            $first->dmutation ? $first->dmutation->second : Carbon::now()->second
+        );
+
+        foreach ($items as $item) {
+            $item->dmutation = $dStockOut;
+            if (isset($validated['creason'])) {
+                $item->creason = $validated['creason'];
+            }
+            $item->cnote = $validated['cnote'] ?? null;
+            $item->dupdated = Carbon::now();
+            $item->save();
+        }
+
+        return redirect()->route('inventory.stock-out.show', $first->cno_ref)
+            ->with('success', 'Informasi dokumen stok keluar berhasil diperbarui.');
+    }
+
+    /**
+     * Tambah Item Barang ke Dokumen Stok Keluar (Draf)
+     */
+    public function addStockOutItem(Request $request, string $id)
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_OUT)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Keluar tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        if (strtoupper((string) $first->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Item hanya dapat ditambahkan pada dokumen berstatus Draf.');
+        }
+
+        $validated = $request->validate([
+            'citem_type' => 'required|in:PRODUCT,INGREDIENT',
+            'nid_item' => 'required|integer',
+            'nqty' => 'required|numeric|min:0.01',
+            'ncost' => 'nullable|numeric|min:0',
+            'crack' => 'nullable|string|max:100',
+            'dexpired' => 'nullable|date',
+        ]);
+
+        $prodId = $validated['citem_type'] === 'PRODUCT' ? (int) $validated['nid_item'] : null;
+        $ingId = $validated['citem_type'] === 'INGREDIENT' ? (int) $validated['nid_item'] : null;
+
+        $cost = isset($validated['ncost']) ? (float) $validated['ncost'] : 0.0;
+        if ($cost <= 0) {
+            if ($prodId) {
+                $p = MposProduct::find($prodId);
+                $cost = (float) ($p?->nprice_buy ?? 0);
+            } elseif ($ingId) {
+                $ing = MposIngredients::find($ingId);
+                $cost = (float) ($ing?->nprice ?? 0);
+            }
+        }
+
+        $qty = (float) $validated['nqty'];
+        $subtotal = $qty * $cost;
+
+        // Cek jika item sudah ada di draft ini, update qty-nya
+        $existing = $items->first(function ($it) use ($prodId, $ingId) {
+            return ($prodId && $it->nid_product == $prodId) || ($ingId && $it->nid_ingredient == $ingId);
+        });
+
+        if ($existing) {
+            $existing->nqty = (float) $existing->nqty + $qty;
+            $existing->nsubtotal = (float) $existing->nqty * (float) $existing->ncost;
+            $existing->dupdated = Carbon::now();
+            $existing->save();
+        } else {
+            MposStockMutation::create([
+                'cno_ref' => $first->cno_ref,
+                'dmutation' => $first->dmutation ?? Carbon::now(),
+                'ctype' => MposStockMutation::TYPE_OUT,
+                'nid_outlet' => $first->nid_outlet,
+                'nid_target_outlet' => $first->nid_target_outlet,
+                'nid_user' => Auth::id() ?? 1,
+                'citem_type' => $validated['citem_type'],
+                'nid_product' => $prodId,
+                'nid_ingredient' => $ingId,
+                'nqty' => $qty,
+                'ncost' => $cost,
+                'nsubtotal' => $subtotal,
+                'creason' => $first->creason,
+                'cstatus' => MposStockMutation::STATUS_DRAFT,
+                'cnote' => $first->cnote,
+                'dexpired' => $validated['dexpired'] ?? null,
+                'crack' => $validated['crack'] ?? null,
+                'dcreated' => Carbon::now(),
+                'dupdated' => Carbon::now(),
+            ]);
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Item berhasil ditambahkan ke draf stok keluar.',
+            ]);
+        }
+
+        return redirect()->route('inventory.stock-out.show', $first->cno_ref)
+            ->with('success', 'Item berhasil ditambahkan ke draf stok keluar.');
+    }
+
+    /**
+     * Update Kuantitas Item pada Dokumen Stok Keluar (Draf)
+     */
+    public function updateStockOutItem(Request $request, string $id, string $itemId)
+    {
+        $item = MposStockMutation::where('nid', $itemId)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->firstOrFail();
+
+        if (strtoupper((string) $item->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Hanya item berstatus Draf yang dapat diubah.'], 422);
+            }
+            return redirect()->back()->with('error', 'Hanya item berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'nqty' => 'required|numeric|min:0.01',
+        ]);
+
+        $item->nqty = (float) $validated['nqty'];
+        $item->nsubtotal = (float) $item->nqty * (float) $item->ncost;
+        $item->dupdated = Carbon::now();
+        $item->save();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Qty berhasil diperbarui.',
+                'nqty' => $item->nqty,
+                'nsubtotal' => $item->nsubtotal,
+            ]);
+        }
+
+        return redirect()->route('inventory.stock-out.show', $item->cno_ref)
+            ->with('success', 'Kuantitas item berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus Item dari Dokumen Stok Keluar (Draf)
+     */
+    public function destroyStockOutItem(string $id, string $itemId)
+    {
+        $item = MposStockMutation::where('nid', $itemId)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->firstOrFail();
+
+        if (strtoupper((string) $item->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Hanya item pada draf yang dapat dihapus.');
+        }
+
+        $totalCount = MposStockMutation::where('cno_ref', $item->cno_ref)->where('ctype', MposStockMutation::TYPE_OUT)->count();
+        if ($totalCount <= 1) {
+            return redirect()->back()->with('error', 'Dokumen stok keluar harus memiliki minimal 1 item. Jika tidak diperlukan, silakan batalkan seluruh transaksi.');
+        }
+
+        $cnoRef = $item->cno_ref;
+        $item->delete();
+
+        return redirect()->route('inventory.stock-out.show', $cnoRef)
+            ->with('success', 'Item berhasil dihapus dari draf stok keluar.');
     }
 
     /**

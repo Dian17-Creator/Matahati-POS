@@ -105,6 +105,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');
         Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
         Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');
+        Route::put('/stock-out/{id}', [InventoryController::class, 'updateStockOutHeader'])->name('stock-out.update');
+        Route::post('/stock-out/{id}/post', [InventoryController::class, 'postStockOut'])->name('stock-out.post');
+        Route::post('/stock-out/{id}/cancel', [InventoryController::class, 'cancelStockOut'])->name('stock-out.cancel');
+        Route::post('/stock-out/{id}/items', [InventoryController::class, 'addStockOutItem'])->name('stock-out.items.store');
+        Route::put('/stock-out/{id}/items/{itemId}', [InventoryController::class, 'updateStockOutItem'])->name('stock-out.items.update');
+        Route::delete('/stock-out/{id}/items/{itemId}', [InventoryController::class, 'destroyStockOutItem'])->name('stock-out.items.destroy');
         Route::get('/stock-out/{id}/print', [InventoryController::class, 'printStockOut'])->name('stock-out.print');
 
         // Stok Opname Routes

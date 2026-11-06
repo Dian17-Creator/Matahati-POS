@@ -16,6 +16,7 @@ class MposStockMutation extends Model
     public const STATUS_POSTED = 'POSTED';
     public const STATUS_DRAFT = 'DRAFT';
     public const STATUS_VOID = 'VOID';
+    public const STATUS_CANCELLED = 'CANCELLED';
 
     public const ITEM_PRODUCT = 'PRODUCT';
     public const ITEM_INGREDIENT = 'INGREDIENT';
@@ -90,6 +91,21 @@ class MposStockMutation extends Model
     {
         return strtoupper((string) $this->citem_type) === self::ITEM_INGREDIENT
             || (!empty($this->nid_ingredient) && empty($this->nid_product));
+    }
+
+    public function isDraft(): bool
+    {
+        return strtoupper((string) $this->cstatus) === self::STATUS_DRAFT;
+    }
+
+    public function isPosted(): bool
+    {
+        return strtoupper((string) $this->cstatus) === self::STATUS_POSTED;
+    }
+
+    public function isCancelled(): bool
+    {
+        return in_array(strtoupper((string) $this->cstatus), [self::STATUS_CANCELLED, self::STATUS_VOID], true);
     }
 
     /**
