@@ -115,6 +115,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-opname/{id}/items', [InventoryController::class, 'storeStockOpnameItems'])->name('stock-opname.items.store');
         Route::put('/stock-opname/{id}/items/{itemId}', [InventoryController::class, 'updateStockOpnameItem'])->name('stock-opname.items.update');
         Route::delete('/stock-opname/{id}/items/{itemId}', [InventoryController::class, 'destroyStockOpnameItem'])->name('stock-opname.items.destroy');
+        Route::post('/stock-opname/{id}/sync-system-stock', [InventoryController::class, 'syncStockOpnameSystemStock'])->name('stock-opname.sync-system-stock');
         Route::post('/stock-opname/{id}/post', [InventoryController::class, 'postStockOpname'])->name('stock-opname.post');
         Route::post('/stock-opname/{id}/cancel', [InventoryController::class, 'cancelStockOpname'])->name('stock-opname.cancel');
         Route::get('/stock-opname/{id}/print', [InventoryController::class, 'printStockOpname'])->name('stock-opname.print');

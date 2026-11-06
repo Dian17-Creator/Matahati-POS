@@ -1315,6 +1315,12 @@ class InventoryController extends Controller
             abort(403, 'Anda tidak memiliki hak akses ke data outlet ini.');
         }
 
+        // Sinkronkan stok sistem secara real-time jika dokumen masih draf
+        if ($opname->isDraft()) {
+            $this->syncDraftOpnameSystemStock($opname);
+            $opname->load(['details.product.category', 'details.ingredient']);
+        }
+
         // Ambil produk aktif di outlet untuk modal tambah produk
         $availableProducts = MposProduct::with('category')
             ->where('nid_outlet', $opname->nid_outlet)
@@ -1470,6 +1476,25 @@ class InventoryController extends Controller
             'dtime' => 'nullable|string',
         ]);
 
+        // Cek stok sistem dan biaya beli terkini dari master
+        if ($detail->nid_product) {
+            $prod = MposProduct::find($detail->nid_product);
+            if ($prod) {
+                $detail->nqty_system = (float) $prod->nqty;
+                if ((float) $detail->ncost <= 0 && (float) $prod->nprice_buy > 0) {
+                    $detail->ncost = (float) $prod->nprice_buy;
+                }
+            }
+        } elseif ($detail->nid_ingredient) {
+            $ing = MposIngredients::find($detail->nid_ingredient);
+            if ($ing) {
+                $detail->nqty_system = (float) $ing->nstock;
+                if ((float) $detail->ncost <= 0 && (float) $ing->ncost > 0) {
+                    $detail->ncost = (float) $ing->ncost;
+                }
+            }
+        }
+
         $actualQty = (float) $validated['nqty_actual'];
         $systemQty = (float) $detail->nqty_system;
         $diffQty = $actualQty - $systemQty;
@@ -1524,6 +1549,93 @@ class InventoryController extends Controller
     }
 
     /**
+     * Sinkronkan nqty_system pada dokumen Stok Opname draf dengan stok master produk/bahan terkini
+     */
+    protected function syncDraftOpnameSystemStock(MposStockOpnameH $opname): int
+    {
+        if (!$opname->isDraft()) {
+            return 0;
+        }
+
+        $details = $opname->details;
+        if ($details->isEmpty()) {
+            return 0;
+        }
+
+        $productIds = $details->whereNotNull('nid_product')->pluck('nid_product')->unique();
+        $products = $productIds->isNotEmpty()
+            ? MposProduct::whereIn('nid', $productIds)->get()->keyBy('nid')
+            : collect();
+
+        $ingredientIds = $details->whereNotNull('nid_ingredient')->pluck('nid_ingredient')->unique();
+        $ingredients = $ingredientIds->isNotEmpty()
+            ? MposIngredients::whereIn('nid', $ingredientIds)->get()->keyBy('nid')
+            : collect();
+
+        $updatedCount = 0;
+        foreach ($details as $d) {
+            $currentSystemQty = null;
+            $currentCost = (float) $d->ncost;
+
+            if ($d->nid_product && $products->has($d->nid_product)) {
+                $prod = $products->get($d->nid_product);
+                $currentSystemQty = (float) ($prod->nqty ?? 0);
+                if ($currentCost <= 0 && (float) ($prod->nprice_buy ?? 0) > 0) {
+                    $currentCost = (float) $prod->nprice_buy;
+                }
+            } elseif ($d->nid_ingredient && $ingredients->has($d->nid_ingredient)) {
+                $ing = $ingredients->get($d->nid_ingredient);
+                $currentSystemQty = (float) ($ing->nstock ?? 0);
+                if ($currentCost <= 0 && (float) ($ing->ncost ?? 0) > 0) {
+                    $currentCost = (float) $ing->ncost;
+                }
+            }
+
+            if ($currentSystemQty !== null) {
+                $actualQty = (float) $d->nqty_actual;
+                $diffQty = $actualQty - $currentSystemQty;
+                $subtotalDiff = $diffQty * $currentCost;
+
+                if (
+                    (float) $d->nqty_system !== $currentSystemQty ||
+                    (float) $d->nqty_diff !== $diffQty ||
+                    (float) $d->ncost !== $currentCost ||
+                    (float) $d->nsubtotal_diff !== $subtotalDiff
+                ) {
+                    $d->nqty_system = $currentSystemQty;
+                    $d->nqty_diff = $diffQty;
+                    $d->ncost = $currentCost;
+                    $d->nsubtotal_diff = $subtotalDiff;
+                    $d->save();
+                    $updatedCount++;
+                }
+            }
+        }
+
+        if ($updatedCount > 0) {
+            $opname->recalculateTotals();
+        }
+
+        return $updatedCount;
+    }
+
+    /**
+     * Endpoint untuk trigger manual sinkronisasi stok sistem dokumen draf
+     */
+    public function syncStockOpnameSystemStock(string $id)
+    {
+        $opname = MposStockOpnameH::with('details')->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat disinkronkan stok sistemnya.');
+        }
+
+        $count = $this->syncDraftOpnameSystemStock($opname);
+
+        return redirect()->back()->with('success', 'Stok sistem berhasil disinkronkan secara real-time dengan stok master terkini' . ($count > 0 ? " ({$count} item diperbarui)." : '. Semua kuantitas sudah mutakhir.'));
+    }
+
+    /**
      * Posting Dokumen Stok Opname (Finalisasi, Update Stok Produk & Catat Pergerakan Stok)
      */
     public function postStockOpname(Request $request, string $id)
@@ -1543,23 +1655,44 @@ class InventoryController extends Controller
             $mutationDate = Carbon::parse($opname->dopname)->setTimeFrom(Carbon::now());
 
             foreach ($opname->details as $d) {
-                // 1. Update Stok di Master Produk
+                $liveSystemQty = (float) $d->nqty_system;
+                $cost = (float) $d->ncost;
+
+                // 1. Ambil stok terkini dengan lockForUpdate untuk mencegah race condition
                 if ($d->nid_product) {
                     $prod = MposProduct::lockForUpdate()->find($d->nid_product);
                     if ($prod) {
+                        $liveSystemQty = (float) $prod->nqty;
+                        if ($cost <= 0 && (float) $prod->nprice_buy > 0) {
+                            $cost = (float) $prod->nprice_buy;
+                        }
                         $prod->nqty = $d->nqty_actual;
                         $prod->save();
                     }
                 } elseif ($d->nid_ingredient) {
                     $ing = MposIngredients::lockForUpdate()->find($d->nid_ingredient);
                     if ($ing) {
+                        $liveSystemQty = (float) $ing->nstock;
+                        if ($cost <= 0 && (float) $ing->ncost > 0) {
+                            $cost = (float) $ing->ncost;
+                        }
                         $ing->nstock = $d->nqty_actual;
                         $ing->save();
                     }
                 }
 
-                // 2. Jika ada selisih, catat ke mpos_stock_mutations untuk pergerakan stok
-                $diffQty = (float) $d->nqty_diff;
+                // 2. Hitung selisih real-time terhadap stok sistem saat posting
+                $actualQty = (float) $d->nqty_actual;
+                $diffQty = $actualQty - $liveSystemQty;
+                $subtotalDiff = $diffQty * $cost;
+
+                $d->nqty_system = $liveSystemQty;
+                $d->nqty_diff = $diffQty;
+                $d->ncost = $cost;
+                $d->nsubtotal_diff = $subtotalDiff;
+                $d->save();
+
+                // 3. Jika ada selisih, catat ke mpos_stock_mutations untuk pergerakan stok
                 if ($diffQty != 0) {
                     $isPositive = $diffQty > 0;
                     $mutationType = $isPositive ? MposStockMutation::TYPE_IN : MposStockMutation::TYPE_OUT;
@@ -1567,7 +1700,7 @@ class InventoryController extends Controller
                         ? 'Penyesuaian Stok Opname (Lebih Fisik)'
                         : 'Penyesuaian Stok Opname (Kurang Fisik)';
                     $absQty = abs($diffQty);
-                    $subtotal = abs((float) $d->nsubtotal_diff);
+                    $subtotal = abs($subtotalDiff);
 
                     $itemType = (!empty($d->nid_ingredient) || in_array(strtoupper((string) $d->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']))
                         ? MposStockMutation::ITEM_INGREDIENT
@@ -1584,7 +1717,7 @@ class InventoryController extends Controller
                         'nid_product' => $d->nid_product,
                         'nid_ingredient' => $d->nid_ingredient,
                         'nqty' => $absQty,
-                        'ncost' => (float) $d->ncost,
+                        'ncost' => $cost,
                         'nsubtotal' => $subtotal,
                         'creason' => $reason,
                         'cstatus' => MposStockMutation::STATUS_POSTED,
@@ -1596,7 +1729,10 @@ class InventoryController extends Controller
                 }
             }
 
-            // 3. Update status header opname menjadi POSTED
+            // 4. Hitung ulang total header setelah semua selisih sinkron
+            $opname->recalculateTotals();
+
+            // 5. Update status header opname menjadi POSTED
             $opname->cstatus = MposStockOpnameH::STATUS_POSTED;
             $opname->dposted = Carbon::now();
             $opname->dupdated = Carbon::now();
@@ -1645,6 +1781,11 @@ class InventoryController extends Controller
             }
         ])->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
 
+        if ($opname->isDraft()) {
+            $this->syncDraftOpnameSystemStock($opname);
+            $opname->load(['details.product.category', 'details.ingredient']);
+        }
+
         return view('inventory.stock_opname_print', compact('opname'));
     }
 
@@ -1660,6 +1801,11 @@ class InventoryController extends Controller
                 $q->with(['product.category', 'ingredient']);
             }
         ])->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if ($opname->isDraft()) {
+            $this->syncDraftOpnameSystemStock($opname);
+            $opname->load(['details.product.category', 'details.ingredient']);
+        }
 
         $filename = "Stok_Opname_{$opname->cno_opname}_" . date('Ymd_His') . ".csv";
 
