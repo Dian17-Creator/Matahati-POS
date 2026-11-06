@@ -198,7 +198,7 @@
             <span>Pastikan data sudah benar sebelum diposting. Setelah terposting, data tidak diperbolehkan diubah.</span>
             @if($opname->isDraft())
             <span class="d-block text-muted mt-1">
-                <i class="bi bi-info-circle me-1 text-primary"></i> <strong>Catatan Stok Dinamis:</strong> Selama status dokumen masih <em>Draf</em>, nilai <strong>Qty System</strong> akan otomatis tersinkronisasi secara <em>real-time</em> mengikuti mutasi pembelian/penjualan terkini sebelum Anda menekan <strong>Posting Sekarang</strong>.
+                <strong>Catatan Stok Dinamis:</strong> Selama status dokumen masih <em>Draf</em>, nilai <strong>Qty System</strong> akan otomatis tersinkronisasi secara <em>real-time</em> mengikuti mutasi pembelian/penjualan terkini sebelum Anda menekan <strong>Posting Sekarang</strong>.
             </span>
             @endif
         </div>
@@ -324,15 +324,11 @@
                 <thead class="bg-light text-muted fw-semibold">
                     <tr>
                         <th class="ps-3" style="min-width: 280px;">Produk</th>
-                        <th style="width: 100px;">Waktu</th>
-                        <th class="text-center" style="width: 110px;">Qty System</th>
-                        <th class="text-center" style="width: 120px;">Qty Aktual</th>
-                        <th class="text-center" style="width: 110px;">Qty Selisih</th>
-                        <th class="text-center" style="width: 130px;">Selisih Harga</th>
-                        <th style="width: 140px;">Tgl. Kadaluwarsa</th>
-                        <th style="width: 100px;">Rack</th>
+                        <th class="text-center" style="width: 140px;">Qty System</th>
+                        <th class="text-center" style="width: 140px;">Qty Aktual</th>
+                        <th class="text-center" style="width: 140px;">Qty Selisih</th>
                         @if($opname->isDraft())
-                        <th class="text-center" style="width: 60px;">Aksi</th>
+                        <th class="text-center" style="width: 70px;">Aksi</th>
                         @endif
                     </tr>
                 </thead>
@@ -375,23 +371,29 @@
                                 </div>
                             </div>
                         </td>
-                        <td>
-                            <span class="text-muted small">{{ $d->dtime ?: '-' }}</span>
-                        </td>
                         <td class="text-center fw-medium text-dark">
                             {{ number_format($d->nqty_system, 0, ',', '.') }}
                         </td>
                         <td class="text-center">
                             @if($opname->isDraft())
-                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold" onclick="openEditItemModal({{ $d->nid }}, {{ $d->nqty_actual }}, '{{ $d->dexpired }}', '{{ addslashes($d->crack ?? '') }}', '{{ addslashes($d->cnote ?? '') }}', '{{ $d->dtime }}', '{{ addslashes($d->item_name) }}')">
-                                {{ number_format($d->nqty_actual, 0, ',', '.') }}
-                                <i class="bi bi-pencil ms-1 text-primary" style="font-size: 0.75rem;"></i>
-                            </button>
+                            <div class="d-inline-flex justify-content-center">
+                                <div class="qty-stepper mx-auto" style="max-width: 110px; height: 31px;" data-item-id="{{ $d->nid }}" data-system-qty="{{ (float) $d->nqty_system }}">
+                                    <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepOpnameItemQty({{ $d->nid }}, -1)" title="Kurangi 1">−</button>
+                                    <input type="number"
+                                        class="qty-stepper-input opname-qty-input no-spinners"
+                                        id="opname-qty-{{ $d->nid }}"
+                                        value="{{ rtrim(rtrim(number_format((float) $d->nqty_actual, 2, '.', ''), '0'), '.') }}"
+                                        min="0"
+                                        step="any"
+                                        oninput="saveOpnameItemQty({{ $d->nid }})">
+                                    <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepOpnameItemQty({{ $d->nid }}, 1)" title="Tambah 1">+</button>
+                                </div>
+                            </div>
                             @else
                             <span class="fw-bold text-dark">{{ number_format($d->nqty_actual, 0, ',', '.') }}</span>
                             @endif
                         </td>
-                        <td class="text-center">
+                        <td class="text-center" id="opname-diff-cell-{{ $d->nid }}">
                             @if($d->nqty_diff > 0)
                             <span class="badge bg-success-subtle text-success fw-bold px-2 py-1">+{{ number_format($d->nqty_diff, 0, ',', '.') }}</span>
                             @elseif($d->nqty_diff < 0)
@@ -399,15 +401,6 @@
                                 @else
                                 <span class="badge bg-light text-secondary border px-2 py-1">0</span>
                                 @endif
-                        </td>
-                        <td class="text-center text-muted">
-                            -
-                        </td>
-                        <td>
-                            <span class="text-muted small">{{ $d->dexpired ? \Carbon\Carbon::parse($d->dexpired)->format('d-M-Y') : '-' }}</span>
-                        </td>
-                        <td>
-                            <span class="text-muted small">{{ $d->crack ?: '-' }}</span>
                         </td>
                         @if($opname->isDraft())
                         <td class="text-center">
@@ -423,7 +416,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $opname->isDraft() ? 9 : 8 }}" class="text-center py-5 text-muted">
+                        <td colspan="{{ $opname->isDraft() ? 5 : 4 }}" class="text-center py-5 text-muted">
                             <i class="bi bi-box-seam display-6 d-block mb-2 text-secondary"></i>
                             <p class="mb-2">Belum ada produk yang dimasukkan ke dalam dokumen Stok Opname ini.</p>
                             @if($opname->isDraft())
@@ -438,10 +431,10 @@
                 @if($opname->details->isNotEmpty())
                 <tfoot class="bg-light fw-bold">
                     <tr>
-                        <td class="ps-3" colspan="2">TOTAL</td>
+                        <td class="ps-3">TOTAL</td>
                         <td class="text-center">{{ number_format($opname->ntotal_system_qty, 0, ',', '.') }}</td>
-                        <td class="text-center">{{ number_format($opname->ntotal_actual_qty, 0, ',', '.') }}</td>
-                        <td class="text-center">
+                        <td class="text-center" id="opnameTotalActual">{{ number_format($opname->ntotal_actual_qty, 0, ',', '.') }}</td>
+                        <td class="text-center" id="opnameTotalDiff">
                             @if($opname->ntotal_diff_qty > 0)
                             <span class="text-success">+{{ number_format($opname->ntotal_diff_qty, 0, ',', '.') }}</span>
                             @elseif($opname->ntotal_diff_qty < 0)
@@ -450,10 +443,9 @@
                                 <span class="text-secondary">0</span>
                                 @endif
                         </td>
-                        <td class="text-center text-muted">
-                            -
-                        </td>
-                        <td colspan="{{ $opname->isDraft() ? 3 : 2 }}"></td>
+                        @if($opname->isDraft())
+                        <td></td>
+                        @endif
                     </tr>
                 </tfoot>
                 @endif
@@ -482,10 +474,7 @@
                 <div class="modal-body p-3">
                     {{-- Filter Bar --}}
                     <div class="row g-2 align-items-center mb-3">
-                        <div class="col-auto" style="width: 140px;">
-                            <input type="time" step="1" name="default_time" id="modalFilterTime" class="form-control form-control-sm" value="{{ date('H:i:s') }}">
-                        </div>
-                        <div class="col-auto" style="min-width: 160px;">
+                        <div class="col-auto" style="min-width: 180px;">
                             <select id="modalFilterCategory" class="form-select form-select-sm">
                                 <option value="">Semua Kategori</option>
                                 @foreach($categories as $cat)
@@ -619,29 +608,14 @@
 
                     <div class="mb-3">
                         <label class="form-label small fw-semibold">Qty Aktual (Fisik) <span class="text-danger">*</span></label>
-                        <input type="number" step="any" min="0" name="nqty_actual" id="editActualQty" class="form-control form-control-sm" required>
+                        <input type="number" step="any" min="0" name="nqty_actual" id="editActualQty" class="form-control form-control-sm" required autofocus>
                     </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold">Waktu Cek</label>
-                            <input type="time" step="1" name="dtime" id="editTime" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small fw-semibold">Tgl. Kadaluwarsa</label>
-                            <input type="date" name="dexpired" id="editExpired" class="form-control form-control-sm">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Rack / Lokasi Rak</label>
-                        <input type="text" name="crack" id="editRack" class="form-control form-control-sm" placeholder="Contoh: Rak A-02">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold">Catatan</label>
-                        <input type="text" name="cnote" id="editNote" class="form-control form-control-sm" placeholder="Kondisi barang / keterangan...">
-                    </div>
+                    {{-- Field Waktu, Tgl Kadaluwarsa, Rack, Catatan di-hide dulu --}}
+                    <input type="hidden" name="dtime" id="editTime">
+                    <input type="hidden" name="dexpired" id="editExpired">
+                    <input type="hidden" name="crack" id="editRack">
+                    <input type="hidden" name="cnote" id="editNote">
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
                     <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Batal</button>
@@ -819,6 +793,106 @@
 
         updateSelectedCount();
     });
+
+    // Stepper & Auto-save untuk Qty Aktual pada tabel detail Stok Opname
+    function stepOpnameItemQty(itemId, delta) {
+        const input = document.getElementById(`opname-qty-${itemId}`);
+        if (!input) return;
+        let val = parseFloat(input.value) || 0;
+        val = Math.max(0, parseFloat((val + delta).toFixed(2)));
+        input.value = val;
+        saveOpnameItemQty(itemId);
+    }
+
+    let opnameSaveDebounce = {};
+    function saveOpnameItemQty(itemId) {
+        const input = document.getElementById(`opname-qty-${itemId}`);
+        if (!input) return;
+        const actualQty = parseFloat(input.value);
+        if (isNaN(actualQty) || actualQty < 0) {
+            alert('Kuantitas aktual tidak boleh kurang dari 0');
+            input.value = 0;
+            return;
+        }
+
+        const stepper = input.closest('.qty-stepper');
+        const systemQty = parseFloat(stepper?.getAttribute('data-system-qty') || 0);
+        const diffQty = actualQty - systemQty;
+
+        // Update badge selisih seketika secara responsif
+        const diffCell = document.getElementById(`opname-diff-cell-${itemId}`);
+        if (diffCell) {
+            if (diffQty > 0) {
+                diffCell.innerHTML = `<span class="badge bg-success-subtle text-success fw-bold px-2 py-1">+${diffQty.toLocaleString('id-ID')}</span>`;
+            } else if (diffQty < 0) {
+                diffCell.innerHTML = `<span class="badge bg-danger-subtle text-danger fw-bold px-2 py-1">${diffQty.toLocaleString('id-ID')}</span>`;
+            } else {
+                diffCell.innerHTML = `<span class="badge bg-light text-secondary border px-2 py-1">0</span>`;
+            }
+        }
+
+        // Hitung ulang total aktual dan total selisih di footer tabel
+        recalculateOpnameTableTotals();
+
+        // Debounce kirim request agar tidak spam jika tombol +/- diklik cepat
+        if (opnameSaveDebounce[itemId]) {
+            clearTimeout(opnameSaveDebounce[itemId]);
+        }
+
+        opnameSaveDebounce[itemId] = setTimeout(() => {
+            fetch(`{{ url('inventory/stock-opname/' . $opname->nid . '/items') }}/${itemId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    nqty_actual: actualQty
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    alert(data.message || 'Gagal menyimpan perubahan.');
+                }
+            })
+            .catch(err => {
+                console.error('Error saving opname qty:', err);
+            });
+        }, 300);
+    }
+
+    function recalculateOpnameTableTotals() {
+        let totalActual = 0;
+        let totalSystem = 0;
+
+        document.querySelectorAll('.opname-qty-input').forEach(input => {
+            const val = parseFloat(input.value) || 0;
+            totalActual += val;
+            const stepper = input.closest('.qty-stepper');
+            const sys = parseFloat(stepper?.getAttribute('data-system-qty') || 0);
+            totalSystem += sys;
+        });
+
+        const totalDiff = totalActual - totalSystem;
+
+        const totalActualEl = document.getElementById('opnameTotalActual');
+        if (totalActualEl) {
+            totalActualEl.textContent = totalActual.toLocaleString('id-ID');
+        }
+
+        const totalDiffEl = document.getElementById('opnameTotalDiff');
+        if (totalDiffEl) {
+            if (totalDiff > 0) {
+                totalDiffEl.innerHTML = `<span class="text-success">+${totalDiff.toLocaleString('id-ID')}</span>`;
+            } else if (totalDiff < 0) {
+                totalDiffEl.innerHTML = `<span class="text-danger">${totalDiff.toLocaleString('id-ID')}</span>`;
+            } else {
+                totalDiffEl.innerHTML = `<span class="text-secondary">0</span>`;
+            }
+        }
+    }
 
     function openEditItemModal(itemId, actualQty, expired, rack, note, time, itemName) {
         const form = document.getElementById('formEditItem');
