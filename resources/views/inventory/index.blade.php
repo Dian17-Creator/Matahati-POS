@@ -2,6 +2,7 @@
 
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <style>
     .ts-control {
         border-radius: 6px !important;
@@ -123,9 +124,94 @@
         -webkit-appearance: none !important;
         margin: 0 !important;
     }
+
     .qty-stepper-input,
     .no-spinners {
         -moz-appearance: textfield !important;
+    }
+
+    /* Table Compact Styling untuk Modal Tambah Stok Masuk & Stok Keluar */
+    #stockInItemsTable th,
+    #stockOutItemsTable th {
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.4px !important;
+        color: #475569 !important;
+        padding: 7px 5px !important;
+        vertical-align: middle !important;
+    }
+
+    #stockInItemsTable td,
+    #stockOutItemsTable td {
+        padding: 5px 5px !important;
+        vertical-align: middle !important;
+        font-size: 0.79rem !important;
+    }
+
+    #stockInItemsTable .in-item-type-select,
+    #stockOutItemsTable .out-item-type-select {
+        font-size: 0.78rem !important;
+        height: 31px !important;
+        padding: 2px 20px 2px 7px !important;
+        background-position: right 6px center !important;
+        background-size: 10px 10px !important;
+    }
+
+    #stockInItemsTable .ts-control,
+    #stockOutItemsTable .ts-control {
+        font-size: 0.79rem !important;
+        min-height: 31px !important;
+        height: 31px !important;
+        padding: 2px 8px !important;
+    }
+
+    #stockInItemsTable .ts-dropdown,
+    #stockOutItemsTable .ts-dropdown {
+        font-size: 0.79rem !important;
+    }
+
+    #stockInItemsTable .in-item-cost-input,
+    #stockOutItemsTable .out-item-cost-input {
+        font-size: 0.79rem !important;
+        height: 31px !important;
+        padding: 2px 6px !important;
+    }
+
+    #stockInItemsTable .input-group-text,
+    #stockOutItemsTable .input-group-text {
+        font-size: 0.74rem !important;
+        padding: 2px 6px !important;
+        height: 31px !important;
+    }
+
+    #stockInItemsTable .qty-stepper,
+    #stockOutItemsTable .qty-stepper {
+        height: 31px !important;
+        max-width: 105px !important;
+    }
+
+    #stockInItemsTable .qty-stepper-btn,
+    #stockOutItemsTable .qty-stepper-btn {
+        width: 27px !important;
+        min-width: 27px !important;
+        font-size: 0.75rem !important;
+    }
+
+    #stockInItemsTable .qty-stepper-input,
+    #stockOutItemsTable .qty-stepper-input {
+        font-size: 0.82rem !important;
+        min-width: 36px !important;
+    }
+
+    #stockInItemsTable .in-current-stock-badge,
+    #stockOutItemsTable .out-current-stock-badge {
+        font-size: 0.74rem !important;
+        padding: 3px 6px !important;
+    }
+
+    #stockInItemsTable .in-item-subtotal-display,
+    #stockOutItemsTable .out-item-subtotal-display {
+        font-size: 0.79rem !important;
     }
 </style>
 @endpush
@@ -637,7 +723,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
 
 <!-- ==================== MODAL TAMBAH STOK MASUK MANUAL ==================== -->
 <div class="modal fade" id="createStockInModal" tabindex="-1" aria-labelledby="createStockInModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 960px;">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1040px;">
         <div class="modal-content border-0 shadow">
             <form action="{{ route('inventory.stock-in.store') }}" method="POST" id="createStockInForm">
                 @csrf
@@ -709,14 +795,14 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                         <table class="table align-middle mb-0" id="stockInItemsTable">
                             <thead>
                                 <tr class="bg-light">
-                                    <th style="width: 35px;" class="text-center py-2 text-muted text-nowrap">No</th>
-                                    <th style="width: 140px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
-                                    <th class="py-2 text-center text-nowrap">PRODUK / BAHAN BAKU</th>
-                                    <th style="width: 110px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
-                                    <th style="width: 90px;" class="text-center py-2 text-nowrap">QTY MASUK</th>
-                                    <th style="width: 140px;" class="text-center py-1 text-nowrap">HARGA BELI / MODAL</th>
-                                    <th style="width: 130px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
-                                    <th style="width: 35px;" class="text-center py-2"></th>
+                                    <th style="width: 32px;" class="text-center py-2 text-muted text-nowrap">NO</th>
+                                    <th style="width: 120px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                    <th class="py-2 text-center text-nowrap" style="min-width: 260px;">PRODUK / BAHAN BAKU</th>
+                                    <th style="width: 105px;" class="text-center py-2 text-nowrap">STOK SEKARANG</th>
+                                    <th style="width: 115px;" class="text-center py-2 text-nowrap">QTY MASUK</th>
+                                    <th style="width: 130px;" class="text-center py-2 text-nowrap">HARGA BELI</th>
+                                    <th style="width: 120px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
+                                    <th style="width: 32px;" class="text-center py-2"></th>
                                 </tr>
                             </thead>
                             <tbody id="stockInItemsTableBody" class="small">
@@ -766,6 +852,43 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
     const stockInIngredients = JSON.parse(document.getElementById('stockInIngredientsData')?.textContent || '[]');
 
     let stockInRowCounter = 0;
+    const stockInTsInstances = {};
+
+    function formatStockInNumber(val) {
+        const num = parseFloat(val || 0);
+        if (Number.isNaN(num)) return '0';
+        return Number.isInteger(num) ? String(num) : String(parseFloat(num.toFixed(2)));
+    }
+
+    function getSelectedStockInOutletId() {
+        const sel = document.getElementById('modalStockInOutlet');
+        if (sel) return sel.value;
+        return "{{ $selectedOutletId ?: ($outlets->first()?->nid ?? '') }}";
+    }
+
+    function getStockInItemsForType(type, outletId) {
+        if (type === 'INGREDIENT') {
+            return stockInIngredients
+                .filter(i => !outletId || !i.nid_outlet || String(i.nid_outlet) === String(outletId))
+                .map(i => ({
+                    nid: i.nid,
+                    cname: i.cname,
+                    nstock: parseFloat(i.nstock !== undefined && i.nstock !== null ? i.nstock : (i.nqty || 0)),
+                    csatuan: i.csatuan || 'PCS',
+                    ncost: parseFloat(i.ncost !== undefined && i.ncost !== null ? i.ncost : (i.nprice || 0))
+                }));
+        }
+
+        return stockInProducts
+            .filter(p => !outletId || !p.nid_outlet || String(p.nid_outlet) === String(outletId))
+            .map(p => ({
+                nid: p.nid,
+                cname: p.cname,
+                nstock: parseFloat(p.nqty !== undefined && p.nqty !== null ? p.nqty : 0),
+                csatuan: p.csatuan || 'PCS',
+                ncost: parseFloat(p.nprice_buy !== undefined && p.nprice_buy !== null ? p.nprice_buy : 0)
+            }));
+    }
 
     function openStockInModal() {
         const modalEl = document.getElementById('createStockInModal');
@@ -780,54 +903,212 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
         modal.show();
     }
 
-    function addStockInRow() {
+    function addStockInRow(itemId = '', itemQty = 1, itemType = 'PRODUCT') {
         stockInRowCounter++;
+        const curIdx = stockInRowCounter;
         const tbody = document.getElementById('stockInItemsTableBody');
         const tr = document.createElement('tr');
-        tr.id = 'stock-in-row-' + stockInRowCounter;
+        tr.id = 'stock-in-row-' + curIdx;
+        tr.setAttribute('data-row-id', curIdx);
+
+        const placeholderText = itemType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
 
         tr.innerHTML = `
-                    <td class="text-center text-muted fw-semibold row-number">${tbody.children.length + 1}</td>
-                    <td>
-                        <select name="items[${stockInRowCounter}][citem_type]" class="form-select form-select-sm in-item-type-select" onchange="handleStockInTypeChange(${stockInRowCounter})">
-                            <option value="PRODUCT" selected>Produk</option>
-                            <option value="INGREDIENT">Bahan Baku</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select name="items[${stockInRowCounter}][nid_item]" class="form-select form-select-sm in-item-select" required onchange="handleStockInItemSelect(${stockInRowCounter})">
-                            <option value="">-- Pilih Item --</option>
-                        </select>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-light text-secondary border in-current-stock-badge">-</span>
-                    </td>
-                    <td>
-                        <input type="number" step="0.01" min="0.01" name="items[${stockInRowCounter}][nqty]" class="form-control form-control-sm text-center in-item-qty-input" value="1" required oninput="calculateStockInTotals()">
-                    </td>
-                    <td>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light text-muted">Rp</span>
-                            <input type="number" step="1" min="0" name="items[${stockInRowCounter}][ncost]" class="form-control form-control-sm text-end in-item-cost-input" value="0" oninput="calculateStockInTotals()">
-                        </div>
-                    </td>
-                    <td class="text-end fw-semibold text-success in-item-subtotal-display">
-                        Rp 0
-                    </td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-outline-danger btn-sm border-0 py-0 px-1" onclick="removeStockInRow(${stockInRowCounter})" title="Hapus Baris">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                `;
+            <td class="text-center text-muted fw-semibold align-middle row-number py-2">${tbody.children.length + 1}</td>
+            <td class="py-2 align-middle">
+                <select name="items[${curIdx}][citem_type]" class="form-select form-select-sm fw-semibold in-item-type-select" data-row="${curIdx}">
+                    <option value="PRODUCT" ${itemType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
+                    <option value="INGREDIENT" ${itemType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                </select>
+            </td>
+            <td class="py-2 align-middle">
+                <select name="items[${curIdx}][nid_item]" class="form-select form-select-sm in-item-select" id="stock_in_item_${curIdx}" data-row="${curIdx}">
+                    <option value="">${placeholderText}</option>
+                </select>
+            </td>
+            <td class="text-center py-2 align-middle">
+                <span class="badge bg-light text-secondary border in-current-stock-badge" id="stock_in_badge_${curIdx}">-</span>
+            </td>
+            <td class="py-2 text-center align-middle">
+                <div class="qty-stepper mx-auto">
+                    <button type="button" class="qty-stepper-btn qty-stepper-minus in-btn-minus" title="Kurangi 1">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" step="any" min="0.01" name="items[${curIdx}][nqty]" class="qty-stepper-input in-item-qty-input no-spinners" value="${itemQty}" placeholder="1" required>
+                    <button type="button" class="qty-stepper-btn qty-stepper-plus in-btn-plus" title="Tambah 1">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </td>
+            <td class="py-2 align-middle">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light text-muted">Rp</span>
+                    <input type="number" step="1" min="0" name="items[${curIdx}][ncost]" class="form-control form-control-sm text-end in-item-cost-input" value="0">
+                </div>
+            </td>
+            <td class="text-end fw-semibold text-success align-middle in-item-subtotal-display">
+                Rp 0
+            </td>
+            <td class="text-center py-2 align-middle">
+                <button type="button" class="btn btn-outline-danger btn-sm p-1 border-0 rounded-circle in-btn-delete" onclick="removeStockInRow(${curIdx})" title="Hapus Baris" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
 
         tbody.appendChild(tr);
-        populateStockInItemDropdown(stockInRowCounter, 'PRODUCT');
+
+        const selectEl = tr.querySelector('.in-item-select');
+        const stockBadge = tr.querySelector('.in-current-stock-badge');
+        const costInput = tr.querySelector('.in-item-cost-input');
+        const qtyInput = tr.querySelector('.in-item-qty-input');
+        const typeSelect = tr.querySelector('.in-item-type-select');
+        const btnMinus = tr.querySelector('.in-btn-minus');
+        const btnPlus = tr.querySelector('.in-btn-plus');
+
+        // Inisialisasi TomSelect untuk live search & dropdown modern
+        const ts = new TomSelect(selectEl, {
+            create: false,
+            maxItems: 1,
+            placeholder: placeholderText,
+            allowEmptyOption: true,
+            sortField: {
+                field: "text",
+                direction: "asc"
+            },
+            render: {
+                item: function(data, escape) {
+                    const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                    return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                },
+                option: function(data, escape) {
+                    if (!data.value) {
+                        return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                    }
+                    const stockVal = (data.nstock !== undefined && data.nstock !== null) ? data.nstock : '-';
+                    const unitVal = data.csatuan || 'PCS';
+                    const stockLabel = stockVal === '-' ? '-' : `${formatStockInNumber(stockVal)} ${unitVal}`;
+                    const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                    return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                        '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
+                        '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
+                        '</div>';
+                }
+            }
+        });
+        stockInTsInstances[curIdx] = ts;
+
+        // Listener saat produk/bahan dipilih di TomSelect
+        ts.on('change', function(val) {
+            const optData = ts.options[val];
+            if (optData && val) {
+                const stock = parseFloat((optData.nstock !== undefined && optData.nstock !== null) ? optData.nstock : 0);
+                const unit = optData.csatuan || 'PCS';
+                stockBadge.textContent = `${formatStockInNumber(stock)} ${unit}`;
+                if (stock <= 0) {
+                    stockBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle in-current-stock-badge';
+                } else if (stock <= 5) {
+                    stockBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle in-current-stock-badge';
+                } else {
+                    stockBadge.className = 'badge bg-success-subtle text-success border border-success-subtle in-current-stock-badge';
+                }
+
+                const cost = parseFloat(optData.ncost || 0);
+                costInput.value = Math.round(cost);
+            } else {
+                stockBadge.textContent = '-';
+                stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
+                costInput.value = 0;
+            }
+            calculateStockInTotals();
+        });
+
+        // Event listener minus dan plus pada Qty Stepper
+        if (btnMinus) {
+            btnMinus.addEventListener('click', function() {
+                let val = parseFloat(qtyInput.value) || 0;
+                val = Math.max(0, val - 1);
+                if (val === 0) val = 1;
+                qtyInput.value = val;
+                calculateStockInTotals();
+            });
+        }
+
+        if (btnPlus) {
+            btnPlus.addEventListener('click', function() {
+                let val = parseFloat(qtyInput.value) || 0;
+                qtyInput.value = val + 1;
+                calculateStockInTotals();
+            });
+        }
+
+        qtyInput.addEventListener('input', function() {
+            calculateStockInTotals();
+        });
+
+        costInput.addEventListener('input', function() {
+            calculateStockInTotals();
+        });
+
+        typeSelect.addEventListener('change', function() {
+            populateStockInTsOptions(curIdx, this.value);
+        });
+
+        populateStockInTsOptions(curIdx, itemType, itemId);
         renumberStockInRows();
         calculateStockInTotals();
     }
 
+    function populateStockInTsOptions(rowId, rowType, keepSelectedId = '') {
+        const ts = stockInTsInstances[rowId];
+        if (!ts) return;
+
+        const row = document.getElementById('stock-in-row-' + rowId);
+        const stockBadge = row ? row.querySelector('.in-current-stock-badge') : null;
+        const costInput = row ? row.querySelector('.in-item-cost-input') : null;
+
+        const outletId = getSelectedStockInOutletId();
+        const list = getStockInItemsForType(rowType, outletId);
+        const ph = rowType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+
+        ts.settings.placeholder = ph;
+        ts.inputState();
+        ts.clear(true);
+        ts.clearOptions();
+
+        list.forEach(item => {
+            ts.addOption({
+                value: String(item.nid),
+                text: item.cname,
+                cname: item.cname,
+                nstock: item.nstock,
+                csatuan: item.csatuan || 'PCS',
+                ncost: item.ncost
+            });
+        });
+        ts.refreshOptions(false);
+
+        if (keepSelectedId && ts.options[String(keepSelectedId)]) {
+            ts.setValue(String(keepSelectedId));
+        } else {
+            if (stockBadge) {
+                stockBadge.textContent = '-';
+                stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
+            }
+            if (costInput) {
+                costInput.value = 0;
+            }
+            calculateStockInTotals();
+        }
+    }
+
     function removeStockInRow(rowId) {
+        if (stockInTsInstances[rowId]) {
+            try {
+                stockInTsInstances[rowId].destroy();
+            } catch (e) {}
+            delete stockInTsInstances[rowId];
+        }
         const row = document.getElementById('stock-in-row-' + rowId);
         if (row) {
             row.remove();
@@ -842,76 +1123,6 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
             const numCell = r.querySelector('.row-number');
             if (numCell) numCell.textContent = idx + 1;
         });
-    }
-
-    function handleStockInTypeChange(rowId) {
-        const row = document.getElementById('stock-in-row-' + rowId);
-        const typeSelect = row.querySelector('.in-item-type-select');
-        populateStockInItemDropdown(rowId, typeSelect.value);
-    }
-
-    function populateStockInItemDropdown(rowId, type) {
-        const row = document.getElementById('stock-in-row-' + rowId);
-        const itemSelect = row.querySelector('.in-item-select');
-        itemSelect.innerHTML = '<option value="">-- Cari atau pilih ' + (type === 'PRODUCT' ? 'produk' : 'bahan baku') + ' --</option>';
-
-        if (type === 'PRODUCT') {
-            stockInProducts.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.nid;
-                opt.textContent = p.cname + ' (Stok: ' + (p.nqty || 0) + ')';
-                opt.dataset.stock = p.nqty || 0;
-                opt.dataset.cost = p.nprice_buy || 0;
-                itemSelect.appendChild(opt);
-            });
-        } else {
-            stockInIngredients.forEach(ing => {
-                const opt = document.createElement('option');
-                opt.value = ing.nid;
-                const satuan = ing.csatuan ? ' ' + ing.csatuan : '';
-                opt.textContent = ing.cname + ' (Stok: ' + (ing.nstock || 0) + satuan + ')';
-                opt.dataset.stock = ing.nstock || 0;
-                opt.dataset.cost = ing.ncost || 0;
-                itemSelect.appendChild(opt);
-            });
-        }
-
-        // Reset nilai baris
-        const stockBadge = row.querySelector('.in-current-stock-badge');
-        stockBadge.textContent = '-';
-        stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
-        row.querySelector('.in-item-cost-input').value = 0;
-        calculateStockInTotals();
-    }
-
-    function handleStockInItemSelect(rowId) {
-        const row = document.getElementById('stock-in-row-' + rowId);
-        const itemSelect = row.querySelector('.in-item-select');
-        const selectedOpt = itemSelect.options[itemSelect.selectedIndex];
-        const stockBadge = row.querySelector('.in-current-stock-badge');
-        const costInput = row.querySelector('.in-item-cost-input');
-
-        if (selectedOpt && selectedOpt.value) {
-            const stock = parseFloat(selectedOpt.dataset.stock || 0);
-            const cost = parseFloat(selectedOpt.dataset.cost || 0);
-
-            stockBadge.textContent = stock;
-            if (stock <= 0) {
-                stockBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle in-current-stock-badge';
-            } else if (stock <= 5) {
-                stockBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle in-current-stock-badge';
-            } else {
-                stockBadge.className = 'badge bg-success-subtle text-success border border-success-subtle in-current-stock-badge';
-            }
-
-            costInput.value = Math.round(cost);
-        } else {
-            stockBadge.textContent = '-';
-            stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
-            costInput.value = 0;
-        }
-
-        calculateStockInTotals();
     }
 
     function calculateStockInTotals() {
@@ -938,14 +1149,61 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
 
         const totalQtyEl = document.getElementById('stockInTotalQty');
         const totalAmountEl = document.getElementById('stockInTotalAmount');
-        if (totalQtyEl) totalQtyEl.textContent = grandQty.toLocaleString('id-ID');
+        if (totalQtyEl) totalQtyEl.textContent = formatStockInNumber(grandQty);
         if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + Math.round(grandAmount).toLocaleString('id-ID');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
         const addInBtn = document.getElementById('btnAddNewStockInRow');
         if (addInBtn) {
-            addInBtn.addEventListener('click', addStockInRow);
+            addInBtn.addEventListener('click', function() {
+                addStockInRow();
+            });
+        }
+
+        // Form submit validation
+        const formEl = document.getElementById('createStockInForm');
+        if (formEl) {
+            formEl.addEventListener('submit', function(e) {
+                const rows = document.querySelectorAll('#stockInItemsTableBody tr');
+                if (rows.length === 0) {
+                    e.preventDefault();
+                    alert('Silakan tambahkan minimal 1 item barang masuk.');
+                    return;
+                }
+
+                let hasEmptyItem = false;
+                rows.forEach(r => {
+                    const rowId = r.getAttribute('data-row-id');
+                    const ts = stockInTsInstances[rowId];
+                    const val = ts ? ts.getValue() : r.querySelector('.in-item-select')?.value;
+                    if (!val) {
+                        hasEmptyItem = true;
+                    }
+                });
+
+                if (hasEmptyItem) {
+                    e.preventDefault();
+                    alert('Mohon pilih produk atau bahan baku untuk setiap baris.');
+                    return;
+                }
+            });
+        }
+
+        // Jika outlet diubah, perbarui opsi di semua baris yang sudah ada
+        const outletSelect = document.getElementById('modalStockInOutlet');
+        if (outletSelect) {
+            outletSelect.addEventListener('change', function() {
+                const rows = document.querySelectorAll('#stockInItemsTableBody tr');
+                rows.forEach(r => {
+                    const rowId = r.getAttribute('data-row-id');
+                    const typeSelect = r.querySelector('.in-item-type-select');
+                    if (rowId && typeSelect && stockInTsInstances[rowId]) {
+                        const currentVal = stockInTsInstances[rowId].getValue();
+                        populateStockInTsOptions(rowId, typeSelect.value, currentVal);
+                    }
+                });
+            });
         }
     });
 </script>
@@ -1177,7 +1435,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
 
 <!-- ==================== MODAL TAMBAH STOK KELUAR (MIRIP MODAL PEMBELIAN BARU) ==================== -->
 <div class="modal fade" id="createStockOutModal" tabindex="-1" aria-labelledby="createStockOutModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 960px;">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1040px;">
         <div class="modal-content border-0 shadow">
             <form action="{{ route('inventory.stock-out.store') }}" method="POST" id="createStockOutForm">
                 @csrf
@@ -1261,14 +1519,14 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
                         <table class="table align-middle mb-0" id="stockOutItemsTable">
                             <thead>
                                 <tr class="bg-light">
-                                    <th style="width: 35px;" class="text-center py-2 text-muted text-nowrap">No</th>
-                                    <th style="width: 140px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
-                                    <th class="py-2 text-center text-nowrap">PRODUK / BAHAN BAKU</th>
-                                    <th style="width: 110px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
-                                    <th style="width: 90px;" class="text-center py-2 text-nowrap">QTY KELUAR</th>
-                                    <th style="width: 140px;" class="text-center py-1 text-nowrap">HARGA MODAL</th>
-                                    <th style="width: 130px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
-                                    <th style="width: 35px;" class="text-center py-2"></th>
+                                    <th style="width: 32px;" class="text-center py-2 text-muted text-nowrap">NO</th>
+                                    <th style="width: 120px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                    <th class="py-2 text-center text-nowrap" style="min-width: 260px;">PRODUK / BAHAN BAKU</th>
+                                    <th style="width: 105px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
+                                    <th style="width: 115px;" class="text-center py-2 text-nowrap">QTY KELUAR</th>
+                                    <th style="width: 130px;" class="text-center py-2 text-nowrap">HARGA MODAL</th>
+                                    <th style="width: 120px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
+                                    <th style="width: 32px;" class="text-center py-2"></th>
                                 </tr>
                             </thead>
                             <tbody id="stockOutItemsTableBody" class="small">
@@ -1318,6 +1576,43 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
     const stockOutIngredients = JSON.parse(document.getElementById('stockOutIngredientsData')?.textContent || '[]');
 
     let stockOutRowCounter = 0;
+    const stockOutTsInstances = {};
+
+    function formatStockOutNumber(val) {
+        const num = parseFloat(val || 0);
+        if (Number.isNaN(num)) return '0';
+        return Number.isInteger(num) ? String(num) : String(parseFloat(num.toFixed(2)));
+    }
+
+    function getSelectedStockOutOutletId() {
+        const sel = document.getElementById('modalStockOutOutlet');
+        if (sel) return sel.value;
+        return "{{ $selectedOutletId ?: ($outlets->first()?->nid ?? '') }}";
+    }
+
+    function getStockOutItemsForType(type, outletId) {
+        if (type === 'INGREDIENT') {
+            return stockOutIngredients
+                .filter(i => !outletId || !i.nid_outlet || String(i.nid_outlet) === String(outletId))
+                .map(i => ({
+                    nid: i.nid,
+                    cname: i.cname,
+                    nstock: parseFloat(i.nstock !== undefined && i.nstock !== null ? i.nstock : (i.nqty || 0)),
+                    csatuan: i.csatuan || 'PCS',
+                    ncost: parseFloat(i.ncost !== undefined && i.ncost !== null ? i.ncost : (i.nprice || 0))
+                }));
+        }
+
+        return stockOutProducts
+            .filter(p => !outletId || !p.nid_outlet || String(p.nid_outlet) === String(outletId))
+            .map(p => ({
+                nid: p.nid,
+                cname: p.cname,
+                nstock: parseFloat(p.nqty !== undefined && p.nqty !== null ? p.nqty : 0),
+                csatuan: p.csatuan || 'PCS',
+                ncost: parseFloat(p.nprice_buy !== undefined && p.nprice_buy !== null ? p.nprice_buy : 0)
+            }));
+    }
 
     function openStockOutModal(type) {
         const modalEl = document.getElementById('createStockOutModal');
@@ -1352,54 +1647,212 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
         modal.show();
     }
 
-    function addStockOutRow() {
+    function addStockOutRow(itemId = '', itemQty = 1, itemType = 'PRODUCT') {
         stockOutRowCounter++;
+        const curIdx = stockOutRowCounter;
         const tbody = document.getElementById('stockOutItemsTableBody');
         const tr = document.createElement('tr');
-        tr.id = 'stock-out-row-' + stockOutRowCounter;
+        tr.id = 'stock-out-row-' + curIdx;
+        tr.setAttribute('data-row-id', curIdx);
+
+        const placeholderText = itemType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
 
         tr.innerHTML = `
-                    <td class="text-center text-muted fw-semibold row-number">${tbody.children.length + 1}</td>
-                    <td>
-                        <select name="items[${stockOutRowCounter}][citem_type]" class="form-select form-select-sm item-type-select" onchange="handleStockOutTypeChange(${stockOutRowCounter})">
-                            <option value="PRODUCT" selected>Produk</option>
-                            <option value="INGREDIENT">Bahan Baku</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select name="items[${stockOutRowCounter}][nid_item]" class="form-select form-select-sm item-select" required onchange="handleStockOutItemSelect(${stockOutRowCounter})">
-                            <option value="">-- Pilih Item --</option>
-                        </select>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge bg-light text-secondary border current-stock-badge">-</span>
-                    </td>
-                    <td>
-                        <input type="number" step="0.01" min="0.01" name="items[${stockOutRowCounter}][nqty]" class="form-control form-control-sm text-center item-qty-input" value="1" required oninput="calculateStockOutTotals()">
-                    </td>
-                    <td>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light text-muted">Rp</span>
-                            <input type="number" step="1" min="0" name="items[${stockOutRowCounter}][ncost]" class="form-control form-control-sm text-end item-cost-input" value="0" oninput="calculateStockOutTotals()">
-                        </div>
-                    </td>
-                    <td class="text-end fw-semibold text-danger item-subtotal-display">
-                        Rp 0
-                    </td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-outline-danger btn-sm border-0 py-0 px-1" onclick="removeStockOutRow(${stockOutRowCounter})" title="Hapus Baris">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                `;
+            <td class="text-center text-muted fw-semibold align-middle row-number py-2">${tbody.children.length + 1}</td>
+            <td class="py-2 align-middle">
+                <select name="items[${curIdx}][citem_type]" class="form-select form-select-sm fw-semibold out-item-type-select" data-row="${curIdx}">
+                    <option value="PRODUCT" ${itemType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
+                    <option value="INGREDIENT" ${itemType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                </select>
+            </td>
+            <td class="py-2 align-middle">
+                <select name="items[${curIdx}][nid_item]" class="form-select form-select-sm out-item-select" id="stock_out_item_${curIdx}" data-row="${curIdx}">
+                    <option value="">${placeholderText}</option>
+                </select>
+            </td>
+            <td class="text-center py-2 align-middle">
+                <span class="badge bg-light text-secondary border out-current-stock-badge" id="stock_out_badge_${curIdx}">-</span>
+            </td>
+            <td class="py-2 text-center align-middle">
+                <div class="qty-stepper mx-auto">
+                    <button type="button" class="qty-stepper-btn qty-stepper-minus out-btn-minus" title="Kurangi 1">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" step="any" min="0.01" name="items[${curIdx}][nqty]" class="qty-stepper-input out-item-qty-input no-spinners" value="${itemQty}" placeholder="1" required>
+                    <button type="button" class="qty-stepper-btn qty-stepper-plus out-btn-plus" title="Tambah 1">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </td>
+            <td class="py-2 align-middle">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light text-muted">Rp</span>
+                    <input type="number" step="1" min="0" name="items[${curIdx}][ncost]" class="form-control form-control-sm text-end out-item-cost-input" value="0">
+                </div>
+            </td>
+            <td class="text-end fw-semibold text-danger align-middle out-item-subtotal-display">
+                Rp 0
+            </td>
+            <td class="text-center py-2 align-middle">
+                <button type="button" class="btn btn-outline-danger btn-sm p-1 border-0 rounded-circle out-btn-delete" onclick="removeStockOutRow(${curIdx})" title="Hapus Baris" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
 
         tbody.appendChild(tr);
-        populateStockOutItemDropdown(stockOutRowCounter, 'PRODUCT');
+
+        const selectEl = tr.querySelector('.out-item-select');
+        const stockBadge = tr.querySelector('.out-current-stock-badge');
+        const costInput = tr.querySelector('.out-item-cost-input');
+        const qtyInput = tr.querySelector('.out-item-qty-input');
+        const typeSelect = tr.querySelector('.out-item-type-select');
+        const btnMinus = tr.querySelector('.out-btn-minus');
+        const btnPlus = tr.querySelector('.out-btn-plus');
+
+        // Inisialisasi TomSelect untuk live search & dropdown modern
+        const ts = new TomSelect(selectEl, {
+            create: false,
+            maxItems: 1,
+            placeholder: placeholderText,
+            allowEmptyOption: true,
+            sortField: {
+                field: "text",
+                direction: "asc"
+            },
+            render: {
+                item: function(data, escape) {
+                    const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                    return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                },
+                option: function(data, escape) {
+                    if (!data.value) {
+                        return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                    }
+                    const stockVal = (data.nstock !== undefined && data.nstock !== null) ? data.nstock : '-';
+                    const unitVal = data.csatuan || 'PCS';
+                    const stockLabel = stockVal === '-' ? '-' : `${formatStockOutNumber(stockVal)} ${unitVal}`;
+                    const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                    return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                        '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
+                        '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
+                        '</div>';
+                }
+            }
+        });
+        stockOutTsInstances[curIdx] = ts;
+
+        // Listener saat produk/bahan dipilih di TomSelect
+        ts.on('change', function(val) {
+            const optData = ts.options[val];
+            if (optData && val) {
+                const stock = parseFloat((optData.nstock !== undefined && optData.nstock !== null) ? optData.nstock : 0);
+                const unit = optData.csatuan || 'PCS';
+                stockBadge.textContent = `${formatStockOutNumber(stock)} ${unit}`;
+                if (stock <= 0) {
+                    stockBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle out-current-stock-badge';
+                } else if (stock <= 5) {
+                    stockBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle out-current-stock-badge';
+                } else {
+                    stockBadge.className = 'badge bg-success-subtle text-success border border-success-subtle out-current-stock-badge';
+                }
+
+                const cost = parseFloat(optData.ncost || 0);
+                costInput.value = Math.round(cost);
+            } else {
+                stockBadge.textContent = '-';
+                stockBadge.className = 'badge bg-light text-secondary border out-current-stock-badge';
+                costInput.value = 0;
+            }
+            calculateStockOutTotals();
+        });
+
+        // Event listener minus dan plus pada Qty Stepper
+        if (btnMinus) {
+            btnMinus.addEventListener('click', function() {
+                let val = parseFloat(qtyInput.value) || 0;
+                val = Math.max(0, val - 1);
+                if (val === 0) val = 1;
+                qtyInput.value = val;
+                calculateStockOutTotals();
+            });
+        }
+
+        if (btnPlus) {
+            btnPlus.addEventListener('click', function() {
+                let val = parseFloat(qtyInput.value) || 0;
+                qtyInput.value = val + 1;
+                calculateStockOutTotals();
+            });
+        }
+
+        qtyInput.addEventListener('input', function() {
+            calculateStockOutTotals();
+        });
+
+        costInput.addEventListener('input', function() {
+            calculateStockOutTotals();
+        });
+
+        typeSelect.addEventListener('change', function() {
+            populateStockOutTsOptions(curIdx, this.value);
+        });
+
+        populateStockOutTsOptions(curIdx, itemType, itemId);
         renumberStockOutRows();
         calculateStockOutTotals();
     }
 
+    function populateStockOutTsOptions(rowId, rowType, keepSelectedId = '') {
+        const ts = stockOutTsInstances[rowId];
+        if (!ts) return;
+
+        const row = document.getElementById('stock-out-row-' + rowId);
+        const stockBadge = row ? row.querySelector('.out-current-stock-badge') : null;
+        const costInput = row ? row.querySelector('.out-item-cost-input') : null;
+
+        const outletId = getSelectedStockOutOutletId();
+        const list = getStockOutItemsForType(rowType, outletId);
+        const ph = rowType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+
+        ts.settings.placeholder = ph;
+        ts.inputState();
+        ts.clear(true);
+        ts.clearOptions();
+
+        list.forEach(item => {
+            ts.addOption({
+                value: String(item.nid),
+                text: item.cname,
+                cname: item.cname,
+                nstock: item.nstock,
+                csatuan: item.csatuan || 'PCS',
+                ncost: item.ncost
+            });
+        });
+        ts.refreshOptions(false);
+
+        if (keepSelectedId && ts.options[String(keepSelectedId)]) {
+            ts.setValue(String(keepSelectedId));
+        } else {
+            if (stockBadge) {
+                stockBadge.textContent = '-';
+                stockBadge.className = 'badge bg-light text-secondary border out-current-stock-badge';
+            }
+            if (costInput) {
+                costInput.value = 0;
+            }
+            calculateStockOutTotals();
+        }
+    }
+
     function removeStockOutRow(rowId) {
+        if (stockOutTsInstances[rowId]) {
+            try {
+                stockOutTsInstances[rowId].destroy();
+            } catch(e) {}
+            delete stockOutTsInstances[rowId];
+        }
         const row = document.getElementById('stock-out-row-' + rowId);
         if (row) {
             row.remove();
@@ -1416,85 +1869,15 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
         });
     }
 
-    function handleStockOutTypeChange(rowId) {
-        const row = document.getElementById('stock-out-row-' + rowId);
-        const typeSelect = row.querySelector('.item-type-select');
-        populateStockOutItemDropdown(rowId, typeSelect.value);
-    }
-
-    function populateStockOutItemDropdown(rowId, type) {
-        const row = document.getElementById('stock-out-row-' + rowId);
-        const itemSelect = row.querySelector('.item-select');
-        itemSelect.innerHTML = '<option value="">-- Cari atau pilih ' + (type === 'PRODUCT' ? 'produk' : 'bahan baku') + ' --</option>';
-
-        if (type === 'PRODUCT') {
-            stockOutProducts.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.nid;
-                opt.textContent = p.cname + ' (Stok: ' + (p.nqty || 0) + ')';
-                opt.dataset.stock = p.nqty || 0;
-                opt.dataset.cost = p.nprice_buy || 0;
-                itemSelect.appendChild(opt);
-            });
-        } else {
-            stockOutIngredients.forEach(ing => {
-                const opt = document.createElement('option');
-                opt.value = ing.nid;
-                const satuan = ing.csatuan ? ' ' + ing.csatuan : '';
-                opt.textContent = ing.cname + ' (Stok: ' + (ing.nstock || 0) + satuan + ')';
-                opt.dataset.stock = ing.nstock || 0;
-                opt.dataset.cost = ing.ncost || 0;
-                itemSelect.appendChild(opt);
-            });
-        }
-
-        // Reset nilai baris
-        const stockBadge = row.querySelector('.current-stock-badge');
-        stockBadge.textContent = '-';
-        stockBadge.className = 'badge bg-light text-secondary border current-stock-badge';
-        row.querySelector('.item-cost-input').value = 0;
-        calculateStockOutTotals();
-    }
-
-    function handleStockOutItemSelect(rowId) {
-        const row = document.getElementById('stock-out-row-' + rowId);
-        const itemSelect = row.querySelector('.item-select');
-        const selectedOpt = itemSelect.options[itemSelect.selectedIndex];
-        const stockBadge = row.querySelector('.current-stock-badge');
-        const costInput = row.querySelector('.item-cost-input');
-
-        if (selectedOpt && selectedOpt.value) {
-            const stock = parseFloat(selectedOpt.dataset.stock || 0);
-            const cost = parseFloat(selectedOpt.dataset.cost || 0);
-
-            stockBadge.textContent = stock;
-            if (stock <= 0) {
-                stockBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle current-stock-badge';
-            } else if (stock <= 5) {
-                stockBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle current-stock-badge';
-            } else {
-                stockBadge.className = 'badge bg-success-subtle text-success border border-success-subtle current-stock-badge';
-            }
-
-            costInput.value = Math.round(cost);
-        } else {
-            stockBadge.textContent = '-';
-            stockBadge.className = 'badge bg-light text-secondary border current-stock-badge';
-            costInput.value = 0;
-        }
-
-        calculateStockOutTotals();
-    }
-
     function calculateStockOutTotals() {
         const rows = document.querySelectorAll('#stockOutItemsTableBody tr');
         let grandQty = 0;
         let grandAmount = 0;
 
         rows.forEach(r => {
-            const qtyInput = r.querySelector('.item-qty-input');
-            const costInput = r.querySelector('.item-cost-input');
-            const subtotalDisplay = r.querySelector('.item-subtotal-display');
+            const qtyInput = r.querySelector('.out-item-qty-input');
+            const costInput = r.querySelector('.out-item-cost-input');
+            const subtotalDisplay = r.querySelector('.out-item-subtotal-display');
 
             const qty = parseFloat(qtyInput ? qtyInput.value : 0) || 0;
             const cost = parseFloat(costInput ? costInput.value : 0) || 0;
@@ -1510,15 +1893,61 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
 
         const totalQtyEl = document.getElementById('stockOutTotalQty');
         const totalAmountEl = document.getElementById('stockOutTotalAmount');
-
-        if (totalQtyEl) totalQtyEl.textContent = grandQty.toFixed(grandQty % 1 === 0 ? 0 : 2);
+        if (totalQtyEl) totalQtyEl.textContent = formatStockOutNumber(grandQty);
         if (totalAmountEl) totalAmountEl.textContent = 'Rp ' + Math.round(grandAmount).toLocaleString('id-ID');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
         const btnAdd = document.getElementById('btnAddNewStockOutRow');
         if (btnAdd) {
-            btnAdd.addEventListener('click', addStockOutRow);
+            btnAdd.addEventListener('click', function() {
+                addStockOutRow();
+            });
+        }
+
+        // Form submit validation
+        const formEl = document.getElementById('createStockOutForm');
+        if (formEl) {
+            formEl.addEventListener('submit', function(e) {
+                const rows = document.querySelectorAll('#stockOutItemsTableBody tr');
+                if (rows.length === 0) {
+                    e.preventDefault();
+                    alert('Silakan tambahkan minimal 1 item barang keluar.');
+                    return;
+                }
+
+                let hasEmptyItem = false;
+                rows.forEach(r => {
+                    const rowId = r.getAttribute('data-row-id');
+                    const ts = stockOutTsInstances[rowId];
+                    const val = ts ? ts.getValue() : r.querySelector('.out-item-select')?.value;
+                    if (!val) {
+                        hasEmptyItem = true;
+                    }
+                });
+
+                if (hasEmptyItem) {
+                    e.preventDefault();
+                    alert('Mohon pilih produk atau bahan baku untuk setiap baris.');
+                    return;
+                }
+            });
+        }
+
+        // Jika outlet asal diubah, perbarui opsi di semua baris yang sudah ada
+        const outletSelect = document.getElementById('modalStockOutOutlet');
+        if (outletSelect) {
+            outletSelect.addEventListener('change', function() {
+                const rows = document.querySelectorAll('#stockOutItemsTableBody tr');
+                rows.forEach(r => {
+                    const rowId = r.getAttribute('data-row-id');
+                    const typeSelect = r.querySelector('.out-item-type-select');
+                    if (rowId && typeSelect && stockOutTsInstances[rowId]) {
+                        const currentVal = stockOutTsInstances[rowId].getValue();
+                        populateStockOutTsOptions(rowId, typeSelect.value, currentVal);
+                    }
+                });
+            });
         }
     });
 </script>
