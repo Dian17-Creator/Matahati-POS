@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\MposIngredients;
+use App\Models\MposGrpProduct;
 use App\Models\MposOutlet;
 use App\Models\MposProduct;
 use App\Models\MposPurchaseD;
 use App\Models\MposPurchaseH;
 use App\Models\MposSalesH;
 use App\Models\MposStockMutation;
+use App\Models\MposStockOpnameH;
+use App\Models\MposStockOpnameD;
 use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -50,6 +53,8 @@ class InventoryController extends Controller
         $products = null;
         $stockOuts = null;
         $totalStockOut = 0;
+        $stockOpnames = null;
+        $totalStockOpname = 0;
         $modalProducts = collect();
         $modalIngredients = collect();
 
@@ -215,6 +220,31 @@ class InventoryController extends Controller
                 ['path' => Paginator::resolveCurrentPath(), 'query' => $request->query()]
             );
             $totalStockOut = $stockOutDocs->count();
+        } elseif ($activeTab === 'stok_opname') {
+            $stockOpnameQuery = MposStockOpnameH::with(['outlet', 'user'])->withCount('details');
+
+            if (!empty($selectedOutletId)) {
+                $stockOpnameQuery->where('nid_outlet', $selectedOutletId);
+            } elseif (!$isSuperAdmin) {
+                $stockOpnameQuery->whereIn('nid_outlet', $allowedOutletIds);
+            }
+
+            if (!empty($startDate) && !empty($endDate)) {
+                $stockOpnameQuery->whereBetween('dopname', [$startDate, $endDate]);
+            }
+
+            if (!empty($search)) {
+                $stockOpnameQuery->where(function ($q) use ($search) {
+                    $q->where('cno_opname', 'like', "%{$search}%")
+                        ->orWhere('cnote', 'like', "%{$search}%");
+                });
+            }
+
+            $stockOpnames = $stockOpnameQuery->orderBy('dopname', 'desc')
+                ->orderBy('nid', 'desc')
+                ->paginate($perPage)
+                ->withQueryString();
+            $totalStockOpname = $stockOpnames->total();
         } elseif ($activeTab === 'pergerakan_stok') {
             $startDateTime = $startDate . ' 00:00:00';
             $endDateTime = $endDate . ' 23:59:59';
@@ -328,15 +358,22 @@ class InventoryController extends Controller
                 DB::raw('SUM(nqty) as total_qty')
             )->groupBy('ctype', 'citem_type', 'nid_product', 'nid_ingredient')->get();
 
-            $mutProdIds = $mutationRows->where('citem_type', 'PRODUCT')->pluck('nid_product')->filter()->unique()->values();
+            $mutProdIds = $mutationRows->filter(function ($row) {
+                return in_array(strtoupper((string) $row->citem_type), ['PRODUCT', 'PRODUK']) || (!empty($row->nid_product) && empty($row->nid_ingredient));
+            })->pluck('nid_product')->filter()->unique()->values();
             $mutProds = MposProduct::with('category')->whereIn('nid', $mutProdIds)->get()->keyBy('nid');
 
-            $mutIngIds = $mutationRows->where('citem_type', 'INGREDIENT')->pluck('nid_ingredient')->filter()->unique()->values();
+            $mutIngIds = $mutationRows->filter(function ($row) {
+                return in_array(strtoupper((string) $row->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']) || (!empty($row->nid_ingredient) && empty($row->nid_product));
+            })->pluck('nid_ingredient')->filter()->unique()->values();
             $mutIngs = MposIngredients::whereIn('nid', $mutIngIds)->get()->keyBy('nid');
 
             foreach ($mutationRows as $r) {
                 $qty = (float) $r->total_qty;
-                if ($r->citem_type === 'PRODUCT' && !empty($r->nid_product)) {
+                $isProduct = in_array(strtoupper((string) $r->citem_type), ['PRODUCT', 'PRODUK']) || (!empty($r->nid_product) && empty($r->nid_ingredient));
+                $isIngredient = in_array(strtoupper((string) $r->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']) || (!empty($r->nid_ingredient) && empty($r->nid_product));
+
+                if ($isProduct && !empty($r->nid_product)) {
                     $prod = $mutProds->get($r->nid_product);
                     if (!$prod) continue;
                     $trackStock = $prod->category && isset($prod->category->ftrack_stock)
@@ -364,7 +401,7 @@ class InventoryController extends Controller
                             $productMovements[$pId]['keluar'] += $qty;
                         }
                     }
-                } elseif ($r->citem_type === 'INGREDIENT' && !empty($r->nid_ingredient)) {
+                } elseif ($isIngredient && !empty($r->nid_ingredient)) {
                     $ing = $mutIngs->get($r->nid_ingredient);
                     if (!$ing) continue;
                     $ingId = $ing->nid;
@@ -507,23 +544,23 @@ class InventoryController extends Controller
             );
         }
 
-        // Produk & Bahan Baku untuk modal tambah stok masuk & keluar
-        if (in_array($activeTab, ['stok_masuk', 'stok_keluar'])) {
+        // Produk & Bahan Baku untuk modal tambah stok masuk, keluar & stok opname
+        if (in_array($activeTab, ['stok_masuk', 'stok_keluar', 'stok_opname'])) {
             $modalProductsQuery = MposProduct::where('cstatus', 'ACTIVE');
-            if (!empty($selectedOutletId)) {
-                $modalProductsQuery->where('nid_outlet', $selectedOutletId);
-            } elseif (!$isSuperAdmin) {
+            if (!$isSuperAdmin) {
                 $modalProductsQuery->whereIn('nid_outlet', $allowedOutletIds);
             }
-            $modalProducts = $modalProductsQuery->orderBy('cname')->get(['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty']);
+            $prodCols = ['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
+            if (MposProduct::hasSatuanColumn()) {
+                $prodCols[] = 'csatuan';
+            }
+            if (MposProduct::hasProductTypeColumn()) {
+                $prodCols[] = 'cproduct_type';
+            }
+            $modalProducts = $modalProductsQuery->orderBy('cname')->get($prodCols);
 
             $modalIngredientsQuery = MposIngredients::query();
-            if (!empty($selectedOutletId)) {
-                $modalIngredientsQuery->where(function ($iq) use ($selectedOutletId) {
-                    $iq->where('nid_outlet', $selectedOutletId)
-                        ->orWhereNull('nid_outlet');
-                });
-            } elseif (!$isSuperAdmin) {
+            if (!$isSuperAdmin) {
                 $modalIngredientsQuery->where(function ($iq) use ($allowedOutletIds) {
                     $iq->whereIn('nid_outlet', $allowedOutletIds)
                         ->orWhereNull('nid_outlet');
@@ -561,6 +598,8 @@ class InventoryController extends Controller
             'products',
             'stockOuts',
             'totalStockOut',
+            'stockOpnames',
+            'totalStockOpname',
             'modalProducts',
             'modalIngredients'
         ));
@@ -1094,5 +1133,604 @@ class InventoryController extends Controller
         ];
 
         return view('inventory.stock_out_print', compact('stockOut'));
+    }
+
+    /**
+     * Buat dokumen Stok Opname baru sekaligus input item produknya
+     */
+    public function storeStockOpname(Request $request)
+    {
+        $validated = $request->validate([
+            'dopname' => 'required|date',
+            'nid_outlet' => 'required|integer',
+            'cnote' => 'nullable|string|max:1000',
+            'action_type' => 'nullable|string|in:draft,post',
+            'items' => 'nullable|array',
+            'items.*.item_id' => 'nullable|integer',
+            'items.*.citem_type' => 'nullable|string',
+            'items.*.nqty_actual' => 'nullable|numeric|min:0',
+            'items.*.crack' => 'nullable|string|max:100',
+            'items.*.dexpired' => 'nullable|date',
+            'items.*.cnote' => 'nullable|string|max:255',
+        ]);
+
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        if (!$this->isSuperAdminUser() && !in_array((int) $validated['nid_outlet'], $allowedOutletIds)) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki hak akses ke outlet yang dipilih.')->withInput();
+        }
+
+        $dopname = Carbon::parse($validated['dopname']);
+        $opnameNo = MposStockOpnameH::generateNumber($dopname);
+        $status = MposStockOpnameH::STATUS_DRAFT;
+        $isPosting = false;
+
+        DB::beginTransaction();
+        try {
+            $opname = MposStockOpnameH::create([
+                'cno_opname' => $opnameNo,
+                'dopname' => $dopname->format('Y-m-d'),
+                'nid_outlet' => $validated['nid_outlet'],
+                'nid_user' => Auth::id() ?? 1,
+                'cstatus' => $status,
+                'cnote' => $validated['cnote'] ?? null,
+                'ntotal_system_qty' => 0,
+                'ntotal_actual_qty' => 0,
+                'ntotal_diff_qty' => 0,
+                'ntotal_diff_amount' => 0,
+                'dposted' => null,
+                'dcreated' => Carbon::now(),
+            ]);
+
+            $rawItems = $request->input('items', []);
+            $itemsCount = 0;
+            $mutationDate = $dopname->setTimeFrom(Carbon::now());
+
+            foreach ($rawItems as $row) {
+                $itemId = $row['item_id'] ?? ($row['nid_product'] ?? null);
+                if (empty($itemId)) {
+                    continue;
+                }
+
+                $rawType = strtoupper($row['citem_type'] ?? 'PRODUCT');
+                $isIngredient = in_array($rawType, ['BAHAN_BAKU', 'INGREDIENT']);
+                $citemType = $isIngredient ? MposStockMutation::ITEM_INGREDIENT : MposStockMutation::ITEM_PRODUCT;
+
+                $systemQty = 0.0;
+                $cost = 0.0;
+                $prodId = null;
+                $ingId = null;
+
+                if ($isIngredient) {
+                    $ing = MposIngredients::find($itemId);
+                    if ($ing) {
+                        $ingId = $ing->nid;
+                        $systemQty = (float) $ing->nstock;
+                        $cost = (float) ($ing->nprice ?? 0);
+                    }
+                } else {
+                    $prod = MposProduct::find($itemId);
+                    if ($prod) {
+                        $prodId = $prod->nid;
+                        $systemQty = (float) $prod->nqty;
+                        $cost = (float) ($prod->nprice_buy ?? 0);
+                    }
+                }
+
+                $actualQty = isset($row['nqty_actual']) && $row['nqty_actual'] !== '' ? (float) $row['nqty_actual'] : $systemQty;
+                $diffQty = $actualQty - $systemQty;
+                $subtotalDiff = $diffQty * $cost;
+
+                $detail = MposStockOpnameD::create([
+                    'nid_opname' => $opname->nid,
+                    'citem_type' => $citemType,
+                    'nid_product' => $prodId,
+                    'nid_ingredient' => $ingId,
+                    'nqty_system' => $systemQty,
+                    'nqty_actual' => $actualQty,
+                    'nqty_diff' => $diffQty,
+                    'ncost' => $cost,
+                    'nsubtotal_diff' => $subtotalDiff,
+                    'dtime' => Carbon::now()->format('H:i:s'),
+                    'dexpired' => !empty($row['dexpired']) ? $row['dexpired'] : null,
+                    'crack' => $row['crack'] ?? null,
+                    'cnote' => $row['cnote'] ?? null,
+                    'dcreated' => Carbon::now(),
+                ]);
+
+                // Jika langsung diposting sekarang:
+                if ($isPosting) {
+                    if ($prodId) {
+                        $p = MposProduct::lockForUpdate()->find($prodId);
+                        if ($p) {
+                            $p->nqty = $actualQty;
+                            $p->save();
+                        }
+                    } elseif ($ingId) {
+                        $i = MposIngredients::lockForUpdate()->find($ingId);
+                        if ($i) {
+                            $i->nstock = $actualQty;
+                            $i->save();
+                        }
+                    }
+
+                    if ($diffQty != 0) {
+                        $isPositive = $diffQty > 0;
+                        MposStockMutation::create([
+                            'cno_ref' => $opname->cno_opname,
+                            'dmutation' => $mutationDate,
+                            'ctype' => $isPositive ? MposStockMutation::TYPE_IN : MposStockMutation::TYPE_OUT,
+                            'nid_outlet' => $opname->nid_outlet,
+                            'nid_target_outlet' => null,
+                            'nid_user' => Auth::id() ?? $opname->nid_user,
+                            'citem_type' => $citemType,
+                            'nid_product' => $prodId,
+                            'nid_ingredient' => $ingId,
+                            'nqty' => abs($diffQty),
+                            'ncost' => $cost,
+                            'nsubtotal' => abs($subtotalDiff),
+                            'creason' => $isPositive ? 'Penyesuaian Stok Opname (Lebih Fisik)' : 'Penyesuaian Stok Opname (Kurang Fisik)',
+                            'cstatus' => MposStockMutation::STATUS_POSTED,
+                            'cnote' => 'Stok Opname: ' . ($opname->cnote ?: $opname->cno_opname),
+                            'dexpired' => $detail->dexpired,
+                            'crack' => $detail->crack,
+                            'dcreated' => Carbon::now(),
+                        ]);
+                    }
+                }
+
+                $itemsCount++;
+            }
+
+            $opname->recalculateTotals();
+            DB::commit();
+
+            return redirect()->route('inventory.stock-opname.show', $opname->nid)
+                ->with('success', "Dokumen Stok Opname {$opname->cno_opname} berhasil disimpan dengan {$itemsCount} item produk. Silakan tinjau kembali sebelum diposting.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Gagal membuat Stok Opname: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    /**
+     * Tampilan Detail Stok Opname (sesuai Olsera)
+     */
+    public function showStockOpname(string $id)
+    {
+        $opname = MposStockOpnameH::with([
+            'outlet',
+            'user',
+            'details' => function ($q) {
+                $q->with(['product.category', 'ingredient']);
+            }
+        ])->where(function ($q) use ($id) {
+            $q->where('nid', $id)
+              ->orWhere('cno_opname', $id);
+        })->firstOrFail();
+
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        if (!$this->isSuperAdminUser() && !in_array((int) $opname->nid_outlet, $allowedOutletIds)) {
+            abort(403, 'Anda tidak memiliki hak akses ke data outlet ini.');
+        }
+
+        // Ambil produk aktif di outlet untuk modal tambah produk
+        $availableProducts = MposProduct::with('category')
+            ->where('nid_outlet', $opname->nid_outlet)
+            ->where('cstatus', 'ACTIVE')
+            ->orderBy('cname')
+            ->get();
+
+        // Kategori produk untuk filter di modal
+        $categories = MposGrpProduct::where(function ($q) use ($opname) {
+            $q->where('nid_outlet', $opname->nid_outlet)
+              ->orWhereNull('nid_outlet');
+        })->orderBy('cname')->get();
+
+        return view('inventory.stock_opname_show', compact('opname', 'availableProducts', 'categories'));
+    }
+
+    /**
+     * Update Header Dokumen Stok Opname
+     */
+    public function updateStockOpname(Request $request, string $id)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return redirect()->back()->with('error', 'Dokumen yang sudah diposting atau dibatalkan tidak dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'dopname' => 'required|date',
+            'cnote' => 'nullable|string|max:1000',
+        ]);
+
+        $opname->dopname = $validated['dopname'];
+        $opname->cnote = $validated['cnote'];
+        $opname->dupdated = Carbon::now();
+        $opname->save();
+
+        return redirect()->back()->with('success', 'Informasi Stok Opname berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus Dokumen Stok Opname (Hanya Draft/Cancelled)
+     */
+    public function destroyStockOpname(string $id)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if ($opname->isPosted()) {
+            return redirect()->back()->with('error', 'Dokumen yang telah diposting tidak dapat dihapus.');
+        }
+
+        $opname->details()->delete();
+        $opname->delete();
+
+        return redirect()->route('inventory.index', ['tab' => 'stok_opname'])
+            ->with('success', "Dokumen Stok Opname {$opname->cno_opname} berhasil dihapus.");
+    }
+
+    /**
+     * Tambah Produk ke Dokumen Stok Opname (dari Modal Olsera)
+     */
+    public function storeStockOpnameItems(Request $request, string $id)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat ditambahkan produk.');
+        }
+
+        // Filter hanya item yang dicentang (memiliki nid_product valid)
+        $rawItems = collect($request->input('items', []))->filter(function ($item) {
+            return !empty($item['nid_product']);
+        })->values()->all();
+
+        $request->merge(['items' => $rawItems]);
+
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.nid_product' => 'required|integer',
+            'items.*.nqty_actual' => 'required|numeric|min:0',
+            'items.*.dtime' => 'nullable|string',
+            'items.*.dexpired' => 'nullable|date',
+            'items.*.crack' => 'nullable|string|max:100',
+            'items.*.cnote' => 'nullable|string|max:255',
+        ], [
+            'items.required' => 'Pilih minimal satu produk untuk ditambahkan ke stok opname.',
+            'items.min' => 'Pilih minimal satu produk untuk ditambahkan ke stok opname.',
+        ]);
+
+        $prodIds = collect($validated['items'])->pluck('nid_product')->unique();
+        $products = MposProduct::whereIn('nid', $prodIds)->get()->keyBy('nid');
+
+        $addedCount = 0;
+        foreach ($validated['items'] as $itemData) {
+            $product = $products->get($itemData['nid_product']);
+            if (!$product) {
+                continue;
+            }
+
+            $systemQty = (float) $product->nqty;
+            $actualQty = (float) $itemData['nqty_actual'];
+            $diffQty = $actualQty - $systemQty;
+            $cost = (float) ($product->nprice_buy ?: 0);
+            $subtotalDiff = $diffQty * $cost;
+
+            MposStockOpnameD::updateOrCreate(
+                [
+                    'nid_opname' => $opname->nid,
+                    'nid_product' => $product->nid,
+                ],
+                [
+                    'citem_type' => MposStockMutation::ITEM_PRODUCT,
+                    'nid_ingredient' => null,
+                    'nqty_system' => $systemQty,
+                    'nqty_actual' => $actualQty,
+                    'nqty_diff' => $diffQty,
+                    'ncost' => $cost,
+                    'nsubtotal_diff' => $subtotalDiff,
+                    'dtime' => !empty($itemData['dtime']) ? $itemData['dtime'] : Carbon::now()->format('H:i:s'),
+                    'dexpired' => !empty($itemData['dexpired']) ? $itemData['dexpired'] : null,
+                    'crack' => $itemData['crack'] ?? null,
+                    'cnote' => $itemData['cnote'] ?? null,
+                    'dcreated' => Carbon::now(),
+                ]
+            );
+            $addedCount++;
+        }
+
+        $opname->recalculateTotals();
+
+        return redirect()->route('inventory.stock-opname.show', $opname->nid)
+            ->with('success', "{$addedCount} produk berhasil ditambahkan ke Stok Opname.");
+    }
+
+    /**
+     * Update 1 baris item produk dalam Stok Opname
+     */
+    public function updateStockOpnameItem(Request $request, string $id, string $itemId)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return response()->json(['status' => 'error', 'message' => 'Dokumen sudah tidak berstatus Draf.'], 422);
+        }
+
+        $detail = MposStockOpnameD::where('nid', $itemId)->where('nid_opname', $opname->nid)->firstOrFail();
+
+        $validated = $request->validate([
+            'nqty_actual' => 'required|numeric|min:0',
+            'dexpired' => 'nullable|date',
+            'crack' => 'nullable|string|max:100',
+            'cnote' => 'nullable|string|max:255',
+            'dtime' => 'nullable|string',
+        ]);
+
+        $actualQty = (float) $validated['nqty_actual'];
+        $systemQty = (float) $detail->nqty_system;
+        $diffQty = $actualQty - $systemQty;
+        $cost = (float) $detail->ncost;
+        $subtotalDiff = $diffQty * $cost;
+
+        $detail->nqty_actual = $actualQty;
+        $detail->nqty_diff = $diffQty;
+        $detail->nsubtotal_diff = $subtotalDiff;
+        if (array_key_exists('dexpired', $validated)) {
+            $detail->dexpired = $validated['dexpired'];
+        }
+        if (array_key_exists('crack', $validated)) {
+            $detail->crack = $validated['crack'];
+        }
+        if (array_key_exists('cnote', $validated)) {
+            $detail->cnote = $validated['cnote'];
+        }
+        if (array_key_exists('dtime', $validated)) {
+            $detail->dtime = $validated['dtime'];
+        }
+        $detail->save();
+
+        $opname->recalculateTotals();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Item berhasil diperbarui.',
+                'item' => $detail,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Item berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus item dari dokumen Stok Opname
+     */
+    public function destroyStockOpnameItem(string $id, string $itemId)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return redirect()->back()->with('error', 'Dokumen yang telah diposting tidak dapat diubah.');
+        }
+
+        MposStockOpnameD::where('nid', $itemId)->where('nid_opname', $opname->nid)->delete();
+        $opname->recalculateTotals();
+
+        return redirect()->back()->with('success', 'Produk berhasil dihapus dari Stok Opname.');
+    }
+
+    /**
+     * Posting Dokumen Stok Opname (Finalisasi, Update Stok Produk & Catat Pergerakan Stok)
+     */
+    public function postStockOpname(Request $request, string $id)
+    {
+        $opname = MposStockOpnameH::with('details')->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if (!$opname->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diposting.');
+        }
+
+        if ($opname->details->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Opname tidak memiliki item produk. Silakan tambahkan produk terlebih dahulu.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $mutationDate = Carbon::parse($opname->dopname)->setTimeFrom(Carbon::now());
+
+            foreach ($opname->details as $d) {
+                // 1. Update Stok di Master Produk
+                if ($d->nid_product) {
+                    $prod = MposProduct::lockForUpdate()->find($d->nid_product);
+                    if ($prod) {
+                        $prod->nqty = $d->nqty_actual;
+                        $prod->save();
+                    }
+                } elseif ($d->nid_ingredient) {
+                    $ing = MposIngredients::lockForUpdate()->find($d->nid_ingredient);
+                    if ($ing) {
+                        $ing->nstock = $d->nqty_actual;
+                        $ing->save();
+                    }
+                }
+
+                // 2. Jika ada selisih, catat ke mpos_stock_mutations untuk pergerakan stok
+                $diffQty = (float) $d->nqty_diff;
+                if ($diffQty != 0) {
+                    $isPositive = $diffQty > 0;
+                    $mutationType = $isPositive ? MposStockMutation::TYPE_IN : MposStockMutation::TYPE_OUT;
+                    $reason = $isPositive
+                        ? 'Penyesuaian Stok Opname (Lebih Fisik)'
+                        : 'Penyesuaian Stok Opname (Kurang Fisik)';
+                    $absQty = abs($diffQty);
+                    $subtotal = abs((float) $d->nsubtotal_diff);
+
+                    $itemType = (!empty($d->nid_ingredient) || in_array(strtoupper((string) $d->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']))
+                        ? MposStockMutation::ITEM_INGREDIENT
+                        : MposStockMutation::ITEM_PRODUCT;
+
+                    MposStockMutation::create([
+                        'cno_ref' => $opname->cno_opname,
+                        'dmutation' => $mutationDate,
+                        'ctype' => $mutationType,
+                        'nid_outlet' => $opname->nid_outlet,
+                        'nid_target_outlet' => null,
+                        'nid_user' => Auth::id() ?? $opname->nid_user,
+                        'citem_type' => $itemType,
+                        'nid_product' => $d->nid_product,
+                        'nid_ingredient' => $d->nid_ingredient,
+                        'nqty' => $absQty,
+                        'ncost' => (float) $d->ncost,
+                        'nsubtotal' => $subtotal,
+                        'creason' => $reason,
+                        'cstatus' => MposStockMutation::STATUS_POSTED,
+                        'cnote' => 'Stok Opname: ' . ($opname->cnote ?: $opname->cno_opname) . ($d->cnote ? ' - ' . $d->cnote : ''),
+                        'dexpired' => $d->dexpired,
+                        'crack' => $d->crack,
+                        'dcreated' => Carbon::now(),
+                    ]);
+                }
+            }
+
+            // 3. Update status header opname menjadi POSTED
+            $opname->cstatus = MposStockOpnameH::STATUS_POSTED;
+            $opname->dposted = Carbon::now();
+            $opname->dupdated = Carbon::now();
+            $opname->save();
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-opname.show', $opname->nid)
+                ->with('success', "Stok Opname {$opname->cno_opname} berhasil diposting. Stok master telah disesuaikan dan selisih tercatat di Pergerakan Stok.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Gagal memposting Stok Opname: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Batalkan Dokumen Stok Opname
+     */
+    public function cancelStockOpname(string $id)
+    {
+        $opname = MposStockOpnameH::where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        if ($opname->isPosted()) {
+            return redirect()->back()->with('error', 'Dokumen yang telah diposting tidak dapat dibatalkan.');
+        }
+
+        $opname->cstatus = MposStockOpnameH::STATUS_CANCELLED;
+        $opname->dupdated = Carbon::now();
+        $opname->save();
+
+        return redirect()->route('inventory.stock-opname.show', $opname->nid)
+            ->with('success', "Stok Opname {$opname->cno_opname} telah dibatalkan.");
+    }
+
+    /**
+     * Cetak Lembar Stok Opname
+     */
+    public function printStockOpname(string $id)
+    {
+        $opname = MposStockOpnameH::with([
+            'outlet',
+            'user',
+            'details' => function ($q) {
+                $q->with(['product.category', 'ingredient']);
+            }
+        ])->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        return view('inventory.stock_opname_print', compact('opname'));
+    }
+
+    /**
+     * Export Dokumen Stok Opname ke format Excel / CSV
+     */
+    public function exportStockOpnameExcel(string $id)
+    {
+        $opname = MposStockOpnameH::with([
+            'outlet',
+            'user',
+            'details' => function ($q) {
+                $q->with(['product.category', 'ingredient']);
+            }
+        ])->where('nid', $id)->orWhere('cno_opname', $id)->firstOrFail();
+
+        $filename = "Stok_Opname_{$opname->cno_opname}_" . date('Ymd_His') . ".csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($opname) {
+            $handle = fopen('php://output', 'w');
+            // Write UTF-8 BOM agar rapi di Microsoft Excel
+            fputs($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, ['DOKUMEN STOK OPNAME']);
+            fputcsv($handle, ['No. Opname', $opname->cno_opname]);
+            fputcsv($handle, ['Tanggal', Carbon::parse($opname->dopname)->format('d-M-Y')]);
+            fputcsv($handle, ['Outlet', $opname->outlet?->cname ?: '-']);
+            fputcsv($handle, ['Petugas', $opname->user?->email ?: ($opname->user?->cname ?: '-')]);
+            fputcsv($handle, ['Status', $opname->cstatus]);
+            fputcsv($handle, ['Catatan', $opname->cnote ?: '-']);
+            fputcsv($handle, []);
+
+            fputcsv($handle, [
+                'No',
+                'Produk / Item',
+                'Waktu',
+                'Qty Sistem',
+                'Qty Aktual',
+                'Qty Selisih',
+                'Harga Pokok (Rp)',
+                'Selisih Nilai (Rp)',
+                'Tgl. Kadaluwarsa',
+                'Rack / Lokasi',
+                'Catatan',
+            ]);
+
+            $no = 1;
+            foreach ($opname->details as $d) {
+                fputcsv($handle, [
+                    $no++,
+                    $d->item_name,
+                    $d->dtime ?: '-',
+                    $d->nqty_system,
+                    $d->nqty_actual,
+                    $d->nqty_diff,
+                    $d->ncost,
+                    $d->nsubtotal_diff,
+                    $d->dexpired ? Carbon::parse($d->dexpired)->format('d-M-Y') : '-',
+                    $d->crack ?: '-',
+                    $d->cnote ?: '-',
+                ]);
+            }
+
+            fputcsv($handle, []);
+            fputcsv($handle, [
+                'TOTAL',
+                '',
+                '',
+                $opname->ntotal_system_qty,
+                $opname->ntotal_actual_qty,
+                $opname->ntotal_diff_qty,
+                '',
+                $opname->ntotal_diff_amount,
+                '',
+                '',
+                '',
+            ]);
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }
