@@ -106,6 +106,19 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
         Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');
         Route::get('/stock-out/{id}/print', [InventoryController::class, 'printStockOut'])->name('stock-out.print');
+
+        // Stok Opname Routes
+        Route::post('/stock-opname', [InventoryController::class, 'storeStockOpname'])->name('stock-opname.store');
+        Route::get('/stock-opname/{id}', [InventoryController::class, 'showStockOpname'])->name('stock-opname.show');
+        Route::put('/stock-opname/{id}', [InventoryController::class, 'updateStockOpname'])->name('stock-opname.update');
+        Route::delete('/stock-opname/{id}', [InventoryController::class, 'destroyStockOpname'])->name('stock-opname.destroy');
+        Route::post('/stock-opname/{id}/items', [InventoryController::class, 'storeStockOpnameItems'])->name('stock-opname.items.store');
+        Route::put('/stock-opname/{id}/items/{itemId}', [InventoryController::class, 'updateStockOpnameItem'])->name('stock-opname.items.update');
+        Route::delete('/stock-opname/{id}/items/{itemId}', [InventoryController::class, 'destroyStockOpnameItem'])->name('stock-opname.items.destroy');
+        Route::post('/stock-opname/{id}/post', [InventoryController::class, 'postStockOpname'])->name('stock-opname.post');
+        Route::post('/stock-opname/{id}/cancel', [InventoryController::class, 'cancelStockOpname'])->name('stock-opname.cancel');
+        Route::get('/stock-opname/{id}/print', [InventoryController::class, 'printStockOpname'])->name('stock-opname.print');
+        Route::get('/stock-opname/{id}/export-excel', [InventoryController::class, 'exportStockOpnameExcel'])->name('stock-opname.export-excel');
     });
 
     // POS Management Routes
