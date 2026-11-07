@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Daftar Pembelian')
+@section('custom_alerts', '1')
 
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">

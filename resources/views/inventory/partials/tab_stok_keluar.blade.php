@@ -190,7 +190,7 @@
                     @endif
                 </td>
                 <td class="py-3 text-secondary">
-                    {{ $so->user?->email ?: ($so->user?->cname ?: 'admin') }}
+                    {{ $so->user?->cemail ?: ($so->user?->email ?: ($so->user?->cname ?: 'admin')) }}
                 </td>
 
             </tr>
@@ -286,9 +286,8 @@
                     <div class="d-flex justify-content-between align-items-center pt-3 border-top">
                         <div>
                             <span class="fw-bold text-dark fs-6">
-                                <i class="bi bi-box-seam me-1 text-danger"></i> Item Barang Keluar
+                                Item Barang Keluar
                             </span>
-                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong>, <strong>Setengah Jadi</strong>, atau <strong>Bahan Baku</strong> yang dikeluarkan</span>
                         </div>
                         <button type="button" class="btn btn-outline-danger btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewStockOutRow">
                             <i class="bi bi-plus-lg me-1"></i> Tambah Baris
@@ -317,12 +316,9 @@
                     </div>
 
                     <!-- Baris Ringkasan Total Kuantitas & Nilai Modal -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top bg-light-subtle rounded-3 p-3">
-                        <div class="text-muted small">
-                            <i class="bi bi-info-circle me-1"></i> Setelah disimpan, transaksi akan berstatus <strong>Draf</strong> dan Anda akan langsung diarahkan ke halaman detail untuk meninjau data sebelum diposting.
-                        </div>
-                        <div class="d-flex align-items-center gap-4 text-end">
-                            <div>
+                    <div class="d-flex flex-wrap justify-content-end align-items-center mt-3 pt-3 border-top bg-light-subtle rounded-3 p-3">
+                        <div class="d-flex align-items-center gap-4 text-end ms-auto">
+                                <div>
                                 <span class="text-secondary small d-block">Total Kuantitas:</span>
                                 <span class="fw-bold fs-6 text-dark" id="stockOutTotalQty">0</span> <span class="small text-muted">unit</span>
                             </div>
@@ -399,9 +395,9 @@
         const list = [];
         Object.keys(groupedByName).forEach(key => {
             const variants = groupedByName[key];
-            const exactOutletMatch = outletId
-                ? variants.find(v => String(v.nid_outlet || '') === String(outletId))
-                : null;
+            const exactOutletMatch = outletId ?
+                variants.find(v => String(v.nid_outlet || '') === String(outletId)) :
+                null;
             const globalMatch = variants.find(v => !v.nid_outlet);
 
             if (exactOutletMatch) {
@@ -803,4 +799,3 @@
         }
     });
 </script>
-

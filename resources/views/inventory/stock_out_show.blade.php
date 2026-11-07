@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Inventori / Detail Stok Keluar')
+@section('custom_alerts', '1')
 
 @section('sub_header')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
@@ -214,6 +215,10 @@
         padding: 4px 8px !important;
     }
 
+    .detail-card {
+        border: 1px solid #cbd5e1 !important;
+    }
+
     @media (max-width: 575.98px) {
         .catalog-nav-tab {
             min-width: 0;
@@ -253,7 +258,7 @@
     @endif
 
     <!-- Alert Notifikasi Olsera -->
-    <div class="alert alert-light border shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
+    <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
         <i class="bi bi-exclamation-circle text-muted fs-5 me-3"></i>
         <div class="small">
             @if($stockOut->isDraft)
@@ -267,7 +272,7 @@
     </div>
 
     <!-- Banner Utama: Status & No Stok Keluar (Gaya Olsera) -->
-    <div class="card shadow-sm border-0 mb-4 rounded-3">
+    <div class="card detail-card shadow-sm mb-4 rounded-3">
         <div class="card-body p-4">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div class="d-flex align-items-center gap-3">
@@ -303,9 +308,6 @@
                     </a>
 
                     @if($stockOut->isDraft)
-                    <button type="button" class="btn btn-warning btn-sm px-3 text-white fw-medium shadow-sm" title="Data tersimpan sebagai Draf">
-                        <i class="bi bi-save me-1"></i> Draf
-                    </button>
                     <form action="{{ route('inventory.stock-out.cancel', $stockOut->cno_stock_out) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan draf Stok Keluar ini?');">
                         @csrf
                         <button type="submit" class="btn btn-danger btn-sm px-3 shadow-sm">
@@ -325,7 +327,7 @@
     <div class="row g-3 mb-4">
         <!-- Kotak 1: Tanggal & User -->
         <div class="col-md-3">
-            <div class="card shadow-sm border-0 h-100 rounded-3 position-relative">
+            <div class="card detail-card shadow-sm h-100 rounded-3 position-relative">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Tanggal Keluar</div>
@@ -336,14 +338,17 @@
                         @endif
                     </div>
                     <div class="fw-bold text-dark">{{ $stockOut->dstock_out ? $stockOut->dstock_out->format('d-M-Y') : '-' }}</div>
-                    <div class="text-muted small">{{ $stockOut->user?->email ?: ($stockOut->user?->cname ?: 'admin') }}</div>
+                    @php
+                    $stockOutUserDisplay = $stockOut->user?->cemail ?: ($stockOut->user?->email ?: ($stockOut->user?->cname ?: 'admin'));
+                    @endphp
+                    <div class="text-muted small text-truncate" title="{{ $stockOutUserDisplay }}">{{ $stockOutUserDisplay }}</div>
                 </div>
             </div>
         </div>
 
         <!-- Kotak 2: Transfer ke -->
         <div class="col-md-3">
-            <div class="card shadow-sm border-0 h-100 rounded-3">
+            <div class="card detail-card shadow-sm h-100 rounded-3">
                 <div class="card-body p-3">
                     <div class="text-muted small fw-semibold mb-1">Transfer ke</div>
                     @if($stockOut->targetOutlet)
@@ -359,7 +364,7 @@
 
         <!-- Kotak 3: Catatan -->
         <div class="col-md-3">
-            <div class="card shadow-sm border-0 h-100 rounded-3">
+            <div class="card detail-card shadow-sm h-100 rounded-3">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Catatan</div>
@@ -376,7 +381,7 @@
 
         <!-- Kotak 4: Alasan -->
         <div class="col-md-3">
-            <div class="card shadow-sm border-0 h-100 rounded-3">
+            <div class="card detail-card shadow-sm h-100 rounded-3">
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Alasan</div>
@@ -393,7 +398,7 @@
     </div>
 
     <!-- Header Biru Tabel Produk (Persis Olsera Image 3 & 4) -->
-    <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+    <div class="card detail-card shadow-sm rounded-3 overflow-hidden">
         <div class="card-header bg-primary text-white py-3 px-4 border-0 d-flex justify-content-between align-items-center">
             <h6 class="fw-bold mb-0 text-white">
                 Item Barang Keluar (<span id="totalDetailItemCount">{{ $stockOut->details->count() }}</span>)
