@@ -108,18 +108,21 @@
         <tbody>
             @foreach($stockIn->details as $idx => $d)
                 @php
-                    $name = $d->isIngredient() ? ($d->ingredient?->cname ?? '-') : ($d->product?->cname ?? '-');
+                    $name = $d->product?->cname ?? ($d->isIngredient() ? ($d->ingredient?->cname ?? '-') : '-');
+                    $typeLabel = $d->getItemTypeLabel();
+                    $unitLabel = $d->getItemUnit();
                 @endphp
                 <tr>
                     <td class="text-center">{{ $idx + 1 }}</td>
                     <td>
                         {{ $name }}
+                        <div style="font-size: 10px; color: #666;">{{ $typeLabel }}</div>
                         @if($d->cserial_no)
                             <div style="font-size: 10px; color: #666;">Seri: {{ $d->cserial_no }}</div>
                         @endif
                     </td>
                     <td class="text-end">Rp {{ number_format($d->ncost, 0, ',', '.') }}</td>
-                    <td class="text-center">{{ number_format($d->nqty, 0, ',', '.') }}</td>
+                    <td class="text-center">{{ number_format($d->nqty, 0, ',', '.') }} {{ $unitLabel }}</td>
                     <td class="text-end">Rp {{ number_format($d->nsubtotal, 0, ',', '.') }}</td>
                 </tr>
             @endforeach

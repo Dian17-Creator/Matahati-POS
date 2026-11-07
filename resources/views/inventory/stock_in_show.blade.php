@@ -209,9 +209,12 @@
                     <tbody>
                         @forelse($stockIn->details as $index => $detail)
                             @php
-                                $itemName = $detail->isIngredient()
-                                    ? ($detail->ingredient?->cname ?? 'Bahan Baku #' . $detail->nid_ingredient)
-                                    : ($detail->product?->cname ?? 'Produk #' . $detail->nid_product);
+                                $itemName = $detail->product?->cname
+                                    ?? ($detail->isIngredient()
+                                        ? ($detail->ingredient?->cname ?? 'Bahan Baku #' . $detail->nid_ingredient)
+                                        : 'Produk #' . $detail->nid_product);
+                                $normType = $detail->getItemTypeNormalized();
+                                $itemUnit = $detail->getItemUnit();
                             @endphp
                             <tr>
                                 <td class="ps-4 text-muted small">{{ $index + 1 }}</td>
@@ -222,6 +225,18 @@
                                         </div>
                                         <div>
                                             <div class="fw-bold text-dark">{{ $itemName }}</div>
+                                            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+                                                @if($normType === 'SETENGAH_JADI')
+                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;">Setengah Jadi</span>
+                                                @elseif($normType === 'BAHAN_BAKU')
+                                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.68rem;">Bahan Baku</span>
+                                                @else
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;">Produk</span>
+                                                @endif
+                                                @if($detail->product?->category?->cname)
+                                                    <span class="text-muted small">&bull; {{ $detail->product->category->cname }}</span>
+                                                @endif
+                                            </div>
                                             @if(!empty($detail->cserial_no))
                                                 <div class="text-muted small mt-1">
                                                     <span class="text-secondary">Seri (dipisahkan dengan baris baru):</span>
@@ -235,7 +250,7 @@
                                     IDR {{ number_format($detail->ncost, 0, ',', '.') }}
                                 </td>
                                 <td class="text-center fw-bold text-dark">
-                                    {{ number_format($detail->nqty, 0, ',', '.') }}
+                                    {{ number_format($detail->nqty, 0, ',', '.') }} <span class="text-muted fw-normal small">{{ $itemUnit }}</span>
                                 </td>
                                 <td class="text-end fw-bold text-dark">
                                     IDR {{ number_format($detail->nsubtotal, 0, ',', '.') }}

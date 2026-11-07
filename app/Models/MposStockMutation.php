@@ -18,6 +18,10 @@ class MposStockMutation extends Model
     public const STATUS_VOID = 'VOID';
     public const STATUS_CANCELLED = 'CANCELLED';
 
+    public const ITEM_PRODUK = 'PRODUK';
+    public const ITEM_SETENGAH_JADI = 'SETENGAH_JADI';
+    public const ITEM_BAHAN_BAKU = 'BAHAN_BAKU';
+
     public const ITEM_PRODUCT = 'PRODUCT';
     public const ITEM_INGREDIENT = 'INGREDIENT';
 
@@ -89,8 +93,58 @@ class MposStockMutation extends Model
 
     public function isIngredient(): bool
     {
-        return strtoupper((string) $this->citem_type) === self::ITEM_INGREDIENT
-            || (!empty($this->nid_ingredient) && empty($this->nid_product));
+        return !empty($this->nid_ingredient) && empty($this->nid_product);
+    }
+
+    public static function normalizeItemType(?string $type): string
+    {
+        $normalized = strtoupper(trim((string) $type));
+        if ($normalized === self::ITEM_SETENGAH_JADI) {
+            return self::ITEM_SETENGAH_JADI;
+        }
+        if (in_array($normalized, [self::ITEM_BAHAN_BAKU, self::ITEM_INGREDIENT, 'BAHAN BAKU'], true)) {
+            return self::ITEM_BAHAN_BAKU;
+        }
+
+        return self::ITEM_PRODUK;
+    }
+
+    public function getItemTypeNormalized(): string
+    {
+        if (!empty($this->citem_type) && !in_array(strtoupper((string) $this->citem_type), [self::ITEM_PRODUCT, self::ITEM_PRODUK], true)) {
+            return self::normalizeItemType($this->citem_type);
+        }
+
+        if ($this->product && !empty($this->product->cproduct_type)) {
+            return self::normalizeItemType($this->product->cproduct_type);
+        }
+
+        if ($this->isIngredient()) {
+            return self::ITEM_BAHAN_BAKU;
+        }
+
+        return self::normalizeItemType($this->citem_type);
+    }
+
+    public function getItemTypeLabel(): string
+    {
+        return match ($this->getItemTypeNormalized()) {
+            self::ITEM_SETENGAH_JADI => 'Setengah Jadi',
+            self::ITEM_BAHAN_BAKU => 'Bahan Baku',
+            default => 'Produk',
+        };
+    }
+
+    public function getItemUnit(): string
+    {
+        if ($this->product && !empty($this->product->csatuan)) {
+            return $this->product->csatuan;
+        }
+        if ($this->ingredient && !empty($this->ingredient->csatuan)) {
+            return $this->ingredient->csatuan;
+        }
+
+        return 'PCS';
     }
 
     public function isDraft(): bool

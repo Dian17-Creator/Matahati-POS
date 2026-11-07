@@ -121,14 +121,15 @@
             @forelse($stockOut->details as $idx => $d)
             @php
                 $isIng = $d->isIngredient();
-                $name = $isIng ? ($d->ingredient?->cname ?? 'Bahan Baku') : ($d->product?->cname ?? 'Produk');
-                $satuan = $isIng ? ($d->ingredient?->csatuan ?? '') : 'pcs';
+                $name = $d->product?->cname ?? ($isIng ? ($d->ingredient?->cname ?? 'Bahan Baku') : 'Produk');
+                $satuan = strtolower($d->getItemUnit());
+                $typeLabel = $d->getItemTypeLabel();
                 $totalQty += (float) $d->nqty;
                 $totalCost += (float) $d->nsubtotal;
             @endphp
             <tr>
                 <td class="text-center">{{ $idx + 1 }}</td>
-                <td>{{ $isIng ? 'Bahan Baku' : 'Produk' }}</td>
+                <td>{{ $typeLabel }}</td>
                 <td>{{ $name }}</td>
                 <td>{{ $d->cstock_from ?: '-' }}</td>
                 <td class="text-center">{{ rtrim(rtrim(number_format((float) $d->nqty, 2, '.', ''), '0'), '.') }} {{ $satuan }}</td>
