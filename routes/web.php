@@ -102,6 +102,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-in', [InventoryController::class, 'storeStockIn'])->name('stock-in.store');
         Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
         Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
+        Route::put('/stock-in/{id}', [InventoryController::class, 'updateStockInHeader'])->name('stock-in.update');
+        Route::post('/stock-in/{id}/post', [InventoryController::class, 'postStockIn'])->name('stock-in.post');
+        Route::post('/stock-in/{id}/cancel', [InventoryController::class, 'cancelStockIn'])->name('stock-in.cancel');
+        Route::post('/stock-in/{id}/items', [InventoryController::class, 'addStockInItem'])->name('stock-in.items.store');
+        Route::put('/stock-in/{id}/items/{itemId}', [InventoryController::class, 'updateStockInItem'])->name('stock-in.items.update');
+        Route::delete('/stock-in/{id}/items/{itemId}', [InventoryController::class, 'destroyStockInItem'])->name('stock-in.items.destroy');
         Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');
         Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
         Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Inventory / Detail Stok Opname')
+@section('custom_alerts', '1')
 
 @section('sub_header')
 <div class="catalog-headbar-tabs bg-white border-bottom">

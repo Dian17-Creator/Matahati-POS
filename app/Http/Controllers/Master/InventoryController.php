@@ -15,6 +15,8 @@ use App\Models\MposStockOpnameH;
 use App\Models\MposStockOpnameD;
 use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -126,9 +128,10 @@ class InventoryController extends Controller
             $stockInDocs = $stockInRows->map(function ($row) use ($outletsMap, $usersMap) {
                 $row->outlet = $outletsMap->get($row->nid_outlet);
                 $row->targetOutlet = $outletsMap->get($row->nid_target_outlet);
+                $row->user = $usersMap->get($row->nid_user);
                 $row->cno_stock_in = $row->cno_ref;
                 $row->dstock_in = $row->dmutation;
-                $row->creceived_by = $row->user?->email ?: ($row->user?->cname ?: 'Admin');
+                $row->creceived_by = $row->user?->cemail ?: ($row->user?->email ?: ($row->user?->cname ?: 'Admin'));
                 $row->supplier = null;
                 return $row;
             });
@@ -787,7 +790,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * Simpan transaksi Stok Masuk baru secara manual (tanpa PO)
+     * Simpan Dokumen Stok Masuk baru secara manual (tanpa PO) sebagai DRAF
      */
     public function storeStockIn(Request $request)
     {
@@ -810,7 +813,7 @@ class InventoryController extends Controller
         try {
             $dStockIn = Carbon::parse($validated['dstock_in'])->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
             $stockInNumber = MposStockMutation::generateNumber('IN', $dStockIn);
-            $reason = !empty($validated['creason']) ? $validated['creason'] : 'Penyesuaian Stok Masuk Manual';
+            $reason = !empty($validated['creason']) ? $validated['creason'] : 'Koreksi Selisih Stok (Adjustment)';
             $targetOutletId = (int) $validated['nid_outlet'];
 
             foreach ($validated['items'] as $item) {
@@ -829,13 +832,7 @@ class InventoryController extends Controller
                 $cost = $cost > 0 ? $cost : (float) ($targetProduct->nprice_buy ?: 0);
                 $subtotal = $qty * $cost;
 
-                $targetProduct->nqty = (float) $targetProduct->nqty + $qty;
-                if ($cost > 0 && empty($targetProduct->nprice_buy)) {
-                    $targetProduct->nprice_buy = $cost;
-                }
-                $targetProduct->save();
-
-                // Catat mutasi IN di mpos_stock_mutations
+                // Simpan awal sebagai DRAFT (stok fisik belum bertambah sampai diposting di halaman detail)
                 MposStockMutation::create([
                     'cno_ref' => $stockInNumber,
                     'dmutation' => $dStockIn,
@@ -850,18 +847,19 @@ class InventoryController extends Controller
                     'ncost' => $cost,
                     'nsubtotal' => $subtotal,
                     'creason' => $reason,
-                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cstatus' => MposStockMutation::STATUS_DRAFT,
                     'cnote' => $validated['cnote'] ?? null,
                     'dexpired' => !empty($item['dexpired']) ? $item['dexpired'] : null,
                     'crack' => $item['crack'] ?? null,
                     'dcreated' => Carbon::now(),
+                    'dupdated' => Carbon::now(),
                 ]);
             }
 
             DB::commit();
 
             return redirect()->route('inventory.stock-in.show', $stockInNumber)
-                ->with('success', "Stok Masuk {$stockInNumber} berhasil disimpan.");
+                ->with('success', "Stok Masuk {$stockInNumber} berhasil disimpan sebagai Draf. Silakan periksa kembali sebelum diposting.");
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
@@ -871,7 +869,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * Halaman Detail Stok Masuk (sesuai tampilan Olsera)
+     * Halaman Detail Stok Masuk (sesuai tampilan Olsera & seragam dengan Detail Stok Keluar)
      */
     public function showStockIn(string $id)
     {
@@ -888,6 +886,24 @@ class InventoryController extends Controller
         }
 
         $first = $items->first();
+
+        foreach ($items as $item) {
+            if ($item->isIngredient()) {
+                $item->current_stock = (float) ($item->ingredient?->nstock ?? 0);
+            } else {
+                $item->current_stock = (float) ($item->product?->nqty ?? 0);
+            }
+        }
+
+        $availableProducts = MposProduct::with('category')
+            ->where(function ($q) use ($first) {
+                $q->where('nid_outlet', $first->nid_outlet)
+                    ->orWhereNull('nid_outlet');
+            })
+            ->where('cstatus', 'ACTIVE')
+            ->orderBy('cname')
+            ->get();
+
         $stockIn = (object) [
             'nid' => $first->nid,
             'cno_stock_in' => $first->cno_ref,
@@ -895,6 +911,8 @@ class InventoryController extends Controller
             'creason' => $first->creason,
             'cstatus' => $first->cstatus,
             'cnote' => $first->cnote,
+            'nid_outlet' => $first->nid_outlet,
+            'nid_target_outlet' => $first->nid_target_outlet,
             'outlet' => $first->outlet,
             'targetOutlet' => $first->targetOutlet,
             'user' => $first->user,
@@ -902,10 +920,363 @@ class InventoryController extends Controller
             'ntotal_qty' => $items->sum('nqty'),
             'ntotal_cost' => $items->sum('nsubtotal'),
             'supplier' => null,
-            'creceived_by' => $first->user?->email ?: ($first->user?->cname ?: 'Admin'),
+            'creceived_by' => $first->user?->cemail ?: ($first->user?->email ?: ($first->user?->cname ?: 'Admin')),
+            'isDraft' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_DRAFT),
+            'isPosted' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED),
+            'isCancelled' => in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true),
         ];
 
-        return view('inventory.stock_in_show', compact('stockIn'));
+        return view('inventory.stock_in_show', compact('stockIn', 'availableProducts'));
+    }
+
+    /**
+     * Posting Dokumen Stok Masuk (Tambah Stok Fisik ke Master Produk)
+     */
+    public function postStockIn(Request $request, string $id): RedirectResponse
+    {
+        $items = MposStockMutation::with(['outlet', 'product', 'ingredient'])
+            ->where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)
+                    ->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Masuk tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        $stockInNumber = $first->cno_ref;
+
+        if (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED) {
+            return redirect()->back()->with('error', 'Dokumen ini sudah berstatus Posted.');
+        }
+
+        if (in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true)) {
+            return redirect()->back()->with('error', 'Dokumen yang telah dibatalkan tidak dapat diposting.');
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $qty = (float) $item->nqty;
+                $cost = (float) $item->ncost;
+
+                if (!$item->isIngredient() && $item->nid_product) {
+                    $prod = MposProduct::lockForUpdate()->find($item->nid_product);
+                    if ($prod) {
+                        $prod->nqty = (float) $prod->nqty + $qty;
+                        if ($cost > 0 && empty($prod->nprice_buy)) {
+                            $prod->nprice_buy = $cost;
+                        }
+                        $prod->save();
+                    }
+                } elseif ($item->isIngredient() && $item->nid_ingredient) {
+                    $ing = MposIngredients::lockForUpdate()->find($item->nid_ingredient);
+                    if ($ing) {
+                        $ing->nstock = (float) $ing->nstock + $qty;
+                        $ing->save();
+                    }
+                }
+
+                $item->cstatus = MposStockMutation::STATUS_POSTED;
+                $item->dupdated = Carbon::now();
+                $item->save();
+            }
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-in.show', $stockInNumber)
+                ->with('success', "Dokumen Stok Masuk {$stockInNumber} berhasil diposting! Stok fisik barang di outlet penerima telah ditambahkan.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal memposting stok masuk: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Batalkan Dokumen Stok Masuk (Draf)
+     */
+    public function cancelStockIn(string $id): RedirectResponse
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)
+                    ->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Masuk tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        $stockInNumber = $first->cno_ref;
+        $currentStatus = strtoupper((string) $first->cstatus);
+
+        if (in_array($currentStatus, [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true)) {
+            return redirect()->back()->with('error', 'Dokumen ini sudah dibatalkan sebelumnya.');
+        }
+
+        if ($currentStatus !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Hanya dokumen Stok Masuk berstatus Draf yang dapat dibatalkan.');
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $item->cstatus = MposStockMutation::STATUS_CANCELLED;
+                $item->dupdated = Carbon::now();
+                $item->save();
+            }
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-in.show', $stockInNumber)
+                ->with('success', "Dokumen Stok Masuk {$stockInNumber} telah dibatalkan.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal membatalkan transaksi: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update Informasi Dokumen Stok Masuk (Tanggal, Alasan, Catatan) saat Draf
+     */
+    public function updateStockInHeader(Request $request, string $id): RedirectResponse
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return redirect()->back()->with('error', 'Dokumen Stok Masuk tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        if (strtoupper((string) $first->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'dstock_in' => 'required|date',
+            'creason' => 'nullable|string|max:100',
+            'cnote' => 'nullable|string|max:500',
+        ]);
+
+        $dStockIn = Carbon::parse($validated['dstock_in'])->setTime(
+            $first->dmutation ? $first->dmutation->hour : Carbon::now()->hour,
+            $first->dmutation ? $first->dmutation->minute : Carbon::now()->minute,
+            $first->dmutation ? $first->dmutation->second : Carbon::now()->second
+        );
+
+        foreach ($items as $item) {
+            $item->dmutation = $dStockIn;
+            if (isset($validated['creason'])) {
+                $item->creason = $validated['creason'];
+            }
+            $item->cnote = $validated['cnote'] ?? null;
+            $item->dupdated = Carbon::now();
+            $item->save();
+        }
+
+        return redirect()->route('inventory.stock-in.show', $first->cno_ref)
+            ->with('success', 'Informasi dokumen stok masuk berhasil diperbarui.');
+    }
+
+    /**
+     * Tambah Item Barang ke Dokumen Stok Masuk (Draf)
+     */
+    public function addStockInItem(Request $request, string $id): RedirectResponse|JsonResponse
+    {
+        $items = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Dokumen Stok Masuk tidak ditemukan.'], 404);
+            }
+            return redirect()->back()->with('error', 'Dokumen Stok Masuk tidak ditemukan.');
+        }
+
+        $first = $items->first();
+        if (strtoupper((string) $first->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Item hanya dapat ditambahkan pada dokumen berstatus Draf.'], 422);
+            }
+            return redirect()->back()->with('error', 'Item hanya dapat ditambahkan pada dokumen berstatus Draf.');
+        }
+
+        $validated = $request->validate([
+            'citem_type' => 'required|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU,PRODUCT,INGREDIENT',
+            'nid_item' => 'required|integer',
+            'nqty' => 'required|numeric|min:0.01',
+            'ncost' => 'nullable|numeric|min:0',
+            'crack' => 'nullable|string|max:100',
+            'dexpired' => 'nullable|date',
+        ]);
+
+        $qty = (float) $validated['nqty'];
+        $cost = isset($validated['ncost']) ? (float) $validated['ncost'] : 0.0;
+        $selectedId = (int) $validated['nid_item'];
+
+        DB::beginTransaction();
+        try {
+            $sourceProduct = MposProduct::lockForUpdate()->find($selectedId);
+            if (!$sourceProduct) {
+                DB::rollBack();
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Item produk yang dipilih tidak ditemukan.'], 422);
+                }
+                return redirect()->back()->with('error', 'Item produk yang dipilih tidak ditemukan.');
+            }
+
+            $targetProduct = $this->resolveOrCreateOutletProduct($sourceProduct, (int) $first->nid_outlet, $cost);
+            $prodId = $targetProduct->nid;
+            $normalizedType = MposStockMutation::normalizeItemType($targetProduct->cproduct_type ?? $validated['citem_type']);
+
+            if ($cost <= 0) {
+                $cost = (float) ($targetProduct->nprice_buy ?? 0);
+            }
+            $subtotal = $qty * $cost;
+
+            $existing = MposStockMutation::where('cno_ref', $first->cno_ref)
+                ->where('ctype', MposStockMutation::TYPE_IN)
+                ->where('nid_product', $prodId)
+                ->first();
+
+            if ($existing) {
+                $existing->nqty = (float) $existing->nqty + $qty;
+                $existing->ncost = $cost > 0 ? $cost : $existing->ncost;
+                $existing->nsubtotal = (float) $existing->nqty * (float) $existing->ncost;
+                $existing->citem_type = $normalizedType;
+                $existing->dupdated = Carbon::now();
+                $existing->save();
+            } else {
+                MposStockMutation::create([
+                    'cno_ref' => $first->cno_ref,
+                    'dmutation' => $first->dmutation ?? Carbon::now(),
+                    'ctype' => MposStockMutation::TYPE_IN,
+                    'nid_outlet' => $first->nid_outlet,
+                    'nid_target_outlet' => $first->nid_target_outlet,
+                    'nid_user' => Auth::id() ?? 1,
+                    'citem_type' => $normalizedType,
+                    'nid_product' => $prodId,
+                    'nid_ingredient' => null,
+                    'nqty' => $qty,
+                    'ncost' => $cost,
+                    'nsubtotal' => $subtotal,
+                    'creason' => $first->creason,
+                    'cstatus' => MposStockMutation::STATUS_DRAFT,
+                    'cnote' => $first->cnote,
+                    'dexpired' => $validated['dexpired'] ?? null,
+                    'crack' => $validated['crack'] ?? null,
+                    'dcreated' => Carbon::now(),
+                    'dupdated' => Carbon::now(),
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Gagal menambahkan item: ' . $e->getMessage()], 500);
+            }
+            return redirect()->back()->with('error', 'Gagal menambahkan item: ' . $e->getMessage());
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Item berhasil ditambahkan ke draf stok masuk.',
+            ]);
+        }
+
+        return redirect()->route('inventory.stock-in.show', $first->cno_ref)
+            ->with('success', 'Item berhasil ditambahkan ke draf stok masuk.');
+    }
+
+    /**
+     * Update Kuantitas / Harga Beli Item pada Dokumen Stok Masuk (Draf)
+     */
+    public function updateStockInItem(Request $request, string $id, string $itemId): RedirectResponse|JsonResponse
+    {
+        $item = MposStockMutation::where('nid', $itemId)
+            ->where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->firstOrFail();
+
+        if (strtoupper((string) $item->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Hanya item berstatus Draf yang dapat diubah.'], 422);
+            }
+            return redirect()->back()->with('error', 'Hanya item berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'nqty' => 'required|numeric|min:0.01',
+            'ncost' => 'nullable|numeric|min:0',
+        ]);
+
+        $item->nqty = (float) $validated['nqty'];
+        if (array_key_exists('ncost', $validated) && $validated['ncost'] !== null) {
+            $item->ncost = (float) $validated['ncost'];
+        }
+        $item->nsubtotal = (float) $item->nqty * (float) $item->ncost;
+        $item->dupdated = Carbon::now();
+        $item->save();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Item berhasil diperbarui.',
+                'nqty' => $item->nqty,
+                'ncost' => $item->ncost,
+                'nsubtotal' => $item->nsubtotal,
+            ]);
+        }
+
+        return redirect()->route('inventory.stock-in.show', $item->cno_ref)
+            ->with('success', 'Rincian item berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus Item dari Dokumen Stok Masuk (Draf)
+     */
+    public function destroyStockInItem(string $id, string $itemId): RedirectResponse
+    {
+        $item = MposStockMutation::where('nid', $itemId)
+            ->where('ctype', MposStockMutation::TYPE_IN)
+            ->where(function ($q) use ($id) {
+                $q->where('cno_ref', $id)->orWhere('nid', $id);
+            })
+            ->firstOrFail();
+
+        if (strtoupper((string) $item->cstatus) !== MposStockMutation::STATUS_DRAFT) {
+            return redirect()->back()->with('error', 'Hanya item pada draf yang dapat dihapus.');
+        }
+
+        $totalCount = MposStockMutation::where('cno_ref', $item->cno_ref)
+            ->where('ctype', MposStockMutation::TYPE_IN)
+            ->count();
+
+        if ($totalCount <= 1) {
+            return redirect()->back()->with('error', 'Dokumen stok masuk harus memiliki minimal 1 item. Jika tidak diperlukan, silakan batalkan seluruh transaksi.');
+        }
+
+        $cnoRef = $item->cno_ref;
+        $item->delete();
+
+        return redirect()->route('inventory.stock-in.show', $cnoRef)
+            ->with('success', 'Item berhasil dihapus dari draf stok masuk.');
     }
 
     /**
