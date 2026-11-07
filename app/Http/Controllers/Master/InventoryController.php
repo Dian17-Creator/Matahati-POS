@@ -2636,7 +2636,7 @@ class InventoryController extends Controller
             fputcsv($handle, ['No. Opname', $opname->cno_opname]);
             fputcsv($handle, ['Tanggal', Carbon::parse($opname->dopname)->format('d-M-Y')]);
             fputcsv($handle, ['Outlet', $opname->outlet?->cname ?: '-']);
-            fputcsv($handle, ['Petugas', $opname->user?->email ?: ($opname->user?->cname ?: '-')]);
+            fputcsv($handle, ['Petugas', $opname->user?->cemail ?: ($opname->user?->email ?: ($opname->user?->cname ?: '-'))]);
             fputcsv($handle, ['Status', $opname->cstatus]);
             fputcsv($handle, ['Catatan', $opname->cnote ?: '-']);
             fputcsv($handle, []);

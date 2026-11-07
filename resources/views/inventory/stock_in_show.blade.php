@@ -151,6 +151,7 @@
 
     .qty-stepper-input {
         -moz-appearance: textfield !important;
+        appearance: textfield !important;
     }
 
     #stockInDetailsTable {
@@ -413,18 +414,28 @@
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table table-hover align-middle mb-0" id="stockInDetailsTable" style="table-layout: fixed; width: 100%;">
                 <thead class="bg-light">
+                    @if($stockIn->isDraft)
                     <tr class="text-muted small text-uppercase">
                         <th style="width: 4%;" class="text-center py-2.5 text-nowrap">No</th>
                         <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Tipe</th>
-                        <th style="width: {{ $stockIn->isDraft ? '29%' : '35%' }};" class="py-2.5 text-nowrap ps-2">Produk / Bahan Baku</th>
-                        <th style="width: {{ $stockIn->isDraft ? '10%' : '11%' }};" class="text-center py-2.5 text-nowrap">Stok Saat Ini</th>
-                        <th style="width: {{ $stockIn->isDraft ? '12%' : '12%' }};" class="text-center py-2.5 text-nowrap">Qty Masuk</th>
-                        <th style="width: {{ $stockIn->isDraft ? '14%' : '13%' }};" class="text-end py-2.5 text-nowrap pe-3">Harga Beli</th>
-                        <th style="width: {{ $stockIn->isDraft ? '12%' : '13%' }};" class="text-end py-2.5 text-nowrap pe-3">Subtotal</th>
-                        @if($stockIn->isDraft)
+                        <th style="width: 29%;" class="py-2.5 text-nowrap ps-2">Produk / Bahan Baku</th>
+                        <th style="width: 10%;" class="text-center py-2.5 text-nowrap">Stok Saat Ini</th>
+                        <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Qty Masuk</th>
+                        <th style="width: 14%;" class="text-end py-2.5 text-nowrap pe-3">Harga Beli</th>
+                        <th style="width: 12%;" class="text-end py-2.5 text-nowrap pe-3">Subtotal</th>
                         <th style="width: 7%;" class="text-center py-2.5 text-nowrap">Aksi</th>
-                        @endif
                     </tr>
+                    @else
+                    <tr class="text-muted small text-uppercase">
+                        <th style="width: 4%;" class="text-center py-2.5 text-nowrap">No</th>
+                        <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Tipe</th>
+                        <th style="width: 35%;" class="py-2.5 text-nowrap ps-2">Produk / Bahan Baku</th>
+                        <th style="width: 11%;" class="text-center py-2.5 text-nowrap">Stok Saat Ini</th>
+                        <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Qty Masuk</th>
+                        <th style="width: 13%;" class="text-end py-2.5 text-nowrap pe-3">Harga Beli</th>
+                        <th style="width: 13%;" class="text-end py-2.5 text-nowrap pe-3">Subtotal</th>
+                    </tr>
+                    @endif
                 </thead>
                 <tbody class="small" id="stockInDetailsTableBody">
                     @php $totalDetailQty = 0; @endphp
@@ -477,15 +488,15 @@
                             @if($stockIn->isDraft)
                             <div class="d-inline-flex justify-content-center">
                                 <div class="qty-stepper mx-auto" data-item-id="{{ $detail->nid }}">
-                                    <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepDetailQty({{ $detail->nid }}, -1)" title="Kurangi">−</button>
+                                    <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepDetailQty('{{ $detail->nid }}', -1)" title="Kurangi">−</button>
                                     <input type="number"
                                         class="qty-stepper-input detail-qty-input"
                                         id="qty-input-{{ $detail->nid }}"
                                         value="{{ rtrim(rtrim(number_format((float) $detail->nqty, 2, '.', ''), '0'), '.') }}"
                                         min="0.01"
                                         step="any"
-                                        onchange="saveDetailRow({{ $detail->nid }})">
-                                    <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepDetailQty({{ $detail->nid }}, 1)" title="Tambah">+</button>
+                                        onchange="saveDetailRow('{{ $detail->nid }}')">
+                                    <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepDetailQty('{{ $detail->nid }}', 1)" title="Tambah">+</button>
                                 </div>
                             </div>
                             @else
@@ -505,7 +516,7 @@
                                     class="form-control form-control-sm text-end detail-cost-input"
                                     id="cost-input-{{ $detail->nid }}"
                                     value="{{ rtrim(rtrim(number_format((float) $detail->ncost, 2, '.', ''), '0'), '.') ?: 0 }}"
-                                    onchange="saveDetailRow({{ $detail->nid }})">
+                                    onchange="saveDetailRow('{{ $detail->nid }}')">
                             </div>
                             @else
                             Rp {{ number_format((float) $detail->ncost, 0, ',', '.') }}
@@ -654,8 +665,11 @@
 </div>
 @endif
 
+<script type="application/json" id="stockInDraftProductsData">
+    @json($availableProducts ?? [])
+</script>
 <script>
-    const draftProducts = @json($availableProducts ?? []);
+    const draftProducts = JSON.parse(document.getElementById('stockInDraftProductsData')?.textContent || '[]');
     let newRowCounter = 0;
     const newRowTsInstances = {};
 

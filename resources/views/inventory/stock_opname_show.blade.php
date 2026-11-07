@@ -160,6 +160,11 @@
     .qty-stepper-input,
     .no-spinners {
         -moz-appearance: textfield !important;
+        appearance: textfield !important;
+    }
+
+    .detail-card {
+        border: 1px solid #cbd5e1 !important;
     }
 </style>
 @endsection
@@ -193,7 +198,7 @@
     @endif
 
     {{-- Alert Notice Olsera --}}
-    <div class="alert alert-light border shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
+    <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
         <i class="bi bi-exclamation-circle text-muted fs-5 me-3"></i>
         <div class="small">
             <span>Pastikan data sudah benar sebelum diposting. Setelah terposting, data tidak diperbolehkan diubah.</span>
@@ -206,7 +211,7 @@
     </div>
 
     {{-- Header Card Dokumen (Persis Gambar 2 Olsera) --}}
-    <div class="card shadow-sm border-0 mb-3 rounded-3">
+    <div class="card detail-card shadow-sm mb-3 rounded-3">
         <div class="card-body p-3 p-md-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div class="d-flex align-items-center gap-3">
                 @if($opname->isPosted())
@@ -223,7 +228,7 @@
                 </span>
                 @endif
                 <div>
-                    <div class="text-muted small">No. Opname Stok</div>
+                    <div class="text-muted small">No. Stok Opname</div>
                     <h4 class="fw-bold mb-0 text-dark">{{ $opname->cno_opname }}</h4>
                     <div class="text-muted" style="font-size: 0.8rem;">
                         <i class="bi bi-shop me-1"></i> {{ $opname->outlet?->cname ?: 'Outlet #' . $opname->nid_outlet }}
@@ -263,14 +268,15 @@
     {{-- Dua Card: Tanggal & Catatan (Persis Gambar 2 Olsera) --}}
     <div class="row g-3 mb-3">
         <div class="col-md-6">
-            <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card detail-card shadow-sm rounded-3 h-100">
                 <div class="card-body p-3 d-flex justify-content-between align-items-start">
                     <div>
-                        <div class="text-muted small mb-1">Tanggal</div>
+                        <div class="text-muted small mb-1">Tanggal Stok Opname</div>
                         <div class="fw-bold text-dark fs-6">{{ \Carbon\Carbon::parse($opname->dopname)->format('d-M-Y') }}</div>
-                        <div class="text-muted small mt-1">
-                            <i class="bi bi-person me-1"></i> {{ $opname->user?->email ?: ($opname->user?->cname ?: 'Admin') }}
-                        </div>
+                        @php
+                        $opnameUserDisplay = $opname->user?->cemail ?: ($opname->user?->email ?: ($opname->user?->cname ?: 'Admin'));
+                        @endphp
+                        <div class="text-muted small text-truncate mt-1" title="{{ $opnameUserDisplay }}">{{ $opnameUserDisplay }}</div>
                     </div>
                     @if($opname->isDraft())
                     <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
@@ -281,7 +287,7 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card detail-card shadow-sm rounded-3 h-100">
                 <div class="card-body p-3 d-flex justify-content-between align-items-start">
                     <div>
                         <div class="text-muted small mb-1">Catatan</div>
@@ -298,7 +304,7 @@
     </div>
 
     {{-- Section Tabel Produk Stok Opname (Persis Gambar 2 & 3 Olsera) --}}
-    <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card detail-card shadow-sm rounded-3 mb-4 overflow-hidden">
         <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center rounded-top-3">
             <div class="d-flex align-items-center gap-2">
                 <h6 class="mb-0 fw-bold">
@@ -391,15 +397,15 @@
                             @if($opname->isDraft())
                             <div class="d-inline-flex justify-content-center">
                                 <div class="qty-stepper mx-auto" style="max-width: 110px; height: 31px;" data-item-id="{{ $d->nid }}" data-system-qty="{{ (float) $d->nqty_system }}">
-                                    <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepOpnameItemQty({{ $d->nid }}, -1)" title="Kurangi 1">−</button>
+                                    <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepOpnameItemQty('{{ $d->nid }}', -1)" title="Kurangi 1">−</button>
                                     <input type="number"
                                         class="qty-stepper-input opname-qty-input no-spinners"
                                         id="opname-qty-{{ $d->nid }}"
                                         value="{{ rtrim(rtrim(number_format((float) $d->nqty_actual, 2, '.', ''), '0'), '.') }}"
                                         min="0"
                                         step="any"
-                                        oninput="saveOpnameItemQty({{ $d->nid }})">
-                                    <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepOpnameItemQty({{ $d->nid }}, 1)" title="Tambah 1">+</button>
+                                        oninput="saveOpnameItemQty('{{ $d->nid }}')">
+                                    <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepOpnameItemQty('{{ $d->nid }}', 1)" title="Tambah 1">+</button>
                                 </div>
                             </div>
                             @else
@@ -596,7 +602,7 @@
                                             <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepQty('qty_input_{{ $p->nid }}', -1)" title="Kurangi 1">
                                                 <i class="bi bi-dash-lg"></i>
                                             </button>
-                                            <input type="number" step="any" min="0" name="items[{{ $idx }}][nqty_actual]" id="qty_input_{{ $p->nid }}" class="qty-stepper-input" value="{{ $initActual }}" oninput="autoCheckRow({{ $p->nid }})">
+                                            <input type="number" step="any" min="0" name="items[{{ $idx }}][nqty_actual]" id="qty_input_{{ $p->nid }}" class="qty-stepper-input" value="{{ $initActual }}" oninput="autoCheckRow('{{ $p->nid }}')">
                                             <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="stepQty('qty_input_{{ $p->nid }}', 1)" title="Tambah 1">
                                                 <i class="bi bi-plus-lg"></i>
                                             </button>
@@ -839,6 +845,7 @@
     }
 
     let opnameSaveDebounce = {};
+
     function saveOpnameItemQty(itemId) {
         const input = document.getElementById(`opname-qty-${itemId}`);
         if (!input) return;
@@ -875,25 +882,25 @@
 
         opnameSaveDebounce[itemId] = setTimeout(() => {
             fetch(`{{ url('inventory/stock-opname/' . $opname->nid . '/items') }}/${itemId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    nqty_actual: actualQty
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        nqty_actual: actualQty
+                    })
                 })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status !== 'success') {
-                    alert(data.message || 'Gagal menyimpan perubahan.');
-                }
-            })
-            .catch(err => {
-                console.error('Error saving opname qty:', err);
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status !== 'success') {
+                        alert(data.message || 'Gagal menyimpan perubahan.');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error saving opname qty:', err);
+                });
         }, 300);
     }
 

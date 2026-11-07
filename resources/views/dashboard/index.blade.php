@@ -256,7 +256,7 @@
                     <span class="fw-bold text-dark" style="font-size: 0.88rem;">{{ number_format($group->total_qty, 0, ',', '.') }} Produk</span>
                 </div>
                 <div class="progress" style="height: 10px; background-color: #f1f5f9; border-radius: 10px;">
-                    <div class="progress-bar" role="progressbar" style="width: {{ $pct }}%; background-color: #0ea5e9; border-radius: 10px;" aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar" role="progressbar" @style(['width: ' . $pct . '%', 'background-color: #0ea5e9', 'border-radius: 10px']) aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
             </div>
         @empty
@@ -300,7 +300,7 @@
                                 </span>
                             </div>
                             <div class="progress" style="height: 8px; background-color: #f1f5f9; border-radius: 10px;">
-                                <div class="progress-bar" role="progressbar" style="width: {{ $minItemPct }}%; background-color: #0ea5e9; border-radius: 10px;" aria-valuenow="{{ $itemPct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                <div class="progress-bar" role="progressbar" @style(['width: ' . $minItemPct . '%', 'background-color: #0ea5e9', 'border-radius: 10px']) aria-valuenow="{{ $itemPct }}" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                         </div>
                     @empty

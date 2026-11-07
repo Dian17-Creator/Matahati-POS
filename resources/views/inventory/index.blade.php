@@ -129,6 +129,7 @@
     .qty-stepper-input,
     .no-spinners {
         -moz-appearance: textfield !important;
+        appearance: textfield !important;
     }
 
     /* Table Compact Styling untuk Modal Tambah Stok Masuk & Stok Keluar */
@@ -395,6 +396,13 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
     .dropdown-sync-date-btn:hover {
         color: #0ea5e9;
     }
+
+    .olsera-panel-card {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important;
+    }
 </style>
 @endsection
 
@@ -425,7 +433,7 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
 </div>
 @endif
 
-<div class="card shadow-sm border-0 mb-4 rounded-3">
+<div class="card olsera-panel-card mb-4">
     <div class="card-body p-4">
         {{-- ==================== TAB 1: STOK MASUK ==================== --}}
         @if($activeTab === 'stok_masuk')
