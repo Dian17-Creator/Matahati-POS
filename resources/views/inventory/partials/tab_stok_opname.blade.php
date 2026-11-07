@@ -117,7 +117,7 @@
                 </td>
                 <td class="py-3 text-center">
                     <div class="text-secondary">
-                        {{ $op->user?->email ?: ($op->user?->cname ?: 'Admin') }}
+                        {{ $op->user?->cemail ?: ($op->user?->email ?: ($op->user?->cname ?: 'Admin')) }}
                     </div>
                 </td>
 
@@ -256,9 +256,12 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+<script type="application/json" id="opnameProductsData">
+    @json($modalProducts ?? [])
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const allOpnameProducts = @json($modalProducts ?? []);
+        const allOpnameProducts = JSON.parse(document.getElementById('opnameProductsData')?.textContent || '[]');
         const opnameTsInstances = {};
         let opnameRowIdx = 0;
 

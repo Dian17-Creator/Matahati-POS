@@ -86,7 +86,7 @@
             <td><strong>Outlet</strong></td>
             <td>: {{ $opname->outlet?->cname ?? '-' }}</td>
             <td><strong>Petugas Opname</strong></td>
-            <td>: {{ $opname->user?->email ?: ($opname->user?->cname ?: 'Admin') }}</td>
+            <td>: {{ $opname->user?->cemail ?: ($opname->user?->email ?: ($opname->user?->cname ?: 'Admin')) }}</td>
         </tr>
         <tr>
             <td><strong>Status</strong></td>
