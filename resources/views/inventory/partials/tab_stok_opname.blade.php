@@ -259,7 +259,6 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const allOpnameProducts = @json($modalProducts ?? []);
-        const allOpnameIngredients = @json($modalIngredients ?? []);
         const opnameTsInstances = {};
         let opnameRowIdx = 0;
 
@@ -285,38 +284,62 @@
         function getPlaceholderForOpnameType(type) {
             const norm = normalizeOpnameType(type);
             if (norm === 'BAHAN_BAKU') return '-- Cari atau pilih bahan baku --';
-            if (norm === 'SETENGAH_JADI') return '-- Cari atau pilih produk setengah jadi --';
+            if (norm === 'SETENGAH_JADI') return '-- Cari atau pilih setengah jadi --';
             return '-- Cari atau pilih produk --';
         }
 
         function getOpnameItemsForType(type, outletId) {
             const normType = normalizeOpnameType(type);
-            if (normType === 'BAHAN_BAKU') {
-                return allOpnameIngredients
-                    .filter(i => !outletId || !i.nid_outlet || String(i.nid_outlet) === String(outletId))
-                    .map(i => ({
-                        nid: i.nid,
-                        cname: i.cname,
-                        nstock: parseFloat(i.nstock !== undefined && i.nstock !== null ? i.nstock : 0),
-                        csatuan: i.csatuan || 'PCS',
-                        citem_type: 'BAHAN_BAKU'
-                    }));
-            }
 
-            return allOpnameProducts
-                .filter(p => {
-                    const pType = normalizeOpnameType(p.cproduct_type || 'PRODUK');
-                    if (pType !== normType) return false;
-                    if (!outletId) return true;
-                    return (!p.nid_outlet || String(p.nid_outlet) === String(outletId));
-                })
-                .map(p => ({
-                    nid: p.nid,
-                    cname: p.cname,
-                    nstock: parseFloat(p.nqty !== undefined && p.nqty !== null ? p.nqty : 0),
-                    csatuan: p.csatuan || 'PCS',
-                    citem_type: normType
-                }));
+            const groupedByName = {};
+            allOpnameProducts.forEach(p => {
+                const pType = normalizeOpnameType(p.cproduct_type || 'PRODUK');
+                if (pType !== normType) return;
+
+                const key = String(p.cname || '').trim().toLowerCase();
+                if (!key) return;
+                if (!groupedByName[key]) groupedByName[key] = [];
+                groupedByName[key].push(p);
+            });
+
+            const list = [];
+            Object.keys(groupedByName).forEach(key => {
+                const variants = groupedByName[key];
+                const exactOutletMatch = outletId
+                    ? variants.find(v => String(v.nid_outlet || '') === String(outletId))
+                    : null;
+                const globalMatch = variants.find(v => !v.nid_outlet);
+
+                if (exactOutletMatch) {
+                    list.push({
+                        nid: exactOutletMatch.nid,
+                        cname: exactOutletMatch.cname,
+                        nstock: parseFloat(exactOutletMatch.nqty !== undefined && exactOutletMatch.nqty !== null ? exactOutletMatch.nqty : 0),
+                        csatuan: exactOutletMatch.csatuan || 'PCS',
+                        citem_type: normType
+                    });
+                } else if (globalMatch) {
+                    list.push({
+                        nid: globalMatch.nid,
+                        cname: globalMatch.cname,
+                        nstock: parseFloat(globalMatch.nqty !== undefined && globalMatch.nqty !== null ? globalMatch.nqty : 0),
+                        csatuan: globalMatch.csatuan || 'PCS',
+                        citem_type: normType
+                    });
+                } else {
+                    const tmpl = variants[0];
+                    list.push({
+                        nid: tmpl.nid,
+                        cname: tmpl.cname,
+                        nstock: 0,
+                        csatuan: tmpl.csatuan || 'PCS',
+                        citem_type: normType
+                    });
+                }
+            });
+
+            list.sort((a, b) => a.cname.localeCompare(b.cname));
+            return list;
         }
 
         function addOpnameRow(itemId = '', actualQty = null, rack = '', itemType = 'PRODUK') {

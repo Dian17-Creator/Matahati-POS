@@ -312,29 +312,51 @@ class InventoryController extends Controller
                     $productMovements[$pId]['pengembalian'] += (float) $r->total_refund;
                 } else {
                     foreach ($prod->recipes as $recipe) {
-                        if (!$recipe->ingredient) continue;
+                        if ($recipe->ingredient) {
+                            $outletRecProd = MposProduct::with('category')
+                                ->where('nid_outlet', $r->nid_outlet)
+                                ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) $recipe->ingredient->cname))])
+                                ->first() ?: $recipe->ingredient;
 
-                        $outletIng = MposIngredients::where('nid_outlet', $r->nid_outlet)
-                            ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $recipe->ingredient->cname))])
-                            ->first() ?: $recipe->ingredient;
+                            $recProdId = $outletRecProd->nid;
+                            if (!isset($productMovements[$recProdId])) {
+                                $productMovements[$recProdId] = [
+                                    'type' => MposStockMutation::normalizeItemType($outletRecProd->cproduct_type ?? 'BAHAN_BAKU'),
+                                    'id' => $outletRecProd->nid,
+                                    'name' => $outletRecProd->cname,
+                                    'category_name' => $outletRecProd->category?->cname ?: 'Bahan Baku',
+                                    'masuk' => 0.0,
+                                    'penjualan' => 0.0,
+                                    'pengembalian' => 0.0,
+                                    'keluar' => 0.0,
+                                    'sisa' => (float) $outletRecProd->nqty,
+                                ];
+                            }
+                            $productMovements[$recProdId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
+                            $productMovements[$recProdId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
+                        } elseif ($recipe->legacyIngredient) {
+                            $outletIng = MposIngredients::where('nid_outlet', $r->nid_outlet)
+                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $recipe->legacyIngredient->cname))])
+                                ->first() ?: $recipe->legacyIngredient;
 
-                        $ingId = $outletIng->nid;
-                        if (!isset($ingredientMovements[$ingId])) {
-                            $displayName = $outletIng->cname . ($outletIng->csatuan ? ' (' . $outletIng->csatuan . ')' : '');
-                            $ingredientMovements[$ingId] = [
-                                'type' => 'INGREDIENT',
-                                'id' => $outletIng->nid,
-                                'name' => $displayName,
-                                'category_name' => 'Bahan Baku',
-                                'masuk' => 0.0,
-                                'penjualan' => 0.0,
-                                'pengembalian' => 0.0,
-                                'keluar' => 0.0,
-                                'sisa' => (float) $outletIng->nstock,
-                            ];
+                            $ingId = $outletIng->nid;
+                            if (!isset($ingredientMovements[$ingId])) {
+                                $displayName = $outletIng->cname . ($outletIng->csatuan ? ' (' . $outletIng->csatuan . ')' : '');
+                                $ingredientMovements[$ingId] = [
+                                    'type' => 'INGREDIENT',
+                                    'id' => $outletIng->nid,
+                                    'name' => $displayName,
+                                    'category_name' => 'Bahan Baku',
+                                    'masuk' => 0.0,
+                                    'penjualan' => 0.0,
+                                    'pengembalian' => 0.0,
+                                    'keluar' => 0.0,
+                                    'sisa' => (float) $outletIng->nstock,
+                                ];
+                            }
+                            $ingredientMovements[$ingId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
+                            $ingredientMovements[$ingId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
                         }
-                        $ingredientMovements[$ingId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
-                        $ingredientMovements[$ingId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
                     }
                 }
             }
@@ -359,32 +381,35 @@ class InventoryController extends Controller
             )->groupBy('ctype', 'citem_type', 'nid_product', 'nid_ingredient')->get();
 
             $mutProdIds = $mutationRows->filter(function ($row) {
-                return in_array(strtoupper((string) $row->citem_type), ['PRODUCT', 'PRODUK']) || (!empty($row->nid_product) && empty($row->nid_ingredient));
+                return !empty($row->nid_product);
             })->pluck('nid_product')->filter()->unique()->values();
             $mutProds = MposProduct::with('category')->whereIn('nid', $mutProdIds)->get()->keyBy('nid');
 
             $mutIngIds = $mutationRows->filter(function ($row) {
-                return in_array(strtoupper((string) $row->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']) || (!empty($row->nid_ingredient) && empty($row->nid_product));
+                return empty($row->nid_product) && !empty($row->nid_ingredient);
             })->pluck('nid_ingredient')->filter()->unique()->values();
-            $mutIngs = MposIngredients::whereIn('nid', $mutIngIds)->get()->keyBy('nid');
+            $mutIngs = $mutIngIds->isNotEmpty()
+                ? MposIngredients::whereIn('nid', $mutIngIds)->get()->keyBy('nid')
+                : collect();
 
             foreach ($mutationRows as $r) {
                 $qty = (float) $r->total_qty;
-                $isProduct = in_array(strtoupper((string) $r->citem_type), ['PRODUCT', 'PRODUK']) || (!empty($r->nid_product) && empty($r->nid_ingredient));
-                $isIngredient = in_array(strtoupper((string) $r->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']) || (!empty($r->nid_ingredient) && empty($r->nid_product));
 
-                if ($isProduct && !empty($r->nid_product)) {
+                if (!empty($r->nid_product)) {
                     $prod = $mutProds->get($r->nid_product);
-                    if (!$prod) continue;
+                    if (!$prod) {
+                        continue;
+                    }
+                    $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
                     $trackStock = $prod->category && isset($prod->category->ftrack_stock)
                         ? (bool) $prod->category->ftrack_stock
                         : true;
 
-                    if ($trackStock) {
+                    if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
                         $pId = $prod->nid;
                         if (!isset($productMovements[$pId])) {
                             $productMovements[$pId] = [
-                                'type' => 'PRODUCT',
+                                'type' => $normType,
                                 'id' => $prod->nid,
                                 'name' => $prod->cname,
                                 'category_name' => $prod->category?->cname ?: 'Produk',
@@ -401,9 +426,11 @@ class InventoryController extends Controller
                             $productMovements[$pId]['keluar'] += $qty;
                         }
                     }
-                } elseif ($isIngredient && !empty($r->nid_ingredient)) {
+                } elseif (!empty($r->nid_ingredient)) {
                     $ing = $mutIngs->get($r->nid_ingredient);
-                    if (!$ing) continue;
+                    if (!$ing) {
+                        continue;
+                    }
                     $ingId = $ing->nid;
                     if (!isset($ingredientMovements[$ingId])) {
                         $displayName = $ing->cname . ($ing->csatuan ? ' (' . $ing->csatuan . ')' : '');
@@ -453,15 +480,18 @@ class InventoryController extends Controller
             )->groupBy('mpos_purchase_d.citem_type', 'mpos_purchase_d.nid_product', 'mpos_purchase_d.nid_ingredient')->get();
 
             foreach ($legacyPoRows as $r) {
-                if ($r->citem_type === 'PRODUCT' && !empty($r->nid_product)) {
+                if (!empty($r->nid_product)) {
                     $prod = MposProduct::with('category')->find($r->nid_product);
-                    if (!$prod) continue;
-                    $trackStock = $prod->category && isset($prod->category->ftrack_stock) ? (bool)$prod->category->ftrack_stock : true;
-                    if ($trackStock) {
+                    if (!$prod) {
+                        continue;
+                    }
+                    $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
+                    $trackStock = $prod->category && isset($prod->category->ftrack_stock) ? (bool) $prod->category->ftrack_stock : true;
+                    if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
                         $pId = $prod->nid;
                         if (!isset($productMovements[$pId])) {
                             $productMovements[$pId] = [
-                                'type' => 'PRODUCT',
+                                'type' => $normType,
                                 'id' => $prod->nid,
                                 'name' => $prod->cname,
                                 'category_name' => $prod->category?->cname ?: 'Produk',
@@ -474,7 +504,7 @@ class InventoryController extends Controller
                         }
                         $productMovements[$pId]['masuk'] += (float) $r->total_in;
                     }
-                } elseif ($r->citem_type === 'INGREDIENT' && !empty($r->nid_ingredient)) {
+                } elseif (!empty($r->nid_ingredient)) {
                     $ing = MposIngredients::find($r->nid_ingredient);
                     if (!$ing) continue;
                     $ingId = $ing->nid;
@@ -544,13 +574,13 @@ class InventoryController extends Controller
             );
         }
 
-        // Produk & Bahan Baku untuk modal tambah stok masuk, keluar & stok opname
+        // Produk, Setengah Jadi & Bahan Baku dari mpos_product untuk modal tambah stok masuk, keluar & stok opname
         if (in_array($activeTab, ['stok_masuk', 'stok_keluar', 'stok_opname'])) {
             $modalProductsQuery = MposProduct::where('cstatus', 'ACTIVE');
             if (!$isSuperAdmin) {
                 $modalProductsQuery->whereIn('nid_outlet', $allowedOutletIds);
             }
-            $prodCols = ['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
+            $prodCols = ['nid', 'cname', 'nid_category', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
             if (MposProduct::hasSatuanColumn()) {
                 $prodCols[] = 'csatuan';
             }
@@ -558,19 +588,6 @@ class InventoryController extends Controller
                 $prodCols[] = 'cproduct_type';
             }
             $modalProducts = $modalProductsQuery->orderBy('cname')->get($prodCols);
-
-            $modalIngredientsQuery = MposIngredients::query();
-            if (!$isSuperAdmin) {
-                $modalIngredientsQuery->where(function ($iq) use ($allowedOutletIds) {
-                    $iq->whereIn('nid_outlet', $allowedOutletIds)
-                        ->orWhereNull('nid_outlet');
-                });
-            }
-            $selectCols = ['nid', 'cname', 'nid_outlet', 'csatuan', 'nstock'];
-            if (MposIngredients::hasPriceColumn()) {
-                $selectCols[] = 'nprice as ncost';
-            }
-            $modalIngredients = $modalIngredientsQuery->orderBy('cname')->get($selectCols);
         }
 
         if ($request->ajax()) {
@@ -606,6 +623,61 @@ class InventoryController extends Controller
     }
 
     /**
+     * Pastikan record produk tersedia pada outlet tujuan (cari nama sama di outlet tujuan atau gandakan beserta kategorinya).
+     */
+    protected function resolveOrCreateOutletProduct(MposProduct $sourceProduct, int $targetOutletId, ?float $fallbackCost = null): MposProduct
+    {
+        if ((int) $sourceProduct->nid_outlet === $targetOutletId) {
+            return $sourceProduct;
+        }
+
+        $existingOutletProduct = MposProduct::lockForUpdate()
+            ->where('nid_outlet', $targetOutletId)
+            ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) $sourceProduct->cname))])
+            ->first();
+
+        if ($existingOutletProduct) {
+            return $existingOutletProduct;
+        }
+
+        $targetCategoryId = $sourceProduct->nid_category;
+        if (!empty($sourceProduct->nid_category)) {
+            $sourceCategory = MposGrpProduct::find($sourceProduct->nid_category);
+            if ($sourceCategory && !empty($sourceCategory->nid_outlet) && (int) $sourceCategory->nid_outlet !== $targetOutletId) {
+                $matchedCategory = MposGrpProduct::where('nid_outlet', $targetOutletId)
+                    ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) $sourceCategory->cname))])
+                    ->first();
+
+                if ($matchedCategory) {
+                    $targetCategoryId = $matchedCategory->nid;
+                } else {
+                    $catPayload = [
+                        'cname' => $sourceCategory->cname,
+                        'nid_outlet' => $targetOutletId,
+                        'ftrack_stock' => $sourceCategory->ftrack_stock ?? true,
+                    ];
+                    if (MposGrpProduct::hasShowPosColumn()) {
+                        $catPayload['fshow_pos'] = $sourceCategory->fshow_pos ?? true;
+                    }
+                    $newCat = MposGrpProduct::create($catPayload);
+                    $targetCategoryId = $newCat->nid;
+                }
+            }
+        }
+
+        $newProduct = $sourceProduct->replicate();
+        $newProduct->nid_outlet = $targetOutletId;
+        $newProduct->nid_category = $targetCategoryId;
+        $newProduct->nqty = 0;
+        if ($fallbackCost !== null && $fallbackCost > 0 && empty($newProduct->nprice_buy)) {
+            $newProduct->nprice_buy = $fallbackCost;
+        }
+        $newProduct->save();
+
+        return $newProduct;
+    }
+
+    /**
      * Terima barang dari Pesanan Pembelian (PO), catat ke mpos_stock_mutations,
      * update stok produk/bahan baku, update status PO ke RECEIVED, lalu redirect ke detail Stok Masuk.
      */
@@ -629,15 +701,63 @@ class InventoryController extends Controller
             $stockInNumber = MposStockMutation::generateNumber('IN');
 
             foreach ($purchase->details as $item) {
+                $targetProdId = $item->nid_product;
+                $targetIngId = $item->nid_ingredient;
+                $normalizedType = MposStockMutation::normalizeItemType($item->citem_type);
+
+                if (!$item->isIngredient() && $item->product) {
+                    $targetProd = $this->resolveOrCreateOutletProduct(
+                        $item->product,
+                        (int) $purchase->nid_outlet,
+                        (float) $item->ncost
+                    );
+                    $targetProd->nqty = (float) $targetProd->nqty + (float) $item->nqty;
+                    $targetProd->save();
+                    $targetProdId = $targetProd->nid;
+                    $targetIngId = null;
+                } elseif ($item->isIngredient() && $item->ingredient) {
+                    $ingredient = $item->ingredient;
+                    if ((int) $ingredient->nid_outlet === (int) $purchase->nid_outlet) {
+                        $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
+                        $ingredient->save();
+                    } elseif (empty($ingredient->nid_outlet)) {
+                        $ingredient->nid_outlet = $purchase->nid_outlet;
+                        $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
+                        $ingredient->save();
+                    } else {
+                        $outletIngredient = MposIngredients::where('nid_outlet', $purchase->nid_outlet)
+                            ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredient->cname))])
+                            ->first();
+
+                        if ($outletIngredient) {
+                            $outletIngredient->nstock = (float) $outletIngredient->nstock + (float) $item->nqty;
+                            $outletIngredient->save();
+                            $targetIngId = $outletIngredient->nid;
+                        } else {
+                            $newIngPayload = [
+                                'cname' => $ingredient->cname,
+                                'nid_outlet' => $purchase->nid_outlet,
+                                'csatuan' => $ingredient->csatuan ?: 'PCS',
+                                'nstock' => (float) $item->nqty,
+                            ];
+                            if (MposIngredients::hasPriceColumn()) {
+                                $newIngPayload['nprice'] = (float) ($ingredient->nprice ?: $item->ncost ?: 0);
+                            }
+                            $createdIng = MposIngredients::create($newIngPayload);
+                            $targetIngId = $createdIng->nid;
+                        }
+                    }
+                }
+
                 MposStockMutation::create([
                     'cno_ref' => $stockInNumber,
                     'dmutation' => Carbon::now(),
                     'ctype' => MposStockMutation::TYPE_IN,
                     'nid_outlet' => $purchase->nid_outlet,
                     'nid_user' => Auth::id() ?? 1,
-                    'citem_type' => $item->citem_type,
-                    'nid_product' => $item->nid_product,
-                    'nid_ingredient' => $item->nid_ingredient,
+                    'citem_type' => $normalizedType,
+                    'nid_product' => $targetProdId,
+                    'nid_ingredient' => $targetIngId,
                     'nqty' => (float) $item->nqty,
                     'ncost' => (float) $item->ncost,
                     'nsubtotal' => (float) $item->nsubtotal,
@@ -646,63 +766,6 @@ class InventoryController extends Controller
                     'cnote' => 'PO: ' . $purchase->cno_purchase . ($purchase->supplier ? ' (' . $purchase->supplier->cname . ')' : ''),
                     'dcreated' => Carbon::now(),
                 ]);
-
-                // Update stok fisik di outlet tujuan
-                if ($item->isIngredient()) {
-                    $ingredient = $item->ingredient;
-                    if ($ingredient) {
-                        if ((int) $ingredient->nid_outlet === (int) $purchase->nid_outlet) {
-                            $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
-                            $ingredient->save();
-                        } elseif (empty($ingredient->nid_outlet)) {
-                            $ingredient->nid_outlet = $purchase->nid_outlet;
-                            $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
-                            $ingredient->save();
-                        } else {
-                            $outletIngredient = MposIngredients::where('nid_outlet', $purchase->nid_outlet)
-                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredient->cname))])
-                                ->first();
-
-                            if ($outletIngredient) {
-                                $outletIngredient->nstock = (float) $outletIngredient->nstock + (float) $item->nqty;
-                                $outletIngredient->save();
-                            } else {
-                                $newIngPayload = [
-                                    'cname' => $ingredient->cname,
-                                    'nid_outlet' => $purchase->nid_outlet,
-                                    'csatuan' => $ingredient->csatuan ?: 'PCS',
-                                    'nstock' => (float) $item->nqty,
-                                ];
-                                if (MposIngredients::hasPriceColumn()) {
-                                    $newIngPayload['nprice'] = (float) ($ingredient->nprice ?: $item->ncost ?: 0);
-                                }
-                                MposIngredients::create($newIngPayload);
-                            }
-                        }
-                    }
-                } else {
-                    $product = $item->product;
-                    if ($product) {
-                        if ((int) $product->nid_outlet === (int) $purchase->nid_outlet) {
-                            $product->nqty = (float) $product->nqty + (float) $item->nqty;
-                            $product->save();
-                        } else {
-                            $outletProduct = MposProduct::where('nid_outlet', $purchase->nid_outlet)
-                                ->where('cname', $product->cname)
-                                ->first();
-
-                            if ($outletProduct) {
-                                $outletProduct->nqty = (float) $outletProduct->nqty + (float) $item->nqty;
-                                $outletProduct->save();
-                            } else {
-                                $newProduct = $product->replicate();
-                                $newProduct->nid_outlet = $purchase->nid_outlet;
-                                $newProduct->nqty = (float) $item->nqty;
-                                $newProduct->save();
-                            }
-                        }
-                    }
-                }
             }
 
             // Update status Pesanan Pembelian menjadi RECEIVED
@@ -734,7 +797,7 @@ class InventoryController extends Controller
             'creason' => 'nullable|string|max:100',
             'cnote' => 'nullable|string|max:500',
             'items' => 'required|array|min:1',
-            'items.*.citem_type' => 'required|in:PRODUCT,INGREDIENT',
+            'items.*.citem_type' => 'required|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU,PRODUCT,INGREDIENT',
             'items.*.nid_item' => 'required|integer',
             'items.*.nqty' => 'required|numeric|min:0.01',
             'items.*.ncost' => 'nullable|numeric|min:0',
@@ -748,48 +811,41 @@ class InventoryController extends Controller
             $dStockIn = Carbon::parse($validated['dstock_in'])->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
             $stockInNumber = MposStockMutation::generateNumber('IN', $dStockIn);
             $reason = !empty($validated['creason']) ? $validated['creason'] : 'Penyesuaian Stok Masuk Manual';
+            $targetOutletId = (int) $validated['nid_outlet'];
 
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['nqty'];
                 $cost = isset($item['ncost']) ? (float) $item['ncost'] : 0.0;
+                $selectedId = (int) $item['nid_item'];
+
+                $sourceProduct = MposProduct::lockForUpdate()->find($selectedId);
+                if (!$sourceProduct) {
+                    throw new \RuntimeException('Item produk yang dipilih tidak ditemukan.');
+                }
+
+                $targetProduct = $this->resolveOrCreateOutletProduct($sourceProduct, $targetOutletId, $cost);
+                $normalizedType = MposStockMutation::normalizeItemType($targetProduct->cproduct_type ?? $item['citem_type']);
+
+                $cost = $cost > 0 ? $cost : (float) ($targetProduct->nprice_buy ?: 0);
                 $subtotal = $qty * $cost;
 
-                $prodId = $item['citem_type'] === 'PRODUCT' ? (int) $item['nid_item'] : null;
-                $ingId = $item['citem_type'] === 'INGREDIENT' ? (int) $item['nid_item'] : null;
-
-                // Tambah stok fisik di outlet
-                if ($item['citem_type'] === 'PRODUCT' && $prodId) {
-                    $prod = MposProduct::lockForUpdate()->find($prodId);
-                    if ($prod) {
-                        $cost = $cost ?: (float) ($prod->nprice_buy ?: 0);
-                        $subtotal = $qty * $cost;
-                        $prod->nqty = (float) $prod->nqty + $qty;
-                        if ($cost > 0 && empty($prod->nprice_buy)) {
-                            $prod->nprice_buy = $cost;
-                        }
-                        $prod->save();
-                    }
-                } elseif ($item['citem_type'] === 'INGREDIENT' && $ingId) {
-                    $ing = MposIngredients::lockForUpdate()->find($ingId);
-                    if ($ing) {
-                        $cost = $cost ?: (float) ($ing->nprice ?? 0);
-                        $subtotal = $qty * $cost;
-                        $ing->nstock = (float) $ing->nstock + $qty;
-                        $ing->save();
-                    }
+                $targetProduct->nqty = (float) $targetProduct->nqty + $qty;
+                if ($cost > 0 && empty($targetProduct->nprice_buy)) {
+                    $targetProduct->nprice_buy = $cost;
                 }
+                $targetProduct->save();
 
                 // Catat mutasi IN di mpos_stock_mutations
                 MposStockMutation::create([
                     'cno_ref' => $stockInNumber,
                     'dmutation' => $dStockIn,
                     'ctype' => MposStockMutation::TYPE_IN,
-                    'nid_outlet' => $validated['nid_outlet'],
+                    'nid_outlet' => $targetOutletId,
                     'nid_target_outlet' => null,
                     'nid_user' => Auth::id() ?? 1,
-                    'citem_type' => $item['citem_type'],
-                    'nid_product' => $prodId,
-                    'nid_ingredient' => $ingId,
+                    'citem_type' => $normalizedType,
+                    'nid_product' => $targetProduct->nid,
+                    'nid_ingredient' => null,
                     'nqty' => $qty,
                     'ncost' => $cost,
                     'nsubtotal' => $subtotal,
@@ -819,7 +875,7 @@ class InventoryController extends Controller
      */
     public function showStockIn(string $id)
     {
-        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product', 'ingredient'])
+        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product.category', 'ingredient'])
             ->where('ctype', MposStockMutation::TYPE_IN)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
@@ -906,7 +962,7 @@ class InventoryController extends Controller
             'creason' => 'nullable|string|max:100',
             'cnote' => 'nullable|string|max:500',
             'items' => 'required|array|min:1',
-            'items.*.citem_type' => 'required|in:PRODUCT,INGREDIENT',
+            'items.*.citem_type' => 'required|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU,PRODUCT,INGREDIENT',
             'items.*.nid_item' => 'required|integer',
             'items.*.nqty' => 'required|numeric|min:0.01',
             'items.*.ncost' => 'nullable|numeric|min:0',
@@ -923,23 +979,23 @@ class InventoryController extends Controller
 
             $isTransfer = ($validated['ctype'] === 'TRANSFER' && !empty($validated['nid_target_outlet']));
             $reason = !empty($validated['creason']) ? $validated['creason'] : ($isTransfer ? 'Transfer Antar Toko' : 'Lain-lain');
+            $originOutletId = (int) $validated['nid_outlet'];
 
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['nqty'];
                 $cost = isset($item['ncost']) ? (float) $item['ncost'] : 0.0;
+                $selectedId = (int) $item['nid_item'];
 
-                $prodId = $item['citem_type'] === 'PRODUCT' ? (int) $item['nid_item'] : null;
-                $ingId = $item['citem_type'] === 'INGREDIENT' ? (int) $item['nid_item'] : null;
+                $sourceProduct = MposProduct::find($selectedId);
+                if (!$sourceProduct) {
+                    throw new \RuntimeException('Item produk yang dipilih tidak ditemukan.');
+                }
 
-                // Ambil harga modal default jika 0
+                $originProduct = $this->resolveOrCreateOutletProduct($sourceProduct, $originOutletId, $cost);
+                $normalizedType = MposStockMutation::normalizeItemType($originProduct->cproduct_type ?? $item['citem_type']);
+
                 if ($cost <= 0) {
-                    if ($prodId) {
-                        $p = MposProduct::find($prodId);
-                        $cost = (float) ($p?->nprice_buy ?? 0);
-                    } elseif ($ingId) {
-                        $ing = MposIngredients::find($ingId);
-                        $cost = (float) ($ing?->nprice ?? 0);
-                    }
+                    $cost = (float) ($originProduct->nprice_buy ?? 0);
                 }
                 $subtotal = $qty * $cost;
 
@@ -948,12 +1004,12 @@ class InventoryController extends Controller
                     'cno_ref' => $stockOutNumber,
                     'dmutation' => $dStockOut,
                     'ctype' => MposStockMutation::TYPE_OUT,
-                    'nid_outlet' => $validated['nid_outlet'],
+                    'nid_outlet' => $originOutletId,
                     'nid_target_outlet' => $isTransfer ? $validated['nid_target_outlet'] : null,
                     'nid_user' => Auth::id() ?? 1,
-                    'citem_type' => $item['citem_type'],
-                    'nid_product' => $prodId,
-                    'nid_ingredient' => $ingId,
+                    'citem_type' => $normalizedType,
+                    'nid_product' => $originProduct->nid,
+                    'nid_ingredient' => null,
                     'nqty' => $qty,
                     'ncost' => $cost,
                     'nsubtotal' => $subtotal,
@@ -984,7 +1040,7 @@ class InventoryController extends Controller
      */
     public function showStockOut(string $id)
     {
-        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product', 'ingredient'])
+        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product.category', 'ingredient'])
             ->where('ctype', MposStockMutation::TYPE_OUT)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
@@ -1007,14 +1063,16 @@ class InventoryController extends Controller
             }
         }
 
-        $availableProducts = MposProduct::where('nid_outlet', $first->nid_outlet)
+        $availableProducts = MposProduct::with('category')
+            ->where(function ($q) use ($first) {
+                $q->where('nid_outlet', $first->nid_outlet)
+                    ->orWhereNull('nid_outlet');
+            })
             ->where('cstatus', 'ACTIVE')
             ->orderBy('cname')
             ->get();
 
-        $availableIngredients = MposIngredients::where('nid_outlet', $first->nid_outlet)
-            ->orderBy('cname')
-            ->get();
+        $availableIngredients = collect();
 
         $stockOut = (object) [
             'nid' => $first->nid,
@@ -1080,9 +1138,10 @@ class InventoryController extends Controller
 
                 $targetProdId = null;
                 $targetIngId = null;
+                $normalizedType = $item->getItemTypeNormalized();
 
                 // 1. Kurangi stok fisik di outlet asal
-                if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                if (!$item->isIngredient() && $item->nid_product) {
                     $prod = MposProduct::lockForUpdate()->find($item->nid_product);
                     if ($prod) {
                         $prod->nqty = max(0, (float) $prod->nqty - $qty);
@@ -1090,24 +1149,13 @@ class InventoryController extends Controller
 
                         // Jika transfer, tambah di outlet tujuan
                         if ($isTransfer) {
-                            $targetProd = MposProduct::where('nid_outlet', $first->nid_target_outlet)
-                                ->where('cname', $prod->cname)
-                                ->first();
-
-                            if ($targetProd) {
-                                $targetProd->nqty = (float) $targetProd->nqty + $qty;
-                                $targetProd->save();
-                                $targetProdId = $targetProd->nid;
-                            } else {
-                                $newProduct = $prod->replicate();
-                                $newProduct->nid_outlet = $first->nid_target_outlet;
-                                $newProduct->nqty = $qty;
-                                $newProduct->save();
-                                $targetProdId = $newProduct->nid;
-                            }
+                            $targetProd = $this->resolveOrCreateOutletProduct($prod, (int) $first->nid_target_outlet, $cost);
+                            $targetProd->nqty = (float) $targetProd->nqty + $qty;
+                            $targetProd->save();
+                            $targetProdId = $targetProd->nid;
                         }
                     }
-                } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                } elseif ($item->isIngredient() && $item->nid_ingredient) {
                     $ing = MposIngredients::lockForUpdate()->find($item->nid_ingredient);
                     if ($ing) {
                         $ing->nstock = max(0, (float) $ing->nstock - $qty);
@@ -1160,7 +1208,7 @@ class InventoryController extends Controller
                         'nid_outlet' => $first->nid_target_outlet,
                         'nid_target_outlet' => $first->nid_outlet,
                         'nid_user' => Auth::id() ?? 1,
-                        'citem_type' => $item->citem_type,
+                        'citem_type' => $normalizedType,
                         'nid_product' => $targetProdId ?? $item->nid_product,
                         'nid_ingredient' => $targetIngId ?? $item->nid_ingredient,
                         'nqty' => $qty,
@@ -1221,13 +1269,13 @@ class InventoryController extends Controller
                     $qty = (float) $item->nqty;
 
                     // 1. Kembalikan stok ke outlet asal
-                    if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                    if (!$item->isIngredient() && $item->nid_product) {
                         $prod = MposProduct::lockForUpdate()->find($item->nid_product);
                         if ($prod) {
                             $prod->nqty = (float) $prod->nqty + $qty;
                             $prod->save();
                         }
-                    } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                    } elseif ($item->isIngredient() && $item->nid_ingredient) {
                         $ing = MposIngredients::lockForUpdate()->find($item->nid_ingredient);
                         if ($ing) {
                             $ing->nstock = (float) $ing->nstock + $qty;
@@ -1237,17 +1285,17 @@ class InventoryController extends Controller
 
                     // 2. Jika transfer, kurangi stok dari outlet tujuan
                     if ($isTransfer) {
-                        if ($item->citem_type === MposStockMutation::ITEM_PRODUCT && $item->nid_product) {
+                        if (!$item->isIngredient() && $item->nid_product) {
                             $origProd = MposProduct::find($item->nid_product);
                             $targetProd = MposProduct::lockForUpdate()
                                 ->where('nid_outlet', $first->nid_target_outlet)
-                                ->where('cname', $origProd?->cname ?? '')
+                                ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) ($origProd?->cname ?? '')))])
                                 ->first();
                             if ($targetProd) {
                                 $targetProd->nqty = max(0, (float) $targetProd->nqty - $qty);
                                 $targetProd->save();
                             }
-                        } elseif ($item->citem_type === MposStockMutation::ITEM_INGREDIENT && $item->nid_ingredient) {
+                        } elseif ($item->isIngredient() && $item->nid_ingredient) {
                             $origIng = MposIngredients::find($item->nid_ingredient);
                             $targetIng = MposIngredients::lockForUpdate()
                                 ->where('nid_outlet', $first->nid_target_outlet)
@@ -1361,7 +1409,7 @@ class InventoryController extends Controller
         }
 
         $validated = $request->validate([
-            'citem_type' => 'required|in:PRODUCT,INGREDIENT',
+            'citem_type' => 'required|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU,PRODUCT,INGREDIENT',
             'nid_item' => 'required|integer',
             'nqty' => 'required|numeric|min:0.01',
             'ncost' => 'nullable|numeric|min:0',
@@ -1369,31 +1417,36 @@ class InventoryController extends Controller
             'dexpired' => 'nullable|date',
         ]);
 
-        $prodId = $validated['citem_type'] === 'PRODUCT' ? (int) $validated['nid_item'] : null;
-        $ingId = $validated['citem_type'] === 'INGREDIENT' ? (int) $validated['nid_item'] : null;
+        $sourceProduct = MposProduct::find((int) $validated['nid_item']);
+        if (!$sourceProduct) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Item produk tidak ditemukan.'], 422);
+            }
+
+            return redirect()->back()->with('error', 'Item produk tidak ditemukan.');
+        }
+
+        $originProduct = $this->resolveOrCreateOutletProduct($sourceProduct, (int) $first->nid_outlet);
+        $prodId = $originProduct->nid;
+        $normalizedType = MposStockMutation::normalizeItemType($originProduct->cproduct_type ?? $validated['citem_type']);
 
         $cost = isset($validated['ncost']) ? (float) $validated['ncost'] : 0.0;
         if ($cost <= 0) {
-            if ($prodId) {
-                $p = MposProduct::find($prodId);
-                $cost = (float) ($p?->nprice_buy ?? 0);
-            } elseif ($ingId) {
-                $ing = MposIngredients::find($ingId);
-                $cost = (float) ($ing?->nprice ?? 0);
-            }
+            $cost = (float) ($originProduct->nprice_buy ?? 0);
         }
 
         $qty = (float) $validated['nqty'];
         $subtotal = $qty * $cost;
 
         // Cek jika item sudah ada di draft ini, update qty-nya
-        $existing = $items->first(function ($it) use ($prodId, $ingId) {
-            return ($prodId && $it->nid_product == $prodId) || ($ingId && $it->nid_ingredient == $ingId);
+        $existing = $items->first(function ($it) use ($prodId) {
+            return $prodId && (int) $it->nid_product === (int) $prodId;
         });
 
         if ($existing) {
             $existing->nqty = (float) $existing->nqty + $qty;
             $existing->nsubtotal = (float) $existing->nqty * (float) $existing->ncost;
+            $existing->citem_type = $normalizedType;
             $existing->dupdated = Carbon::now();
             $existing->save();
         } else {
@@ -1404,9 +1457,9 @@ class InventoryController extends Controller
                 'nid_outlet' => $first->nid_outlet,
                 'nid_target_outlet' => $first->nid_target_outlet,
                 'nid_user' => Auth::id() ?? 1,
-                'citem_type' => $validated['citem_type'],
+                'citem_type' => $normalizedType,
                 'nid_product' => $prodId,
-                'nid_ingredient' => $ingId,
+                'nid_ingredient' => null,
                 'nqty' => $qty,
                 'ncost' => $cost,
                 'nsubtotal' => $subtotal,
@@ -1590,30 +1643,17 @@ class InventoryController extends Controller
                     continue;
                 }
 
-                $rawType = strtoupper($row['citem_type'] ?? 'PRODUCT');
-                $isIngredient = in_array($rawType, ['BAHAN_BAKU', 'INGREDIENT']);
-                $citemType = $isIngredient ? MposStockMutation::ITEM_INGREDIENT : MposStockMutation::ITEM_PRODUCT;
-
-                $systemQty = 0.0;
-                $cost = 0.0;
-                $prodId = null;
-                $ingId = null;
-
-                if ($isIngredient) {
-                    $ing = MposIngredients::find($itemId);
-                    if ($ing) {
-                        $ingId = $ing->nid;
-                        $systemQty = (float) $ing->nstock;
-                        $cost = (float) ($ing->nprice ?? 0);
-                    }
-                } else {
-                    $prod = MposProduct::find($itemId);
-                    if ($prod) {
-                        $prodId = $prod->nid;
-                        $systemQty = (float) $prod->nqty;
-                        $cost = (float) ($prod->nprice_buy ?? 0);
-                    }
+                $sourceProduct = MposProduct::find((int) $itemId);
+                if (!$sourceProduct) {
+                    continue;
                 }
+
+                $prod = $this->resolveOrCreateOutletProduct($sourceProduct, (int) $validated['nid_outlet']);
+                $prodId = $prod->nid;
+                $ingId = null;
+                $citemType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? ($row['citem_type'] ?? 'PRODUK'));
+                $systemQty = (float) $prod->nqty;
+                $cost = (float) ($prod->nprice_buy ?? 0);
 
                 $actualQty = isset($row['nqty_actual']) && $row['nqty_actual'] !== '' ? (float) $row['nqty_actual'] : $systemQty;
                 $diffQty = $actualQty - $systemQty;
@@ -1722,7 +1762,10 @@ class InventoryController extends Controller
 
         // Ambil produk aktif di outlet untuk modal tambah produk
         $availableProducts = MposProduct::with('category')
-            ->where('nid_outlet', $opname->nid_outlet)
+            ->where(function ($q) use ($opname) {
+                $q->where('nid_outlet', $opname->nid_outlet)
+                    ->orWhereNull('nid_outlet');
+            })
             ->where('cstatus', 'ACTIVE')
             ->orderBy('cname')
             ->get();
@@ -1831,7 +1874,7 @@ class InventoryController extends Controller
                     'nid_product' => $product->nid,
                 ],
                 [
-                    'citem_type' => MposStockMutation::ITEM_PRODUCT,
+                    'citem_type' => MposStockMutation::normalizeItemType($product->cproduct_type ?? 'PRODUK'),
                     'nid_ingredient' => null,
                     'nqty_system' => $systemQty,
                     'nqty_actual' => $actualQty,
@@ -2101,9 +2144,9 @@ class InventoryController extends Controller
                     $absQty = abs($diffQty);
                     $subtotal = abs($subtotalDiff);
 
-                    $itemType = (!empty($d->nid_ingredient) || in_array(strtoupper((string) $d->citem_type), ['INGREDIENT', 'BAHAN_BAKU', 'BAHAN BAKU']))
+                    $itemType = $d->isIngredient()
                         ? MposStockMutation::ITEM_INGREDIENT
-                        : MposStockMutation::ITEM_PRODUCT;
+                        : $d->getItemTypeNormalized();
 
                     MposStockMutation::create([
                         'cno_ref' => $opname->cno_opname,

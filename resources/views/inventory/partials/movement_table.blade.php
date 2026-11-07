@@ -27,7 +27,17 @@
                     {{ $p->category_name ?? (optional($p->category)->cname ?: '-') }}
                 </td>
                 <td>
-                    <div class="fw-semibold text-dark">{{ $p->cname }}</div>
+                    @php
+                        $movType = \App\Models\MposStockMutation::normalizeItemType($p->item_type ?? 'PRODUK');
+                    @endphp
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="fw-semibold text-dark">{{ $p->cname }}</span>
+                        @if($movType === 'SETENGAH_JADI')
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;">Setengah Jadi</span>
+                        @elseif($movType === 'BAHAN_BAKU')
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.68rem;">Bahan Baku</span>
+                        @endif
+                    </div>
                 </td>
                 <td class="text-center text-secondary">
                     {{ $fmtAwal }}

@@ -9,10 +9,11 @@ class MposStockOpnameD extends Model
 {
     use HasFactory;
 
-    public const TYPE_PRODUCT = 'PRODUCT';
-    public const TYPE_PRODUK = 'PRODUCT';
+    public const TYPE_PRODUK = 'PRODUK';
     public const TYPE_SETENGAH_JADI = 'SETENGAH_JADI';
-    public const TYPE_BAHAN_BAKU = 'INGREDIENT';
+    public const TYPE_BAHAN_BAKU = 'BAHAN_BAKU';
+
+    public const TYPE_PRODUCT = 'PRODUCT';
     public const TYPE_INGREDIENT = 'INGREDIENT';
 
     protected $table = 'mpos_stock_opname_d';
@@ -66,13 +67,43 @@ class MposStockOpnameD extends Model
         return $this->belongsTo(MposIngredients::class, 'nid_ingredient', 'nid');
     }
 
+    public function isIngredient(): bool
+    {
+        return !empty($this->nid_ingredient) && empty($this->nid_product);
+    }
+
+    public function getItemTypeNormalized(): string
+    {
+        if ($this->product && !empty($this->product->cproduct_type)) {
+            return MposStockMutation::normalizeItemType($this->product->cproduct_type);
+        }
+        if ($this->isIngredient()) {
+            return self::TYPE_BAHAN_BAKU;
+        }
+
+        return MposStockMutation::normalizeItemType($this->citem_type);
+    }
+
+    public function getItemTypeLabel(): string
+    {
+        return match ($this->getItemTypeNormalized()) {
+            self::TYPE_SETENGAH_JADI => 'Setengah Jadi',
+            self::TYPE_BAHAN_BAKU => 'Bahan Baku',
+            default => 'Produk',
+        };
+    }
+
     public function getItemNameAttribute(): string
     {
-        if ($this->citem_type === self::TYPE_BAHAN_BAKU && $this->ingredient) {
+        if ($this->product) {
+            return (string) $this->product->cname;
+        }
+
+        if ($this->isIngredient() && $this->ingredient) {
             return $this->ingredient->cname . ($this->ingredient->csatuan ? ' (' . $this->ingredient->csatuan . ')' : '');
         }
 
-        return $this->product?->cname ?: 'Item #' . ($this->nid_product ?: $this->nid_ingredient);
+        return 'Item #' . ($this->nid_product ?: $this->nid_ingredient);
     }
 }
 

@@ -44,8 +44,7 @@ class MposPurchaseD extends Model
 
     public function isIngredient(): bool
     {
-        return in_array(strtoupper((string) $this->citem_type), [self::TYPE_INGREDIENT, self::TYPE_BAHAN_BAKU], true)
-            || (!empty($this->nid_ingredient) && empty($this->nid_product));
+        return !empty($this->nid_ingredient) && empty($this->nid_product);
     }
 
     public function getItemTypeNormalized(): string

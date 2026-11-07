@@ -885,34 +885,17 @@ class PurchaseController extends Controller
             $purchase->creceived_by = $receivedBy;
             $purchase->save();
 
-            // 3. Tambah stok sesuai tipe item (Produk -> mpos_product, Bahan Baku -> mpos_ingredients) & catat mutasi stok
+            // 3. Tambah stok sesuai tipe item di mpos_product & catat mutasi stok
             foreach ($purchase->details as $item) {
-                MposStockMutation::create([
-                    'cno_ref' => $stockInNumber,
-                    'dmutation' => $receivedDate,
-                    'ctype' => MposStockMutation::TYPE_IN,
-                    'nid_outlet' => $purchase->nid_outlet,
-                    'nid_user' => Auth::id() ?? 1,
-                    'citem_type' => $item->citem_type,
-                    'nid_product' => $item->nid_product,
-                    'nid_ingredient' => $item->nid_ingredient,
-                    'nqty' => (float) $item->nqty,
-                    'ncost' => (float) $item->ncost,
-                    'nsubtotal' => (float) $item->nsubtotal,
-                    'creason' => 'Pembelian',
-                    'cstatus' => MposStockMutation::STATUS_POSTED,
-                    'cnote' => 'PO: ' . $purchase->cno_purchase,
-                    'dcreated' => Carbon::now(),
-                ]);
                 if ($item->isIngredient()) {
                     $ingredient = $item->ingredient;
                     if ($ingredient) {
                         if ((int) $ingredient->nid_outlet === (int) $purchase->nid_outlet) {
-                            $ingredient->nstock = (float) $ingredient->nstock + (int) $item->nqty;
+                            $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
                             $ingredient->save();
                         } elseif (empty($ingredient->nid_outlet)) {
                             $ingredient->nid_outlet = $purchase->nid_outlet;
-                            $ingredient->nstock = (float) $ingredient->nstock + (int) $item->nqty;
+                            $ingredient->nstock = (float) $ingredient->nstock + (float) $item->nqty;
                             $ingredient->save();
                         } else {
                             $outletIngredient = MposIngredients::where('nid_outlet', $purchase->nid_outlet)
@@ -920,7 +903,7 @@ class PurchaseController extends Controller
                                 ->first();
 
                             if ($outletIngredient) {
-                                $outletIngredient->nstock = (float) $outletIngredient->nstock + (int) $item->nqty;
+                                $outletIngredient->nstock = (float) $outletIngredient->nstock + (float) $item->nqty;
                                 $outletIngredient->save();
                                 $item->nid_ingredient = $outletIngredient->nid;
                                 $item->save();
@@ -929,7 +912,7 @@ class PurchaseController extends Controller
                                     'cname' => $ingredient->cname,
                                     'nid_outlet' => $purchase->nid_outlet,
                                     'csatuan' => $ingredient->csatuan ?: 'PCS',
-                                    'nstock' => (int) $item->nqty,
+                                    'nstock' => (float) $item->nqty,
                                 ];
                                 if (MposIngredients::hasPriceColumn()) {
                                     $newIngPayload['nprice'] = (float) ($ingredient->nprice ?: $item->ncost ?: 0);
@@ -944,7 +927,7 @@ class PurchaseController extends Controller
                     $product = $item->product;
                     if ($product) {
                         if ((int) $product->nid_outlet === (int) $purchase->nid_outlet) {
-                            $product->nqty = (int) $product->nqty + (int) $item->nqty;
+                            $product->nqty = (float) $product->nqty + (float) $item->nqty;
                             $product->save();
                         } else {
                             // Cari apakah produk dengan nama yang sama sudah ada di outlet tujuan
@@ -953,7 +936,7 @@ class PurchaseController extends Controller
                                 ->first();
 
                             if ($outletProduct) {
-                                $outletProduct->nqty = (int) $outletProduct->nqty + (int) $item->nqty;
+                                $outletProduct->nqty = (float) $outletProduct->nqty + (float) $item->nqty;
                                 $outletProduct->save();
                                 $item->nid_product = $outletProduct->nid;
                                 $item->save();
@@ -961,7 +944,7 @@ class PurchaseController extends Controller
                                 // Duplikasi produk ke outlet tujuan dengan kuantitas barang masuk
                                 $newProduct = $product->replicate();
                                 $newProduct->nid_outlet = $purchase->nid_outlet;
-                                $newProduct->nqty = (int) $item->nqty;
+                                $newProduct->nqty = (float) $item->nqty;
                                 $newProduct->save();
                                 $item->nid_product = $newProduct->nid;
                                 $item->save();
@@ -969,6 +952,24 @@ class PurchaseController extends Controller
                         }
                     }
                 }
+
+                MposStockMutation::create([
+                    'cno_ref' => $stockInNumber,
+                    'dmutation' => $receivedDate,
+                    'ctype' => MposStockMutation::TYPE_IN,
+                    'nid_outlet' => $purchase->nid_outlet,
+                    'nid_user' => Auth::id() ?? 1,
+                    'citem_type' => MposStockMutation::normalizeItemType($item->citem_type),
+                    'nid_product' => $item->nid_product,
+                    'nid_ingredient' => $item->nid_ingredient,
+                    'nqty' => (float) $item->nqty,
+                    'ncost' => (float) $item->ncost,
+                    'nsubtotal' => (float) $item->nsubtotal,
+                    'creason' => 'Pembelian',
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => 'PO: ' . $purchase->cno_purchase,
+                    'dcreated' => Carbon::now(),
+                ]);
             }
 
             DB::commit();

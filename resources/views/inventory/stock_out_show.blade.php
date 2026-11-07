@@ -410,8 +410,8 @@
                 <thead class="bg-light">
                     <tr class="text-muted small text-uppercase">
                         <th style="width: 4%;" class="text-center py-2.5 text-nowrap">No</th>
-                        <th style="width: {{ $stockOut->isDraft ? '9%' : '10%' }};" class="text-center py-2.5 text-nowrap">Tipe</th>
-                        <th style="width: {{ $stockOut->isDraft ? '33%' : '37%' }};" class="py-2.5 text-nowrap ps-2">Produk / Bahan Baku</th>
+                        <th style="width: {{ $stockOut->isDraft ? '12%' : '12%' }};" class="text-center py-2.5 text-nowrap">Tipe</th>
+                        <th style="width: {{ $stockOut->isDraft ? '30%' : '35%' }};" class="py-2.5 text-nowrap ps-2">Produk / Bahan Baku</th>
                         <th style="width: {{ $stockOut->isDraft ? '10%' : '11%' }};" class="text-center py-2.5 text-nowrap">Stok Saat Ini</th>
                         <th style="width: {{ $stockOut->isDraft ? '12%' : '13%' }};" class="text-center py-2.5 text-nowrap">Qty Keluar</th>
                         <th style="width: {{ $stockOut->isDraft ? '13%' : '14%' }};" class="text-end py-2.5 text-nowrap pe-3">Harga Beli</th>
@@ -426,17 +426,20 @@
                     @forelse($stockOut->details as $idx => $detail)
                     @php
                     $isIng = $detail->isIngredient();
-                    $itemName = $isIng ? ($detail->ingredient?->cname ?: 'Bahan Baku') : ($detail->product?->cname ?: 'Produk');
-                    $itemCategory = $isIng ? 'Bahan Baku' : ($detail->product?->category?->cname ?: 'Produk');
-                    $satuan = $isIng ? ($detail->ingredient?->csatuan ?: '') : 'pcs';
+                    $normType = $detail->getItemTypeNormalized();
+                    $itemName = $detail->product?->cname ?: ($isIng ? ($detail->ingredient?->cname ?: 'Bahan Baku') : 'Produk');
+                    $itemCategory = $detail->product?->category?->cname ?: $detail->getItemTypeLabel();
+                    $satuan = strtolower($detail->getItemUnit());
                     $currentStock = $detail->current_stock ?? ($isIng ? ($detail->ingredient?->nstock ?? 0) : ($detail->product?->nqty ?? 0));
                     $totalDetailQty += (float) $detail->nqty;
                     @endphp
                     <tr id="row-item-{{ $detail->nid }}">
                         <td class="text-center text-muted fw-semibold">{{ $idx + 1 }}</td>
                         <td class="text-center">
-                            @if($isIng)
-                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill">Bahan</span>
+                            @if($normType === 'SETENGAH_JADI')
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 rounded-pill">Setengah Jadi</span>
+                            @elseif($normType === 'BAHAN_BAKU')
+                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1 rounded-pill">Bahan Baku</span>
                             @else
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill">Produk</span>
                             @endif
@@ -444,7 +447,7 @@
                         <td class="ps-2">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="rounded-3 bg-light d-flex align-items-center justify-content-center border flex-shrink-0" style="width: 32px; height: 32px; min-width: 32px;">
-                                    <i class="bi bi-{{ $isIng ? 'droplet text-success' : 'box-seam text-primary' }} fs-6"></i>
+                                    <i class="bi bi-{{ $normType === 'BAHAN_BAKU' ? 'droplet text-info' : ($normType === 'SETENGAH_JADI' ? 'layers text-warning' : 'box-seam text-primary') }} fs-6"></i>
                                 </div>
                                 <div class="text-truncate">
                                     <div class="fw-bold text-dark text-truncate" title="{{ $itemName }}">{{ $itemName }}</div>
@@ -632,11 +635,24 @@
 @endif
 
 <script>
-    // Master data untuk outlet asal
+    // Master data mpos_product untuk outlet asal
     const draftProducts = @json($availableProducts ?? []);
-    const draftIngredients = @json($availableIngredients ?? []);
     let newRowCounter = 0;
     const newRowTsInstances = {};
+
+    function normalizeDraftItemType(val) {
+        const raw = String(val || 'PRODUK').trim().toUpperCase();
+        if (raw === 'SETENGAH_JADI') return 'SETENGAH_JADI';
+        if (raw === 'BAHAN_BAKU' || raw === 'INGREDIENT') return 'BAHAN_BAKU';
+        return 'PRODUK';
+    }
+
+    function getDraftPlaceholderForType(type) {
+        const norm = normalizeDraftItemType(type);
+        if (norm === 'BAHAN_BAKU') return '-- Cari atau pilih bahan baku --';
+        if (norm === 'SETENGAH_JADI') return '-- Cari atau pilih setengah jadi --';
+        return '-- Cari atau pilih produk --';
+    }
 
     function formatNumber(num) {
         const val = parseFloat(num || 0);
@@ -665,8 +681,9 @@
             <td class="text-center text-muted fw-semibold">${nextNo}</td>
             <td class="text-center align-middle">
                 <select class="form-select form-select-sm fw-semibold new-row-type" id="new_type_${curIdx}" onchange="onNewRowTypeChange(${curIdx})">
-                    <option value="PRODUCT" selected>Produk</option>
-                    <option value="INGREDIENT">Bahan Baku</option>
+                    <option value="PRODUK" selected>Produk</option>
+                    <option value="SETENGAH_JADI">Setengah Jadi</option>
+                    <option value="BAHAN_BAKU">Bahan Baku</option>
                 </select>
             </td>
             <td class="align-middle ps-2">
@@ -765,7 +782,7 @@
             calcNewRowSubtotal(curIdx);
         });
 
-        populateNewRowOptions(curIdx, 'PRODUCT');
+        populateNewRowOptions(curIdx, 'PRODUK');
         calcNewRowSubtotal(curIdx);
 
         // Auto-focus ke dropdown tom-select
@@ -774,7 +791,7 @@
 
     function onNewRowTypeChange(rowId) {
         const typeSelect = document.getElementById(`new_type_${rowId}`);
-        const type = typeSelect ? typeSelect.value : 'PRODUCT';
+        const type = typeSelect ? typeSelect.value : 'PRODUK';
         populateNewRowOptions(rowId, type);
     }
 
@@ -782,18 +799,19 @@
         const ts = newRowTsInstances[rowId];
         if (!ts) return;
 
+        const normType = normalizeDraftItemType(type);
         ts.clear(true);
         ts.clearOptions();
 
-        const placeholder = (type === 'INGREDIENT') ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+        const placeholder = getDraftPlaceholderForType(normType);
         ts.settings.placeholder = placeholder;
         ts.inputState();
 
-        const list = (type === 'INGREDIENT') ? draftIngredients : draftProducts;
+        const list = draftProducts.filter(item => normalizeDraftItemType(item.cproduct_type || 'PRODUK') === normType);
         list.forEach(item => {
-            const stock = parseFloat(item.nstock !== undefined && item.nstock !== null ? item.nstock : (item.nqty || 0));
-            const cost = parseFloat(item.ncost !== undefined && item.ncost !== null ? item.ncost : (item.nprice || item.nprice_buy || 0));
-            const satuan = item.csatuan || (type === 'INGREDIENT' ? 'Unit' : 'pcs');
+            const stock = parseFloat(item.nqty !== undefined && item.nqty !== null ? item.nqty : 0);
+            const cost = parseFloat(item.nprice_buy !== undefined && item.nprice_buy !== null ? item.nprice_buy : 0);
+            const satuan = item.csatuan || 'pcs';
 
             ts.addOption({
                 value: String(item.nid),
@@ -850,7 +868,7 @@
             return;
         }
 
-        const type = document.getElementById(`new_type_${rowId}`)?.value || 'PRODUCT';
+        const type = document.getElementById(`new_type_${rowId}`)?.value || 'PRODUK';
         const qty = parseFloat(document.getElementById(`new_qty_${rowId}`)?.value) || 1;
         const cost = parseFloat(document.getElementById(`new_cost_${rowId}`)?.value) || 0;
 

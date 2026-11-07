@@ -361,9 +361,21 @@
                                     @endif
                                 </div>
                                 <div>
-                                    <div class="fw-semibold text-dark">{{ $d->item_name }}</div>
+                                    @php
+                                    $detailNormType = $d->getItemTypeNormalized();
+                                    @endphp
+                                    <div class="d-flex align-items-center gap-1 flex-wrap">
+                                        <span class="fw-semibold text-dark">{{ $d->item_name }}</span>
+                                        @if($detailNormType === 'SETENGAH_JADI')
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.68rem;">Setengah Jadi</span>
+                                        @elseif($detailNormType === 'BAHAN_BAKU')
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.68rem;">Bahan Baku</span>
+                                        @else
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem;">Produk</span>
+                                        @endif
+                                    </div>
                                     <div class="text-muted" style="font-size: 0.75rem;">
-                                        {{ $d->product?->category?->cname ?: 'Produk' }}
+                                        {{ $d->product?->category?->cname ?: $d->getItemTypeLabel() }}
                                         @if($d->product?->csatuan)
                                         &bull; {{ $d->product->csatuan }}
                                         @endif
@@ -474,6 +486,14 @@
                 <div class="modal-body p-3">
                     {{-- Filter Bar --}}
                     <div class="row g-2 align-items-center mb-3">
+                        <div class="col-auto" style="min-width: 165px;">
+                            <select id="modalFilterType" class="form-select form-select-sm">
+                                <option value="">Semua Tipe Item</option>
+                                <option value="PRODUK">Produk</option>
+                                <option value="SETENGAH_JADI">Setengah Jadi</option>
+                                <option value="BAHAN_BAKU">Bahan Baku</option>
+                            </select>
+                        </div>
                         <div class="col-auto" style="min-width: 180px;">
                             <select id="modalFilterCategory" class="form-select form-select-sm">
                                 <option value="">Semua Kategori</option>
@@ -519,8 +539,9 @@
                                 $existingDetail = $opname->details->firstWhere('nid_product', $p->nid);
                                 $initActual = $existingDetail ? (float)$existingDetail->nqty_actual : (float)$p->nqty;
                                 $isChecked = $existingDetail ? true : false;
+                                $prodNormType = \App\Models\MposStockMutation::normalizeItemType($p->cproduct_type ?? 'PRODUK');
                                 @endphp
-                                <tr class="product-row" data-cat-id="{{ $p->nid_category }}" data-name="{{ strtolower($p->cname) }}">
+                                <tr class="product-row" data-cat-id="{{ $p->nid_category }}" data-type="{{ $prodNormType }}" data-name="{{ strtolower($p->cname . ' ' . $p->nid) }}">
                                     <td class="text-center">
                                         <input type="checkbox" class="form-check-input product-checkbox" name="items[{{ $idx }}][nid_product]" value="{{ $p->nid }}" {{ $isChecked ? 'checked' : '' }} onchange="updateSelectedCount()">
                                     </td>
@@ -550,6 +571,13 @@
                                             </div>
                                             <div>
                                                 <div class="fw-semibold text-dark text-truncate" style="max-width: 360px;">{{ $p->cname }}</div>
+                                                @if($prodNormType === 'SETENGAH_JADI')
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;">Setengah Jadi</span>
+                                                @elseif($prodNormType === 'BAHAN_BAKU')
+                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.65rem;">Bahan Baku</span>
+                                                @else
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">Produk</span>
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
@@ -735,23 +763,27 @@
             });
         }
 
-        // Filter Kategori & Search
+        // Filter Tipe Item, Kategori & Search
         const searchInput = document.getElementById('modalSearchProduct');
         const catSelect = document.getElementById('modalFilterCategory');
+        const typeSelect = document.getElementById('modalFilterType');
 
         function filterRows() {
             const query = (searchInput ? searchInput.value : '').toLowerCase().trim();
             const catId = catSelect ? catSelect.value : '';
+            const itemType = typeSelect ? typeSelect.value : '';
 
             const rows = document.querySelectorAll('#modalProductTable tbody tr.product-row');
             rows.forEach(row => {
                 const name = row.getAttribute('data-name') || '';
                 const rowCat = row.getAttribute('data-cat-id') || '';
+                const rowType = row.getAttribute('data-type') || 'PRODUK';
 
                 const matchQuery = !query || name.includes(query);
                 const matchCat = !catId || rowCat === catId;
+                const matchType = !itemType || rowType === itemType;
 
-                if (matchQuery && matchCat) {
+                if (matchQuery && matchCat && matchType) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';
@@ -761,6 +793,7 @@
 
         if (searchInput) searchInput.addEventListener('input', filterRows);
         if (catSelect) catSelect.addEventListener('change', filterRows);
+        if (typeSelect) typeSelect.addEventListener('change', filterRows);
 
         // Sync time input
         const timeInput = document.getElementById('modalFilterTime');

@@ -122,9 +122,12 @@
                     <td class="text-center">{{ $idx + 1 }}</td>
                     <td>
                         <strong>{{ $d->item_name }}</strong>
-                        @if($d->product?->category)
-                            <div style="font-size: 10px; color: #666;">{{ $d->product->category->cname }}</div>
-                        @endif
+                        <div style="font-size: 10px; color: #666;">
+                            {{ $d->getItemTypeLabel() }}
+                            @if($d->product?->category)
+                                &bull; {{ $d->product->category->cname }}
+                            @endif
+                        </div>
                     </td>
                     <td class="text-center">{{ $d->dtime ?: '-' }}</td>
                     <td class="text-center">{{ number_format($d->nqty_system, 0, ',', '.') }}</td>

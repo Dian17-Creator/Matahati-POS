@@ -365,7 +365,7 @@
                             <span class="fw-bold text-dark fs-6">
                                 <i class="bi bi-box-seam me-1 text-success"></i> Item Barang Masuk
                             </span>
-                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong> atau <strong>Bahan Baku</strong> yang dimasukkan</span>
+                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong>, <strong>Setengah Jadi</strong>, atau <strong>Bahan Baku</strong> yang dimasukkan</span>
                         </div>
                         <button type="button" class="btn btn-outline-success btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewStockInRow">
                             <i class="bi bi-plus-lg me-1"></i> Tambah Baris
@@ -378,7 +378,7 @@
                             <thead>
                                 <tr class="bg-light">
                                     <th style="width: 32px;" class="text-center py-2 text-muted text-nowrap">NO</th>
-                                    <th style="width: 120px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                    <th style="width: 140px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
                                     <th class="py-2 text-center text-nowrap" style="min-width: 260px;">PRODUK / BAHAN BAKU</th>
                                     <th style="width: 105px;" class="text-center py-2 text-nowrap">STOK SEKARANG</th>
                                     <th style="width: 115px;" class="text-center py-2 text-nowrap">QTY MASUK</th>
@@ -425,13 +425,9 @@
 <script type="application/json" id="stockInProductsData">
     @json($modalProducts)
 </script>
-<script type="application/json" id="stockInIngredientsData">
-    @json($modalIngredients)
-</script>
 <script>
-    // Data Master Produk & Bahan Baku untuk Modal Stok Masuk
+    // Data Master Produk, Setengah Jadi & Bahan Baku dari mpos_product untuk Modal Stok Masuk
     const stockInProducts = JSON.parse(document.getElementById('stockInProductsData')?.textContent || '[]');
-    const stockInIngredients = JSON.parse(document.getElementById('stockInIngredientsData')?.textContent || '[]');
 
     let stockInRowCounter = 0;
     const stockInTsInstances = {};
@@ -448,28 +444,67 @@
         return "{{ $selectedOutletId ?: ($outlets->first()?->nid ?? '') }}";
     }
 
-    function getStockInItemsForType(type, outletId) {
-        if (type === 'INGREDIENT') {
-            return stockInIngredients
-                .filter(i => !outletId || !i.nid_outlet || String(i.nid_outlet) === String(outletId))
-                .map(i => ({
-                    nid: i.nid,
-                    cname: i.cname,
-                    nstock: parseFloat(i.nstock !== undefined && i.nstock !== null ? i.nstock : (i.nqty || 0)),
-                    csatuan: i.csatuan || 'PCS',
-                    ncost: parseFloat(i.ncost !== undefined && i.ncost !== null ? i.ncost : (i.nprice || 0))
-                }));
-        }
+    function normalizeStockInItemType(val) {
+        const raw = String(val || 'PRODUK').trim().toUpperCase();
+        if (raw === 'SETENGAH_JADI') return 'SETENGAH_JADI';
+        if (raw === 'BAHAN_BAKU' || raw === 'INGREDIENT') return 'BAHAN_BAKU';
+        return 'PRODUK';
+    }
 
-        return stockInProducts
-            .filter(p => !outletId || !p.nid_outlet || String(p.nid_outlet) === String(outletId))
-            .map(p => ({
-                nid: p.nid,
-                cname: p.cname,
-                nstock: parseFloat(p.nqty !== undefined && p.nqty !== null ? p.nqty : 0),
-                csatuan: p.csatuan || 'PCS',
-                ncost: parseFloat(p.nprice_buy !== undefined && p.nprice_buy !== null ? p.nprice_buy : 0)
-            }));
+    function getStockInPlaceholderForType(itemType) {
+        const norm = normalizeStockInItemType(itemType);
+        if (norm === 'BAHAN_BAKU') {
+            return '-- Cari atau pilih bahan baku --';
+        }
+        if (norm === 'SETENGAH_JADI') {
+            return '-- Cari atau pilih produk setengah jadi --';
+        }
+        return '-- Cari atau pilih produk --';
+    }
+
+    function getStockInItemsForType(type, outletId) {
+        const targetType = normalizeStockInItemType(type);
+        const byName = new Map();
+
+        stockInProducts.forEach(p => {
+            const pType = normalizeStockInItemType(p.cproduct_type || 'PRODUK');
+            if (pType !== targetType) return;
+
+            const key = String(p.cname || '').trim().toUpperCase();
+            if (!key) return;
+            if (!byName.has(key)) {
+                byName.set(key, []);
+            }
+            byName.get(key).push(p);
+        });
+
+        const list = [];
+        byName.forEach((prods) => {
+            const match = outletId ? prods.find(p => String(p.nid_outlet) === String(outletId)) : prods[0];
+            if (match) {
+                list.push({
+                    nid: match.nid,
+                    cname: match.cname,
+                    nstock: parseFloat(match.nqty !== undefined && match.nqty !== null ? match.nqty : 0),
+                    csatuan: match.csatuan || 'PCS',
+                    ncost: parseFloat(match.nprice_buy !== undefined && match.nprice_buy !== null ? match.nprice_buy : 0),
+                    cproduct_type: targetType
+                });
+            } else {
+                const tmpl = prods[0];
+                list.push({
+                    nid: tmpl.nid,
+                    cname: tmpl.cname,
+                    nstock: 0,
+                    csatuan: tmpl.csatuan || 'PCS',
+                    ncost: parseFloat(tmpl.nprice_buy !== undefined && tmpl.nprice_buy !== null ? tmpl.nprice_buy : 0),
+                    cproduct_type: targetType
+                });
+            }
+        });
+
+        list.sort((a, b) => a.cname.localeCompare(b.cname));
+        return list;
     }
 
     function openStockInModal() {
@@ -485,7 +520,7 @@
         modal.show();
     }
 
-    function addStockInRow(itemId = '', itemQty = 1, itemType = 'PRODUCT') {
+    function addStockInRow(itemId = '', itemQty = 1, itemType = 'PRODUK') {
         stockInRowCounter++;
         const curIdx = stockInRowCounter;
         const tbody = document.getElementById('stockInItemsTableBody');
@@ -493,14 +528,16 @@
         tr.id = 'stock-in-row-' + curIdx;
         tr.setAttribute('data-row-id', curIdx);
 
-        const placeholderText = itemType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+        const normalizedType = normalizeStockInItemType(itemType);
+        const placeholderText = getStockInPlaceholderForType(normalizedType);
 
         tr.innerHTML = `
             <td class="text-center text-muted fw-semibold align-middle row-number py-2">${tbody.children.length + 1}</td>
             <td class="py-2 align-middle">
                 <select name="items[${curIdx}][citem_type]" class="form-select form-select-sm fw-semibold in-item-type-select" data-row="${curIdx}">
-                    <option value="PRODUCT" ${itemType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
-                    <option value="INGREDIENT" ${itemType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                    <option value="PRODUK" ${normalizedType === 'PRODUK' ? 'selected' : ''}>Produk</option>
+                    <option value="SETENGAH_JADI" ${normalizedType === 'SETENGAH_JADI' ? 'selected' : ''}>Setengah Jadi</option>
+                    <option value="BAHAN_BAKU" ${normalizedType === 'BAHAN_BAKU' ? 'selected' : ''}>Bahan Baku</option>
                 </select>
             </td>
             <td class="py-2 align-middle">
@@ -636,12 +673,12 @@
             populateStockInTsOptions(curIdx, this.value);
         });
 
-        populateStockInTsOptions(curIdx, itemType, itemId);
+        populateStockInTsOptions(curIdx, normalizedType, itemId);
         renumberStockInRows();
         calculateStockInTotals();
     }
 
-    function populateStockInTsOptions(rowId, rowType, keepSelectedId = '') {
+    function populateStockInTsOptions(rowId, rowType, keepSelectedId = '', keepSelectedName = '') {
         const ts = stockInTsInstances[rowId];
         if (!ts) return;
 
@@ -650,8 +687,9 @@
         const costInput = row ? row.querySelector('.in-item-cost-input') : null;
 
         const outletId = getSelectedStockInOutletId();
-        const list = getStockInItemsForType(rowType, outletId);
-        const ph = rowType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+        const normType = normalizeStockInItemType(rowType);
+        const list = getStockInItemsForType(normType, outletId);
+        const ph = getStockInPlaceholderForType(normType);
 
         ts.settings.placeholder = ph;
         ts.inputState();
@@ -672,16 +710,25 @@
 
         if (keepSelectedId && ts.options[String(keepSelectedId)]) {
             ts.setValue(String(keepSelectedId));
-        } else {
-            if (stockBadge) {
-                stockBadge.textContent = '-';
-                stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
-            }
-            if (costInput) {
-                costInput.value = 0;
-            }
-            calculateStockInTotals();
+            return;
         }
+
+        if (keepSelectedName) {
+            const matched = list.find(it => String(it.cname).trim().toLowerCase() === String(keepSelectedName).trim().toLowerCase());
+            if (matched) {
+                ts.setValue(String(matched.nid));
+                return;
+            }
+        }
+
+        if (stockBadge) {
+            stockBadge.textContent = '-';
+            stockBadge.className = 'badge bg-light text-secondary border in-current-stock-badge';
+        }
+        if (costInput) {
+            costInput.value = 0;
+        }
+        calculateStockInTotals();
     }
 
     function removeStockInRow(rowId) {
@@ -781,8 +828,11 @@
                     const rowId = r.getAttribute('data-row-id');
                     const typeSelect = r.querySelector('.in-item-type-select');
                     if (rowId && typeSelect && stockInTsInstances[rowId]) {
-                        const currentVal = stockInTsInstances[rowId].getValue();
-                        populateStockInTsOptions(rowId, typeSelect.value, currentVal);
+                        const ts = stockInTsInstances[rowId];
+                        const currentVal = ts.getValue();
+                        const curOption = currentVal ? ts.options[currentVal] : null;
+                        const curName = curOption ? (curOption.cname || curOption.text || '') : '';
+                        populateStockInTsOptions(rowId, typeSelect.value, currentVal, curName);
                     }
                 });
             });

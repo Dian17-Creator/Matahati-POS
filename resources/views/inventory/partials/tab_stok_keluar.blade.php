@@ -288,7 +288,7 @@
                             <span class="fw-bold text-dark fs-6">
                                 <i class="bi bi-box-seam me-1 text-danger"></i> Item Barang Keluar
                             </span>
-                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong> atau <strong>Bahan Baku</strong> yang dikeluarkan</span>
+                            <span class="text-muted small ms-2 d-none d-sm-inline">Pilih tipe <strong>Produk</strong>, <strong>Setengah Jadi</strong>, atau <strong>Bahan Baku</strong> yang dikeluarkan</span>
                         </div>
                         <button type="button" class="btn btn-outline-danger btn-sm px-3 fw-semibold shadow-sm" id="btnAddNewStockOutRow">
                             <i class="bi bi-plus-lg me-1"></i> Tambah Baris
@@ -301,7 +301,7 @@
                             <thead>
                                 <tr class="bg-light">
                                     <th style="width: 32px;" class="text-center py-2 text-muted text-nowrap">NO</th>
-                                    <th style="width: 120px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
+                                    <th style="width: 140px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
                                     <th class="py-2 text-center text-nowrap" style="min-width: 260px;">PRODUK / BAHAN BAKU</th>
                                     <th style="width: 105px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
                                     <th style="width: 115px;" class="text-center py-2 text-nowrap">QTY KELUAR</th>
@@ -348,13 +348,9 @@
 <script type="application/json" id="stockOutProductsData">
     @json($modalProducts)
 </script>
-<script type="application/json" id="stockOutIngredientsData">
-    @json($modalIngredients)
-</script>
 <script>
-    // Data Master Produk & Bahan Baku untuk Modal Stok Keluar
+    // Data Master Produk (Produk, Setengah Jadi, Bahan Baku) dari mpos_product untuk Modal Stok Keluar
     const stockOutProducts = JSON.parse(document.getElementById('stockOutProductsData')?.textContent || '[]');
-    const stockOutIngredients = JSON.parse(document.getElementById('stockOutIngredientsData')?.textContent || '[]');
 
     let stockOutRowCounter = 0;
     const stockOutTsInstances = {};
@@ -371,28 +367,76 @@
         return "{{ $selectedOutletId ?: ($outlets->first()?->nid ?? '') }}";
     }
 
-    function getStockOutItemsForType(type, outletId) {
-        if (type === 'INGREDIENT') {
-            return stockOutIngredients
-                .filter(i => !outletId || !i.nid_outlet || String(i.nid_outlet) === String(outletId))
-                .map(i => ({
-                    nid: i.nid,
-                    cname: i.cname,
-                    nstock: parseFloat(i.nstock !== undefined && i.nstock !== null ? i.nstock : (i.nqty || 0)),
-                    csatuan: i.csatuan || 'PCS',
-                    ncost: parseFloat(i.ncost !== undefined && i.ncost !== null ? i.ncost : (i.nprice || 0))
-                }));
-        }
+    function normalizeStockOutItemType(val) {
+        const raw = String(val || 'PRODUK').trim().toUpperCase();
+        if (raw === 'SETENGAH_JADI') return 'SETENGAH_JADI';
+        if (raw === 'BAHAN_BAKU' || raw === 'INGREDIENT') return 'BAHAN_BAKU';
+        return 'PRODUK';
+    }
 
-        return stockOutProducts
-            .filter(p => !outletId || !p.nid_outlet || String(p.nid_outlet) === String(outletId))
-            .map(p => ({
-                nid: p.nid,
-                cname: p.cname,
-                nstock: parseFloat(p.nqty !== undefined && p.nqty !== null ? p.nqty : 0),
-                csatuan: p.csatuan || 'PCS',
-                ncost: parseFloat(p.nprice_buy !== undefined && p.nprice_buy !== null ? p.nprice_buy : 0)
-            }));
+    function getStockOutPlaceholderForType(type) {
+        const norm = normalizeStockOutItemType(type);
+        if (norm === 'BAHAN_BAKU') return '-- Cari atau pilih bahan baku --';
+        if (norm === 'SETENGAH_JADI') return '-- Cari atau pilih setengah jadi --';
+        return '-- Cari atau pilih produk --';
+    }
+
+    function getStockOutItemsForType(type, outletId) {
+        const targetType = normalizeStockOutItemType(type);
+
+        // Kelompokkan berdasarkan nama produk dengan memprioritaskan record pada outlet asal yang dipilih
+        const groupedByName = {};
+        stockOutProducts.forEach(p => {
+            const pType = normalizeStockOutItemType(p.cproduct_type || 'PRODUK');
+            if (pType !== targetType) return;
+
+            const key = String(p.cname || '').trim().toLowerCase();
+            if (!key) return;
+            if (!groupedByName[key]) groupedByName[key] = [];
+            groupedByName[key].push(p);
+        });
+
+        const list = [];
+        Object.keys(groupedByName).forEach(key => {
+            const variants = groupedByName[key];
+            const exactOutletMatch = outletId
+                ? variants.find(v => String(v.nid_outlet || '') === String(outletId))
+                : null;
+            const globalMatch = variants.find(v => !v.nid_outlet);
+
+            if (exactOutletMatch) {
+                list.push({
+                    nid: exactOutletMatch.nid,
+                    cname: exactOutletMatch.cname,
+                    nstock: parseFloat(exactOutletMatch.nqty !== undefined && exactOutletMatch.nqty !== null ? exactOutletMatch.nqty : 0),
+                    csatuan: exactOutletMatch.csatuan || 'PCS',
+                    ncost: parseFloat(exactOutletMatch.nprice_buy !== undefined && exactOutletMatch.nprice_buy !== null ? exactOutletMatch.nprice_buy : 0),
+                    cproduct_type: targetType
+                });
+            } else if (globalMatch) {
+                list.push({
+                    nid: globalMatch.nid,
+                    cname: globalMatch.cname,
+                    nstock: parseFloat(globalMatch.nqty !== undefined && globalMatch.nqty !== null ? globalMatch.nqty : 0),
+                    csatuan: globalMatch.csatuan || 'PCS',
+                    ncost: parseFloat(globalMatch.nprice_buy !== undefined && globalMatch.nprice_buy !== null ? globalMatch.nprice_buy : 0),
+                    cproduct_type: targetType
+                });
+            } else {
+                const tmpl = variants[0];
+                list.push({
+                    nid: tmpl.nid,
+                    cname: tmpl.cname,
+                    nstock: 0,
+                    csatuan: tmpl.csatuan || 'PCS',
+                    ncost: parseFloat(tmpl.nprice_buy !== undefined && tmpl.nprice_buy !== null ? tmpl.nprice_buy : 0),
+                    cproduct_type: targetType
+                });
+            }
+        });
+
+        list.sort((a, b) => a.cname.localeCompare(b.cname));
+        return list;
     }
 
     function openStockOutModal(type) {
@@ -428,7 +472,7 @@
         modal.show();
     }
 
-    function addStockOutRow(itemId = '', itemQty = 1, itemType = 'PRODUCT') {
+    function addStockOutRow(itemId = '', itemQty = 1, itemType = 'PRODUK') {
         stockOutRowCounter++;
         const curIdx = stockOutRowCounter;
         const tbody = document.getElementById('stockOutItemsTableBody');
@@ -436,14 +480,16 @@
         tr.id = 'stock-out-row-' + curIdx;
         tr.setAttribute('data-row-id', curIdx);
 
-        const placeholderText = itemType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+        const normalizedType = normalizeStockOutItemType(itemType);
+        const placeholderText = getStockOutPlaceholderForType(normalizedType);
 
         tr.innerHTML = `
             <td class="text-center text-muted fw-semibold align-middle row-number py-2">${tbody.children.length + 1}</td>
             <td class="py-2 align-middle">
                 <select name="items[${curIdx}][citem_type]" class="form-select form-select-sm fw-semibold out-item-type-select" data-row="${curIdx}">
-                    <option value="PRODUCT" ${itemType === 'PRODUCT' ? 'selected' : ''}>Produk</option>
-                    <option value="INGREDIENT" ${itemType === 'INGREDIENT' ? 'selected' : ''}>Bahan Baku</option>
+                    <option value="PRODUK" ${normalizedType === 'PRODUK' ? 'selected' : ''}>Produk</option>
+                    <option value="SETENGAH_JADI" ${normalizedType === 'SETENGAH_JADI' ? 'selected' : ''}>Setengah Jadi</option>
+                    <option value="BAHAN_BAKU" ${normalizedType === 'BAHAN_BAKU' ? 'selected' : ''}>Bahan Baku</option>
                 </select>
             </td>
             <td class="py-2 align-middle">
@@ -579,12 +625,12 @@
             populateStockOutTsOptions(curIdx, this.value);
         });
 
-        populateStockOutTsOptions(curIdx, itemType, itemId);
+        populateStockOutTsOptions(curIdx, normalizedType, itemId);
         renumberStockOutRows();
         calculateStockOutTotals();
     }
 
-    function populateStockOutTsOptions(rowId, rowType, keepSelectedId = '') {
+    function populateStockOutTsOptions(rowId, rowType, keepSelectedId = '', keepSelectedName = '') {
         const ts = stockOutTsInstances[rowId];
         if (!ts) return;
 
@@ -593,8 +639,9 @@
         const costInput = row ? row.querySelector('.out-item-cost-input') : null;
 
         const outletId = getSelectedStockOutOutletId();
-        const list = getStockOutItemsForType(rowType, outletId);
-        const ph = rowType === 'INGREDIENT' ? '-- Cari atau pilih bahan baku --' : '-- Cari atau pilih produk --';
+        const normType = normalizeStockOutItemType(rowType);
+        const list = getStockOutItemsForType(normType, outletId);
+        const ph = getStockOutPlaceholderForType(normType);
 
         ts.settings.placeholder = ph;
         ts.inputState();
@@ -615,16 +662,25 @@
 
         if (keepSelectedId && ts.options[String(keepSelectedId)]) {
             ts.setValue(String(keepSelectedId));
-        } else {
-            if (stockBadge) {
-                stockBadge.textContent = '-';
-                stockBadge.className = 'badge bg-light text-secondary border out-current-stock-badge';
-            }
-            if (costInput) {
-                costInput.value = 0;
-            }
-            calculateStockOutTotals();
+            return;
         }
+
+        if (keepSelectedName) {
+            const matched = list.find(it => String(it.cname).trim().toLowerCase() === String(keepSelectedName).trim().toLowerCase());
+            if (matched) {
+                ts.setValue(String(matched.nid));
+                return;
+            }
+        }
+
+        if (stockBadge) {
+            stockBadge.textContent = '-';
+            stockBadge.className = 'badge bg-light text-secondary border out-current-stock-badge';
+        }
+        if (costInput) {
+            costInput.value = 0;
+        }
+        calculateStockOutTotals();
     }
 
     function removeStockOutRow(rowId) {
@@ -736,8 +792,11 @@
                     const rowId = r.getAttribute('data-row-id');
                     const typeSelect = r.querySelector('.out-item-type-select');
                     if (rowId && typeSelect && stockOutTsInstances[rowId]) {
-                        const currentVal = stockOutTsInstances[rowId].getValue();
-                        populateStockOutTsOptions(rowId, typeSelect.value, currentVal);
+                        const ts = stockOutTsInstances[rowId];
+                        const currentVal = ts.getValue();
+                        const curOption = currentVal ? ts.options[currentVal] : null;
+                        const curName = curOption ? (curOption.cname || curOption.text || '') : '';
+                        populateStockOutTsOptions(rowId, typeSelect.value, currentVal, curName);
                     }
                 });
             });
