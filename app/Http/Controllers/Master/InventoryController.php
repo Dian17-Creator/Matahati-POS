@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Exports\StockMovementExport;
 use App\Exports\StockOpnameDetailExport;
 use App\Http\Controllers\Controller;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\MposIngredients;
 use App\Models\MposGrpProduct;
 use App\Models\MposOutlet;
@@ -1009,10 +1010,14 @@ class InventoryController extends Controller
             'ntotal_qty' => $items->sum('nqty'),
             'ntotal_cost' => $items->sum('nsubtotal'),
             'supplier' => null,
-            'creceived_by' => $first->user?->email ?: ($first->user?->cname ?: 'Admin'),
+            'creceived_by' => $first->user?->cemail ?: ($first->user?->email ?: ($first->user?->cname ?: 'Admin')),
         ];
 
-        return view('inventory.stock_in_print', compact('stockIn'));
+        $pdf = Pdf::loadView('inventory.stock_in_print', compact('stockIn'));
+        $pdf->setPaper('a4', 'portrait');
+        $filename = "Stok_Masuk_{$stockIn->cno_stock_in}.pdf";
+
+        return $pdf->stream($filename);
     }
 
     /**
@@ -1653,7 +1658,11 @@ class InventoryController extends Controller
             'ntotal_cost' => $items->sum('nsubtotal'),
         ];
 
-        return view('inventory.stock_out_print', compact('stockOut'));
+        $pdf = Pdf::loadView('inventory.stock_out_print', compact('stockOut'));
+        $pdf->setPaper('a4', 'portrait');
+        $filename = "Stok_Keluar_{$stockOut->cno_stock_out}.pdf";
+
+        return $pdf->stream($filename);
     }
 
     /**

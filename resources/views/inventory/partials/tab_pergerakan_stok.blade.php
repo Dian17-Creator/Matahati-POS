@@ -6,8 +6,8 @@
     </div>
 
     <div>
-        <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3">
-            <i class="bi bi-download me-1"></i> Download Excel
+        <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3" style="background-color: #0ea5e9; border-color: #0ea5e9;">
+            <i class=" bi bi-download me-1"></i> Download Excel
         </button>
     </div>
 </div>
