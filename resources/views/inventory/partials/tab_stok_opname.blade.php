@@ -70,7 +70,7 @@
             </div>
         </div>
 
-        <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTambahOpname">
+        <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTambahOpname">
             <i class="bi bi-plus-lg"></i>
             <span>Tambah</span>
         </button>
@@ -127,9 +127,6 @@
                 <td colspan="6" class="text-center py-5 text-muted">
                     <i class="bi bi-clipboard-x display-6 d-block mb-2 text-secondary"></i>
                     <p class="mb-0">Belum ada dokumen Stok Opname yang ditemukan.</p>
-                    <button type="button" class="btn btn-primary btn-sm mt-3 px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahOpname">
-                        <i class="bi bi-plus-lg me-1"></i> Mulai Stok Opname
-                    </button>
                 </td>
             </tr>
             @endforelse
@@ -308,9 +305,9 @@
             const list = [];
             Object.keys(groupedByName).forEach(key => {
                 const variants = groupedByName[key];
-                const exactOutletMatch = outletId
-                    ? variants.find(v => String(v.nid_outlet || '') === String(outletId))
-                    : null;
+                const exactOutletMatch = outletId ?
+                    variants.find(v => String(v.nid_outlet || '') === String(outletId)) :
+                    null;
                 const globalMatch = variants.find(v => !v.nid_outlet);
 
                 if (exactOutletMatch) {
@@ -645,4 +642,3 @@
         }
     });
 </script>
-

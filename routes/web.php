@@ -132,6 +132,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/stock-opname/{id}/cancel', [InventoryController::class, 'cancelStockOpname'])->name('stock-opname.cancel');
         Route::get('/stock-opname/{id}/print', [InventoryController::class, 'printStockOpname'])->name('stock-opname.print');
         Route::get('/stock-opname/{id}/export-excel', [InventoryController::class, 'exportStockOpnameExcel'])->name('stock-opname.export-excel');
+
+        // Pergerakan Stok Export
+        Route::get('/movement/export-excel', [InventoryController::class, 'exportStockMovementExcel'])->name('movement.export-excel');
     });
 
     // POS Management Routes

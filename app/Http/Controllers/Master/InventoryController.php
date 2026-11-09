@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Master;
 
+use App\Exports\StockMovementExport;
 use App\Http\Controllers\Controller;
 use App\Models\MposIngredients;
 use App\Models\MposGrpProduct;
@@ -20,8 +21,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class InventoryController extends Controller
 {
@@ -249,320 +252,14 @@ class InventoryController extends Controller
                 ->withQueryString();
             $totalStockOpname = $stockOpnames->total();
         } elseif ($activeTab === 'pergerakan_stok') {
-            $startDateTime = $startDate . ' 00:00:00';
-            $endDateTime = $endDate . ' 23:59:59';
-
-            // 1. Ambil seluruh data penjualan di periode tersebut
-            $salesQuery = DB::table('mpos_sales_d')
-                ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-                ->whereBetween('mpos_sales_h.dtransaction', [$startDateTime, $endDateTime])
-                ->where(function ($q) {
-                    $q->whereIn('mpos_sales_h.cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
-                        ->orWhere(function ($sub) {
-                            $sub->whereNotIn('mpos_sales_h.cstatus', [
-                                MposSalesH::STATUS_CANCELLED,
-                                MposSalesH::STATUS_DRAFT,
-                                MposSalesH::STATUS_VOID,
-                                MposSalesH::STATUS_REFUND,
-                            ])->whereNotNull('mpos_sales_h.nid_payment');
-                        });
-                });
-
-            if (!empty($selectedOutletId)) {
-                $salesQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
-            } elseif (!$isSuperAdmin) {
-                $salesQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
-            }
-
-            $salesRows = $salesQuery->select(
-                'mpos_sales_d.nid_product',
-                'mpos_sales_h.nid_outlet',
-                DB::raw('SUM(GREATEST(0, mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund)) as total_sales'),
-                DB::raw('SUM(GREATEST(0, mpos_sales_d.nqty_refund)) as total_refund')
-            )->groupBy('mpos_sales_d.nid_product', 'mpos_sales_h.nid_outlet')->get();
-
-            $productMovements = [];
-            $ingredientMovements = [];
-
-            // Preload produk beserta kategori dan resep bahan baku
-            $soldProductIds = $salesRows->pluck('nid_product')->filter()->unique()->values();
-            $soldProducts = MposProduct::with(['category', 'recipes.ingredient'])->whereIn('nid', $soldProductIds)->get()->keyBy('nid');
-
-            foreach ($salesRows as $r) {
-                $prod = $soldProducts->get($r->nid_product);
-                if (!$prod) continue;
-
-                $trackStock = $prod->category && isset($prod->category->ftrack_stock)
-                    ? (bool) $prod->category->ftrack_stock
-                    : true;
-
-                if ($trackStock) {
-                    $pId = $prod->nid;
-                    if (!isset($productMovements[$pId])) {
-                        $productMovements[$pId] = [
-                            'type' => 'PRODUCT',
-                            'id' => $prod->nid,
-                            'name' => $prod->cname,
-                            'category_name' => $prod->category?->cname ?: 'Produk',
-                            'masuk' => 0.0,
-                            'penjualan' => 0.0,
-                            'pengembalian' => 0.0,
-                            'keluar' => 0.0,
-                            'sisa' => (float) $prod->nqty,
-                        ];
-                    }
-                    $productMovements[$pId]['penjualan'] += (float) $r->total_sales;
-                    $productMovements[$pId]['pengembalian'] += (float) $r->total_refund;
-                } else {
-                    foreach ($prod->recipes as $recipe) {
-                        if ($recipe->ingredient) {
-                            $outletRecProd = MposProduct::with('category')
-                                ->where('nid_outlet', $r->nid_outlet)
-                                ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) $recipe->ingredient->cname))])
-                                ->first() ?: $recipe->ingredient;
-
-                            $recProdId = $outletRecProd->nid;
-                            if (!isset($productMovements[$recProdId])) {
-                                $productMovements[$recProdId] = [
-                                    'type' => MposStockMutation::normalizeItemType($outletRecProd->cproduct_type ?? 'BAHAN_BAKU'),
-                                    'id' => $outletRecProd->nid,
-                                    'name' => $outletRecProd->cname,
-                                    'category_name' => $outletRecProd->category?->cname ?: 'Bahan Baku',
-                                    'masuk' => 0.0,
-                                    'penjualan' => 0.0,
-                                    'pengembalian' => 0.0,
-                                    'keluar' => 0.0,
-                                    'sisa' => (float) $outletRecProd->nqty,
-                                ];
-                            }
-                            $productMovements[$recProdId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
-                            $productMovements[$recProdId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
-                        } elseif ($recipe->legacyIngredient) {
-                            $outletIng = MposIngredients::where('nid_outlet', $r->nid_outlet)
-                                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $recipe->legacyIngredient->cname))])
-                                ->first() ?: $recipe->legacyIngredient;
-
-                            $ingId = $outletIng->nid;
-                            if (!isset($ingredientMovements[$ingId])) {
-                                $displayName = $outletIng->cname . ($outletIng->csatuan ? ' (' . $outletIng->csatuan . ')' : '');
-                                $ingredientMovements[$ingId] = [
-                                    'type' => 'INGREDIENT',
-                                    'id' => $outletIng->nid,
-                                    'name' => $displayName,
-                                    'category_name' => 'Bahan Baku',
-                                    'masuk' => 0.0,
-                                    'penjualan' => 0.0,
-                                    'pengembalian' => 0.0,
-                                    'keluar' => 0.0,
-                                    'sisa' => (float) $outletIng->nstock,
-                                ];
-                            }
-                            $ingredientMovements[$ingId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
-                            $ingredientMovements[$ingId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
-                        }
-                    }
-                }
-            }
-
-            // 2. Ambil seluruh data Mutasi Stok (IN dan OUT) di periode tersebut dari mpos_stock_mutations
-            $mutationQuery = DB::table('mpos_stock_mutations')
-                ->whereBetween('dmutation', [$startDateTime, $endDateTime])
-                ->where('cstatus', MposStockMutation::STATUS_POSTED);
-
-            if (!empty($selectedOutletId)) {
-                $mutationQuery->where('nid_outlet', $selectedOutletId);
-            } elseif (!$isSuperAdmin) {
-                $mutationQuery->whereIn('nid_outlet', $allowedOutletIds);
-            }
-
-            $mutationRows = $mutationQuery->select(
-                'ctype',
-                'citem_type',
-                'nid_product',
-                'nid_ingredient',
-                DB::raw('SUM(nqty) as total_qty')
-            )->groupBy('ctype', 'citem_type', 'nid_product', 'nid_ingredient')->get();
-
-            $mutProdIds = $mutationRows->filter(function ($row) {
-                return !empty($row->nid_product);
-            })->pluck('nid_product')->filter()->unique()->values();
-            $mutProds = MposProduct::with('category')->whereIn('nid', $mutProdIds)->get()->keyBy('nid');
-
-            $mutIngIds = $mutationRows->filter(function ($row) {
-                return empty($row->nid_product) && !empty($row->nid_ingredient);
-            })->pluck('nid_ingredient')->filter()->unique()->values();
-            $mutIngs = $mutIngIds->isNotEmpty()
-                ? MposIngredients::whereIn('nid', $mutIngIds)->get()->keyBy('nid')
-                : collect();
-
-            foreach ($mutationRows as $r) {
-                $qty = (float) $r->total_qty;
-
-                if (!empty($r->nid_product)) {
-                    $prod = $mutProds->get($r->nid_product);
-                    if (!$prod) {
-                        continue;
-                    }
-                    $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
-                    $trackStock = $prod->category && isset($prod->category->ftrack_stock)
-                        ? (bool) $prod->category->ftrack_stock
-                        : true;
-
-                    if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
-                        $pId = $prod->nid;
-                        if (!isset($productMovements[$pId])) {
-                            $productMovements[$pId] = [
-                                'type' => $normType,
-                                'id' => $prod->nid,
-                                'name' => $prod->cname,
-                                'category_name' => $prod->category?->cname ?: 'Produk',
-                                'masuk' => 0.0,
-                                'penjualan' => 0.0,
-                                'pengembalian' => 0.0,
-                                'keluar' => 0.0,
-                                'sisa' => (float) $prod->nqty,
-                            ];
-                        }
-                        if ($r->ctype === 'IN') {
-                            $productMovements[$pId]['masuk'] += $qty;
-                        } else {
-                            $productMovements[$pId]['keluar'] += $qty;
-                        }
-                    }
-                } elseif (!empty($r->nid_ingredient)) {
-                    $ing = $mutIngs->get($r->nid_ingredient);
-                    if (!$ing) {
-                        continue;
-                    }
-                    $ingId = $ing->nid;
-                    if (!isset($ingredientMovements[$ingId])) {
-                        $displayName = $ing->cname . ($ing->csatuan ? ' (' . $ing->csatuan . ')' : '');
-                        $ingredientMovements[$ingId] = [
-                            'type' => 'INGREDIENT',
-                            'id' => $ing->nid,
-                            'name' => $displayName,
-                            'category_name' => 'Bahan Baku',
-                            'masuk' => 0.0,
-                            'penjualan' => 0.0,
-                            'pengembalian' => 0.0,
-                            'keluar' => 0.0,
-                            'sisa' => (float) $ing->nstock,
-                        ];
-                    }
-                    if ($r->ctype === 'IN') {
-                        $ingredientMovements[$ingId]['masuk'] += $qty;
-                    } else {
-                        $ingredientMovements[$ingId]['keluar'] += $qty;
-                    }
-                }
-            }
-
-            // 3. Dukungan untuk Legacy PO yang belum tercatat di mpos_stock_mutations
-            $legacyPoQuery = DB::table('mpos_purchase_d')
-                ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
-                ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
-                ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
-                ->whereNotExists(function ($sub) {
-                    $sub->select(DB::raw(1))
-                        ->from('mpos_stock_mutations')
-                        ->where('ctype', 'IN')
-                        ->whereColumn('mpos_stock_mutations.cnote', 'like', DB::raw("CONCAT('%', mpos_purchase_h.cno_purchase, '%')"));
-                });
-
-            if (!empty($selectedOutletId)) {
-                $legacyPoQuery->where('mpos_purchase_h.nid_outlet', $selectedOutletId);
-            } elseif (!$isSuperAdmin) {
-                $legacyPoQuery->whereIn('mpos_purchase_h.nid_outlet', $allowedOutletIds);
-            }
-
-            $legacyPoRows = $legacyPoQuery->select(
-                'mpos_purchase_d.citem_type',
-                'mpos_purchase_d.nid_product',
-                'mpos_purchase_d.nid_ingredient',
-                DB::raw('SUM(mpos_purchase_d.nqty) as total_in')
-            )->groupBy('mpos_purchase_d.citem_type', 'mpos_purchase_d.nid_product', 'mpos_purchase_d.nid_ingredient')->get();
-
-            foreach ($legacyPoRows as $r) {
-                if (!empty($r->nid_product)) {
-                    $prod = MposProduct::with('category')->find($r->nid_product);
-                    if (!$prod) {
-                        continue;
-                    }
-                    $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
-                    $trackStock = $prod->category && isset($prod->category->ftrack_stock) ? (bool) $prod->category->ftrack_stock : true;
-                    if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
-                        $pId = $prod->nid;
-                        if (!isset($productMovements[$pId])) {
-                            $productMovements[$pId] = [
-                                'type' => $normType,
-                                'id' => $prod->nid,
-                                'name' => $prod->cname,
-                                'category_name' => $prod->category?->cname ?: 'Produk',
-                                'masuk' => 0.0,
-                                'penjualan' => 0.0,
-                                'pengembalian' => 0.0,
-                                'keluar' => 0.0,
-                                'sisa' => (float) $prod->nqty,
-                            ];
-                        }
-                        $productMovements[$pId]['masuk'] += (float) $r->total_in;
-                    }
-                } elseif (!empty($r->nid_ingredient)) {
-                    $ing = MposIngredients::find($r->nid_ingredient);
-                    if (!$ing) continue;
-                    $ingId = $ing->nid;
-                    if (!isset($ingredientMovements[$ingId])) {
-                        $displayName = $ing->cname . ($ing->csatuan ? ' (' . $ing->csatuan . ')' : '');
-                        $ingredientMovements[$ingId] = [
-                            'type' => 'INGREDIENT',
-                            'id' => $ing->nid,
-                            'name' => $displayName,
-                            'category_name' => 'Bahan Baku',
-                            'masuk' => 0.0,
-                            'penjualan' => 0.0,
-                            'pengembalian' => 0.0,
-                            'keluar' => 0.0,
-                            'sisa' => (float) $ing->nstock,
-                        ];
-                    }
-                    $ingredientMovements[$ingId]['masuk'] += (float) $r->total_in;
-                }
-            }
-
-            // 4. Gabungkan seluruh item yang memiliki pergerakan (masuk > 0, penjualan > 0, pengembalian > 0, keluar > 0)
-            $allItems = collect(array_values($productMovements))
-                ->merge(array_values($ingredientMovements))
-                ->filter(function ($item) {
-                    return ($item['masuk'] > 0 || $item['penjualan'] > 0 || $item['pengembalian'] > 0 || $item['keluar'] > 0);
-                });
-
-            // Filter pencarian jika ada
-            if (!empty($search)) {
-                $allItems = $allItems->filter(function ($item) use ($search) {
-                    return stripos($item['name'], $search) !== false
-                        || stripos($item['category_name'], $search) !== false;
-                });
-            }
-
-            // Hitung nilai Awal
-            $allItems = $allItems->map(function ($item) {
-                $awal = $item['sisa'] - $item['masuk'] - $item['pengembalian'] + $item['penjualan'] + $item['keluar'];
-                if ($awal < 0) {
-                    $awal = 0.0;
-                }
-                return (object) [
-                    'nid' => $item['id'],
-                    'item_type' => $item['type'],
-                    'cname' => $item['name'],
-                    'category_name' => $item['category_name'],
-                    'qty_awal' => $awal,
-                    'qty_masuk' => $item['masuk'],
-                    'qty_pengembalian' => $item['pengembalian'],
-                    'qty_penjualan' => $item['penjualan'],
-                    'qty_keluar' => $item['keluar'],
-                    'qty_sisa' => $item['sisa'],
-                ];
-            })->sortBy('cname')->values();
+            $allItems = $this->calculateStockMovementData(
+                $startDate,
+                $endDate,
+                $selectedOutletId,
+                $search,
+                $isSuperAdmin,
+                $allowedOutletIds
+            );
 
             // Paginasi LengthAwarePaginator
             $currentPage = Paginator::resolveCurrentPage() ?: 1;
@@ -2691,5 +2388,522 @@ class InventoryController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Export data Pergerakan Stok ke Excel (.xlsx).
+     *
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function exportStockMovementExcel(Request $request)
+    {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        $isSuperAdmin = $this->isSuperAdminUser();
+
+        $startDate = $request->input('start_date', Carbon::now()->format('Y-m-d'));
+        $endDate = $request->input('end_date', Carbon::now()->format('Y-m-d'));
+        $search = $request->input('search');
+
+        $outletName = 'Semua Outlet';
+        if (!empty($selectedOutletId)) {
+            $outlet = MposOutlet::find($selectedOutletId);
+            if ($outlet) {
+                $outletName = $outlet->cname;
+            }
+        }
+
+        $movements = $this->calculateStockMovementData(
+            $startDate,
+            $endDate,
+            $selectedOutletId,
+            $search,
+            $isSuperAdmin,
+            $allowedOutletIds
+        );
+
+        $dateSuffix = $startDate === $endDate
+            ? Carbon::parse($startDate)->format('Ymd')
+            : Carbon::parse($startDate)->format('Ymd') . '_' . Carbon::parse($endDate)->format('Ymd');
+        $filename = "Pergerakan_Stok_{$dateSuffix}.xlsx";
+
+        return Excel::download(new StockMovementExport($movements, $startDate, $endDate, $outletName), $filename);
+    }
+
+    /**
+     * Menghitung data pergerakan stok (gabungan penjualan, mutasi stok, dan PO).
+     *
+     * @param string $startDate
+     * @param string $endDate
+     * @param string|null $selectedOutletId
+     * @param string|null $search
+     * @param bool|null $isSuperAdmin
+     * @param array|null $allowedOutletIds
+     * @return Collection
+     */
+    protected function calculateStockMovementData(
+        string $startDate,
+        string $endDate,
+        ?string $selectedOutletId = null,
+        ?string $search = null,
+        ?bool $isSuperAdmin = null,
+        ?array $allowedOutletIds = null
+    ): Collection {
+        if ($isSuperAdmin === null) {
+            $isSuperAdmin = $this->isSuperAdminUser();
+        }
+        if ($allowedOutletIds === null) {
+            $allowedOutletIds = $this->getUserAllowedOutletIds();
+        }
+
+        $startDateTime = $startDate . ' 00:00:00';
+        $endDateTime = $endDate . ' 23:59:59';
+
+        // 1. Ambil seluruh data penjualan di periode tersebut
+        $salesQuery = DB::table('mpos_sales_d')
+            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
+            ->whereBetween('mpos_sales_h.dtransaction', [$startDateTime, $endDateTime])
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+                    ->orWhere(function ($sub) {
+                        $sub->whereNotIn('mpos_sales_h.cstatus', [
+                            MposSalesH::STATUS_CANCELLED,
+                            MposSalesH::STATUS_DRAFT,
+                            MposSalesH::STATUS_VOID,
+                            MposSalesH::STATUS_REFUND,
+                        ])->whereNotNull('mpos_sales_h.nid_payment');
+                    });
+            });
+
+        if (!empty($selectedOutletId)) {
+            $salesQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $salesQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $salesRows = $salesQuery->select(
+            'mpos_sales_d.nid_product',
+            'mpos_sales_h.nid_outlet',
+            DB::raw('SUM(GREATEST(0, mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund)) as total_sales'),
+            DB::raw('SUM(GREATEST(0, mpos_sales_d.nqty_refund)) as total_refund')
+        )->groupBy('mpos_sales_d.nid_product', 'mpos_sales_h.nid_outlet')->get();
+
+        // 1b. Ambil transaksi penjualan terakhir per produk untuk created_by & created_time
+        $latestSalesQuery = DB::table('mpos_sales_d')
+            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
+            ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
+            ->leftJoin('muser as u_pos', 'mpos_user.nid_user', '=', 'u_pos.nid')
+            ->leftJoin('muser as u_direct', 'mpos_sales_h.nid_user', '=', 'u_direct.nid')
+            ->whereBetween('mpos_sales_h.dtransaction', [$startDateTime, $endDateTime])
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [MposSalesH::STATUS_PAID, MposSalesH::STATUS_COMPLETED])
+                    ->orWhere(function ($sub) {
+                        $sub->whereNotIn('mpos_sales_h.cstatus', [
+                            MposSalesH::STATUS_CANCELLED,
+                            MposSalesH::STATUS_DRAFT,
+                            MposSalesH::STATUS_VOID,
+                            MposSalesH::STATUS_REFUND,
+                        ])->whereNotNull('mpos_sales_h.nid_payment');
+                    });
+            });
+
+        if (!empty($selectedOutletId)) {
+            $latestSalesQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $latestSalesQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $latestSales = $latestSalesQuery->select(
+            'mpos_sales_d.nid_product',
+            'mpos_sales_h.dtransaction',
+            DB::raw("COALESCE(u_pos.cname, u_direct.cname, 'System') as user_name")
+        )
+        ->orderBy('mpos_sales_h.dtransaction', 'desc')
+        ->get()
+        ->groupBy('nid_product')
+        ->map(fn($g) => $g->first());
+
+        $productMovements = [];
+        $ingredientMovements = [];
+
+        // Preload produk beserta kategori dan resep bahan baku
+        $soldProductIds = $salesRows->pluck('nid_product')->filter()->unique()->values();
+        $soldProducts = MposProduct::with(['category', 'recipes.ingredient'])->whereIn('nid', $soldProductIds)->get()->keyBy('nid');
+
+        foreach ($salesRows as $r) {
+            $prod = $soldProducts->get($r->nid_product);
+            if (!$prod) continue;
+
+            $trackStock = $prod->category && isset($prod->category->ftrack_stock)
+                ? (bool) $prod->category->ftrack_stock
+                : true;
+
+            if ($trackStock) {
+                $pId = $prod->nid;
+                if (!isset($productMovements[$pId])) {
+                    $productMovements[$pId] = [
+                        'type' => 'PRODUCT',
+                        'id' => $prod->nid,
+                        'name' => $prod->cname,
+                        'category_name' => $prod->category?->cname ?: 'Produk',
+                        'masuk' => 0.0,
+                        'penjualan' => 0.0,
+                        'pengembalian' => 0.0,
+                        'keluar' => 0.0,
+                        'sisa' => (float) $prod->nqty,
+                    ];
+                }
+                $productMovements[$pId]['penjualan'] += (float) $r->total_sales;
+                $productMovements[$pId]['pengembalian'] += (float) $r->total_refund;
+            } else {
+                foreach ($prod->recipes as $recipe) {
+                    if ($recipe->ingredient) {
+                        $outletRecProd = MposProduct::with('category')
+                            ->where('nid_outlet', $r->nid_outlet)
+                            ->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim((string) $recipe->ingredient->cname))])
+                            ->first() ?: $recipe->ingredient;
+
+                        $recProdId = $outletRecProd->nid;
+                        if (!isset($productMovements[$recProdId])) {
+                            $productMovements[$recProdId] = [
+                                'type' => MposStockMutation::normalizeItemType($outletRecProd->cproduct_type ?? 'BAHAN_BAKU'),
+                                'id' => $outletRecProd->nid,
+                                'name' => $outletRecProd->cname,
+                                'category_name' => $outletRecProd->category?->cname ?: 'Bahan Baku',
+                                'masuk' => 0.0,
+                                'penjualan' => 0.0,
+                                'pengembalian' => 0.0,
+                                'keluar' => 0.0,
+                                'sisa' => (float) $outletRecProd->nqty,
+                            ];
+                        }
+                        $productMovements[$recProdId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
+                        $productMovements[$recProdId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
+                    } elseif ($recipe->legacyIngredient) {
+                        $outletIng = MposIngredients::where('nid_outlet', $r->nid_outlet)
+                            ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $recipe->legacyIngredient->cname))])
+                            ->first() ?: $recipe->legacyIngredient;
+
+                        $ingId = $outletIng->nid;
+                        if (!isset($ingredientMovements[$ingId])) {
+                            $displayName = $outletIng->cname . ($outletIng->csatuan ? ' (' . $outletIng->csatuan . ')' : '');
+                            $ingredientMovements[$ingId] = [
+                                'type' => 'INGREDIENT',
+                                'id' => $outletIng->nid,
+                                'name' => $displayName,
+                                'category_name' => 'Bahan Baku',
+                                'masuk' => 0.0,
+                                'penjualan' => 0.0,
+                                'pengembalian' => 0.0,
+                                'keluar' => 0.0,
+                                'sisa' => (float) $outletIng->nstock,
+                            ];
+                        }
+                        $ingredientMovements[$ingId]['penjualan'] += ((float) $r->total_sales * (float) $recipe->nqty);
+                        $ingredientMovements[$ingId]['pengembalian'] += ((float) $r->total_refund * (float) $recipe->nqty);
+                    }
+                }
+            }
+        }
+
+        // 2. Ambil seluruh data Mutasi Stok (IN dan OUT) di periode tersebut dari mpos_stock_mutations
+        $mutationQuery = DB::table('mpos_stock_mutations')
+            ->whereBetween('dmutation', [$startDateTime, $endDateTime])
+            ->where('cstatus', MposStockMutation::STATUS_POSTED);
+
+        if (!empty($selectedOutletId)) {
+            $mutationQuery->where('nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $mutationQuery->whereIn('nid_outlet', $allowedOutletIds);
+        }
+
+        $mutationRows = $mutationQuery->select(
+            'ctype',
+            'citem_type',
+            'nid_product',
+            'nid_ingredient',
+            DB::raw('SUM(nqty) as total_qty')
+        )->groupBy('ctype', 'citem_type', 'nid_product', 'nid_ingredient')->get();
+
+        // 2b. Ambil mutasi terakhir per produk & ingredient untuk created_by & created_time
+        $latestMutationQuery = DB::table('mpos_stock_mutations')
+            ->leftJoin('muser', 'mpos_stock_mutations.nid_user', '=', 'muser.nid')
+            ->whereBetween('dmutation', [$startDateTime, $endDateTime])
+            ->where('cstatus', MposStockMutation::STATUS_POSTED);
+
+        if (!empty($selectedOutletId)) {
+            $latestMutationQuery->where('nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $latestMutationQuery->whereIn('nid_outlet', $allowedOutletIds);
+        }
+
+        $latestMutations = $latestMutationQuery->select(
+            'nid_product',
+            'nid_ingredient',
+            'dmutation',
+            DB::raw("COALESCE(muser.cname, 'System') as user_name")
+        )
+        ->orderBy('dmutation', 'desc')
+        ->get();
+
+        $latestMutationByProd = $latestMutations->whereNotNull('nid_product')->groupBy('nid_product')->map(fn($g) => $g->first());
+        $latestMutationByIng = $latestMutations->whereNull('nid_product')->whereNotNull('nid_ingredient')->groupBy('nid_ingredient')->map(fn($g) => $g->first());
+
+        $mutProdIds = $mutationRows->filter(function ($row) {
+            return !empty($row->nid_product);
+        })->pluck('nid_product')->filter()->unique()->values();
+        $mutProds = MposProduct::with('category')->whereIn('nid', $mutProdIds)->get()->keyBy('nid');
+
+        $mutIngIds = $mutationRows->filter(function ($row) {
+            return empty($row->nid_product) && !empty($row->nid_ingredient);
+        })->pluck('nid_ingredient')->filter()->unique()->values();
+        $mutIngs = $mutIngIds->isNotEmpty()
+            ? MposIngredients::whereIn('nid', $mutIngIds)->get()->keyBy('nid')
+            : collect();
+
+        foreach ($mutationRows as $r) {
+            $qty = (float) $r->total_qty;
+
+            if (!empty($r->nid_product)) {
+                $prod = $mutProds->get($r->nid_product);
+                if (!$prod) {
+                    continue;
+                }
+                $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
+                $trackStock = $prod->category && isset($prod->category->ftrack_stock)
+                    ? (bool) $prod->category->ftrack_stock
+                    : true;
+
+                if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
+                    $pId = $prod->nid;
+                    if (!isset($productMovements[$pId])) {
+                        $productMovements[$pId] = [
+                            'type' => $normType,
+                            'id' => $prod->nid,
+                            'name' => $prod->cname,
+                            'category_name' => $prod->category?->cname ?: 'Produk',
+                            'masuk' => 0.0,
+                            'penjualan' => 0.0,
+                            'pengembalian' => 0.0,
+                            'keluar' => 0.0,
+                            'sisa' => (float) $prod->nqty,
+                        ];
+                    }
+                    if ($r->ctype === 'IN') {
+                        $productMovements[$pId]['masuk'] += $qty;
+                    } else {
+                        $productMovements[$pId]['keluar'] += $qty;
+                    }
+                }
+            } elseif (!empty($r->nid_ingredient)) {
+                $ing = $mutIngs->get($r->nid_ingredient);
+                if (!$ing) {
+                    continue;
+                }
+                $ingId = $ing->nid;
+                if (!isset($ingredientMovements[$ingId])) {
+                    $displayName = $ing->cname . ($ing->csatuan ? ' (' . $ing->csatuan . ')' : '');
+                    $ingredientMovements[$ingId] = [
+                        'type' => 'INGREDIENT',
+                        'id' => $ing->nid,
+                        'name' => $displayName,
+                        'category_name' => 'Bahan Baku',
+                        'masuk' => 0.0,
+                        'penjualan' => 0.0,
+                        'pengembalian' => 0.0,
+                        'keluar' => 0.0,
+                        'sisa' => (float) $ing->nstock,
+                    ];
+                }
+                if ($r->ctype === 'IN') {
+                    $ingredientMovements[$ingId]['masuk'] += $qty;
+                } else {
+                    $ingredientMovements[$ingId]['keluar'] += $qty;
+                }
+            }
+        }
+
+        // 3. Dukungan untuk Legacy PO yang belum tercatat di mpos_stock_mutations
+        $legacyPoQuery = DB::table('mpos_purchase_d')
+            ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
+            ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
+            ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('mpos_stock_mutations')
+                    ->where('ctype', 'IN')
+                    ->whereColumn('mpos_stock_mutations.cnote', 'like', DB::raw("CONCAT('%', mpos_purchase_h.cno_purchase, '%')"));
+            });
+
+        if (!empty($selectedOutletId)) {
+            $legacyPoQuery->where('mpos_purchase_h.nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $legacyPoQuery->whereIn('mpos_purchase_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $legacyPoRows = $legacyPoQuery->select(
+            'mpos_purchase_d.citem_type',
+            'mpos_purchase_d.nid_product',
+            'mpos_purchase_d.nid_ingredient',
+            DB::raw('SUM(mpos_purchase_d.nqty) as total_in')
+        )->groupBy('mpos_purchase_d.citem_type', 'mpos_purchase_d.nid_product', 'mpos_purchase_d.nid_ingredient')->get();
+
+        // 3b. Ambil PO terakhir per produk & ingredient untuk created_by & created_time
+        $latestPoQuery = DB::table('mpos_purchase_d')
+            ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
+            ->leftJoin('muser', 'mpos_purchase_h.nid_user', '=', 'muser.nid')
+            ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
+            ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
+            ->whereNotExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('mpos_stock_mutations')
+                    ->where('ctype', 'IN')
+                    ->whereColumn('mpos_stock_mutations.cnote', 'like', DB::raw("CONCAT('%', mpos_purchase_h.cno_purchase, '%')"));
+            });
+
+        if (!empty($selectedOutletId)) {
+            $latestPoQuery->where('mpos_purchase_h.nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $latestPoQuery->whereIn('mpos_purchase_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $latestPos = $latestPoQuery->select(
+            'mpos_purchase_d.nid_product',
+            'mpos_purchase_d.nid_ingredient',
+            'mpos_purchase_h.dreceived',
+            DB::raw("COALESCE(muser.cname, 'System') as user_name")
+        )
+        ->orderBy('mpos_purchase_h.dreceived', 'desc')
+        ->get();
+
+        $latestPoByProd = $latestPos->whereNotNull('nid_product')->groupBy('nid_product')->map(fn($g) => $g->first());
+        $latestPoByIng = $latestPos->whereNull('nid_product')->whereNotNull('nid_ingredient')->groupBy('nid_ingredient')->map(fn($g) => $g->first());
+
+        foreach ($legacyPoRows as $r) {
+            if (!empty($r->nid_product)) {
+                $prod = MposProduct::with('category')->find($r->nid_product);
+                if (!$prod) {
+                    continue;
+                }
+                $normType = MposStockMutation::normalizeItemType($prod->cproduct_type ?? $r->citem_type);
+                $trackStock = $prod->category && isset($prod->category->ftrack_stock) ? (bool) $prod->category->ftrack_stock : true;
+                if ($trackStock || in_array($normType, [MposStockMutation::ITEM_SETENGAH_JADI, MposStockMutation::ITEM_BAHAN_BAKU], true)) {
+                    $pId = $prod->nid;
+                    if (!isset($productMovements[$pId])) {
+                        $productMovements[$pId] = [
+                            'type' => $normType,
+                            'id' => $prod->nid,
+                            'name' => $prod->cname,
+                            'category_name' => $prod->category?->cname ?: 'Produk',
+                            'masuk' => 0.0,
+                            'penjualan' => 0.0,
+                            'pengembalian' => 0.0,
+                            'keluar' => 0.0,
+                            'sisa' => (float) $prod->nqty,
+                        ];
+                    }
+                    $productMovements[$pId]['masuk'] += (float) $r->total_in;
+                }
+            } elseif (!empty($r->nid_ingredient)) {
+                $ing = MposIngredients::find($r->nid_ingredient);
+                if (!$ing) continue;
+                $ingId = $ing->nid;
+                if (!isset($ingredientMovements[$ingId])) {
+                    $displayName = $ing->cname . ($ing->csatuan ? ' (' . $ing->csatuan . ')' : '');
+                    $ingredientMovements[$ingId] = [
+                        'type' => 'INGREDIENT',
+                        'id' => $ing->nid,
+                        'name' => $displayName,
+                        'category_name' => 'Bahan Baku',
+                        'masuk' => 0.0,
+                        'penjualan' => 0.0,
+                        'pengembalian' => 0.0,
+                        'keluar' => 0.0,
+                        'sisa' => (float) $ing->nstock,
+                    ];
+                }
+                $ingredientMovements[$ingId]['masuk'] += (float) $r->total_in;
+            }
+        }
+
+        // 4. Gabungkan seluruh item yang memiliki pergerakan (masuk > 0, penjualan > 0, pengembalian > 0, keluar > 0)
+        $allItems = collect(array_values($productMovements))
+            ->merge(array_values($ingredientMovements))
+            ->filter(function ($item) {
+                return ($item['masuk'] > 0 || $item['penjualan'] > 0 || $item['pengembalian'] > 0 || $item['keluar'] > 0);
+            });
+
+        // Filter pencarian jika ada
+        if (!empty($search)) {
+            $allItems = $allItems->filter(function ($item) use ($search) {
+                return stripos($item['name'], $search) !== false
+                    || stripos($item['category_name'], $search) !== false;
+            });
+        }
+
+        // Hitung nilai Awal & tentukan created_by serta created_time dari aktivitas terbaru
+        $defaultUserName = Auth::user()?->cname ?? 'System';
+        $defaultTime = Carbon::now()->format('Y-m-d H:i:s');
+
+        $allItems = $allItems->map(function ($item) use ($latestSales, $latestMutationByProd, $latestMutationByIng, $latestPoByProd, $latestPoByIng, $defaultUserName, $defaultTime) {
+            $awal = $item['sisa'] - $item['masuk'] - $item['pengembalian'] + $item['penjualan'] + $item['keluar'];
+            if ($awal < 0) {
+                $awal = 0.0;
+            }
+
+            $isIng = ($item['type'] === 'INGREDIENT');
+            $latestSale = !$isIng ? $latestSales->get($item['id']) : null;
+            $latestMut = $isIng ? $latestMutationByIng->get($item['id']) : $latestMutationByProd->get($item['id']);
+            $latestPo = $isIng ? $latestPoByIng->get($item['id']) : $latestPoByProd->get($item['id']);
+
+            $candidates = [];
+            if ($latestSale && !empty($latestSale->dtransaction)) {
+                $candidates[] = [
+                    'time' => Carbon::parse($latestSale->dtransaction)->format('Y-m-d H:i:s'),
+                    'user' => $latestSale->user_name,
+                ];
+            }
+            if ($latestMut && !empty($latestMut->dmutation)) {
+                $candidates[] = [
+                    'time' => Carbon::parse($latestMut->dmutation)->format('Y-m-d H:i:s'),
+                    'user' => $latestMut->user_name,
+                ];
+            }
+            if ($latestPo && !empty($latestPo->dreceived)) {
+                $candidates[] = [
+                    'time' => Carbon::parse($latestPo->dreceived)->format('Y-m-d H:i:s'),
+                    'user' => $latestPo->user_name,
+                ];
+            }
+
+            if (!empty($candidates)) {
+                usort($candidates, function ($a, $b) {
+                    return strcmp($b['time'], $a['time']);
+                });
+                $createdBy = $candidates[0]['user'] ?: $defaultUserName;
+                $createdTime = $candidates[0]['time'];
+            } else {
+                $createdBy = $defaultUserName;
+                $createdTime = $defaultTime;
+            }
+
+            return (object) [
+                'nid' => $item['id'],
+                'item_type' => $item['type'],
+                'cname' => $item['name'],
+                'category_name' => $item['category_name'],
+                'qty_awal' => $awal,
+                'qty_masuk' => $item['masuk'],
+                'qty_pengembalian' => $item['pengembalian'],
+                'qty_penjualan' => $item['penjualan'],
+                'qty_keluar' => $item['keluar'],
+                'qty_sisa' => $item['sisa'],
+                'created_by' => $createdBy,
+                'created_time' => $createdTime,
+            ];
+        })->sortBy('cname')->values();
+
+        return $allItems;
     }
 }
