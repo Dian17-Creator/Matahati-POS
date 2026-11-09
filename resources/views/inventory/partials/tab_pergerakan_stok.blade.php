@@ -6,7 +6,7 @@
     </div>
 
     <div>
-        <button type="button" class="btn btn-success btn-sm px-3" onclick="alert('Fitur download excel pergerakan stok siap diintegrasikan.')">
+        <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3">
             <i class="bi bi-download me-1"></i> Download Excel
         </button>
     </div>
@@ -250,6 +250,31 @@
                     e.preventDefault();
                     fetchMovementData(pageLink.href);
                 }
+            });
+        }
+
+        // Handle Download Excel Pergerakan Stok
+        const btnExportStockMovement = document.getElementById('btnExportStockMovement');
+        if (btnExportStockMovement) {
+            btnExportStockMovement.addEventListener('click', function(e) {
+                e.preventDefault();
+                const params = new URLSearchParams();
+                const start = document.getElementById('movementStartDate')?.value || '{{ $startDate }}';
+                const end = document.getElementById('movementEndDate')?.value || '{{ $endDate }}';
+                params.set('start_date', start);
+                params.set('end_date', end);
+
+                const outlet = document.getElementById('movementOutletId')?.value || '{{ $selectedOutletId }}';
+                if (outlet) {
+                    params.set('nid_outlet', outlet);
+                }
+
+                const search = document.getElementById('movementSearchInput')?.value || '';
+                if (search.trim()) {
+                    params.set('search', search.trim());
+                }
+
+                window.location.href = "{{ route('inventory.movement.export-excel') }}?" + params.toString();
             });
         }
     });
