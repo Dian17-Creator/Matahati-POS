@@ -78,21 +78,21 @@
 </div>
 
 <!-- Tabel Daftar Stok Opname Sesuai Layout Referensi Stok Masuk/Keluar -->
-<div class="table-responsive border rounded-2 mb-0">
-    <table class="table table-hover align-middle mb-0">
-        <thead class="table-light border-bottom">
+<div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle mb-0">
+        <thead class="table-light">
             <tr class="text-secondary small fw-semibold">
-                <th style="width: 22%;" class="ps-3 py-3">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 14%;" class="py-3 text-center">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 24%;" class="py-3 text-center">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 12%;" class="text-center py-3">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 18%;" class="py-3 text-center">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 22%;" class="px-3 py-3">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 14%;" class="px-3 py-3 text-center">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 24%;" class="px-3 py-3 text-center">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 12%;" class="px-3 py-3 text-center">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 18%;" class="px-3 py-3 text-center">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
             </tr>
         </thead>
         <tbody class="small">
             @forelse($stockOpnames as $op)
-            <tr class="border-bottom">
-                <td class="ps-3 py-3">
+            <tr>
+                <td class="px-3 py-3">
                     <a href="{{ route('inventory.stock-opname.show', $op->nid) }}" class="fw-semibold text-primary text-decoration-none">
                         {{ $op->cno_opname }}
                     </a>
@@ -100,13 +100,13 @@
                         {{ $op->outlet?->cname ?: 'Outlet #' . $op->nid_outlet }} &bull; {{ $op->details_count }} Item
                     </div>
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-3 py-3 text-center">
                     <div class="text-dark fw-medium">{{ \Carbon\Carbon::parse($op->dopname)->format('d-M-Y') }}</div>
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-3 py-3 text-center">
                     <div class="text-secondary text-truncate" style="max-width: 320px;">{{ $op->cnote ?: '-' }}</div>
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-3 py-3 text-center">
                     @if($op->isPosted())
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill fw-normal">Posted</span>
                     @elseif($op->isDraft())
@@ -115,7 +115,7 @@
                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill fw-normal">Cancelled</span>
                     @endif
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-3 py-3 text-center">
                     <div class="text-secondary">
                         {{ $op->user?->cemail ?: ($op->user?->email ?: ($op->user?->cname ?: 'Admin')) }}
                     </div>
@@ -124,7 +124,7 @@
             </tr>
             @empty
             <tr>
-                <td colspan="6" class="text-center py-5 text-muted">
+                <td colspan="5" class="text-center py-5 text-muted">
                     <i class="bi bi-clipboard-x display-6 d-block mb-2 text-secondary"></i>
                     <p class="mb-0">Belum ada dokumen Stok Opname yang ditemukan.</p>
                 </td>

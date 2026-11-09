@@ -403,6 +403,13 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
         border-radius: 8px !important;
         box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03) !important;
     }
+
+    /* Border Pemisah Kolom Tabel Olsera Style */
+    .olsera-panel-card .table-bordered,
+    .olsera-panel-card .table-bordered th,
+    .olsera-panel-card .table-bordered td {
+        border-color: #e2e8f0 !important;
+    }
 </style>
 @endsection
 
