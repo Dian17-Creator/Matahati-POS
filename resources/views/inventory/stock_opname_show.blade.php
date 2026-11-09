@@ -198,7 +198,7 @@
     @endif
 
     {{-- Alert Notice Olsera --}}
-    <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
+    <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-2 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
         <i class="bi bi-exclamation-circle text-muted fs-5 me-3"></i>
         <div class="small">
             <span>Pastikan data sudah benar sebelum diposting. Setelah terposting, data tidak diperbolehkan diubah.</span>
@@ -240,12 +240,9 @@
                 <a href="{{ route('inventory.index', ['tab' => 'stok_opname']) }}" class="btn btn-outline-secondary btn-sm px-3">
                     <i class="bi bi-arrow-left me-1"></i> Kembali
                 </a>
-                <!-- <a href="{{ route('inventory.stock-opname.print', $opname->nid) }}" target="_blank" class="btn btn-outline-secondary btn-sm px-3">
-                    <i class="bi bi-printer me-1"></i> Cetak
-                </a>
-                <a href="{{ route('inventory.stock-opname.export-excel', $opname->nid) }}" class="btn btn-outline-primary btn-sm px-3">
+                <a href="{{ route('inventory.stock-opname.export-excel', $opname->nid) }}" class="btn btn-primary btn-sm px-3 shadow-sm text-white fw-medium" style="background-color: #0ea5e9; border-color: #0ea5e9;">
                     <i class="bi bi-download me-1"></i> Download Excel
-                </a> -->
+                </a>
 
                 @if($opname->isDraft())
                 <button type="button" class="btn btn-warning btn-sm px-3 text-white fw-medium" title="Data tersimpan sebagai Draf">

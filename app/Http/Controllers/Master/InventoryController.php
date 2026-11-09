@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Master;
 
 use App\Exports\StockMovementExport;
+use App\Exports\StockOpnameDetailExport;
 use App\Http\Controllers\Controller;
 use App\Models\MposIngredients;
 use App\Models\MposGrpProduct;
@@ -2300,7 +2301,7 @@ class InventoryController extends Controller
     }
 
     /**
-     * Export Dokumen Stok Opname ke format Excel / CSV
+     * Export Dokumen Stok Opname ke format Excel (.xlsx)
      */
     public function exportStockOpnameExcel(string $id)
     {
@@ -2317,77 +2318,9 @@ class InventoryController extends Controller
             $opname->load(['details.product.category', 'details.ingredient']);
         }
 
-        $filename = "Stok_Opname_{$opname->cno_opname}_" . date('Ymd_His') . ".csv";
+        $filename = "Stok_Opname_{$opname->cno_opname}_" . date('Ymd_His') . ".xlsx";
 
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($opname) {
-            $handle = fopen('php://output', 'w');
-            // Write UTF-8 BOM agar rapi di Microsoft Excel
-            fputs($handle, "\xEF\xBB\xBF");
-
-            fputcsv($handle, ['DOKUMEN STOK OPNAME']);
-            fputcsv($handle, ['No. Opname', $opname->cno_opname]);
-            fputcsv($handle, ['Tanggal', Carbon::parse($opname->dopname)->format('d-M-Y')]);
-            fputcsv($handle, ['Outlet', $opname->outlet?->cname ?: '-']);
-            fputcsv($handle, ['Petugas', $opname->user?->cemail ?: ($opname->user?->email ?: ($opname->user?->cname ?: '-'))]);
-            fputcsv($handle, ['Status', $opname->cstatus]);
-            fputcsv($handle, ['Catatan', $opname->cnote ?: '-']);
-            fputcsv($handle, []);
-
-            fputcsv($handle, [
-                'No',
-                'Produk / Item',
-                'Waktu',
-                'Qty Sistem',
-                'Qty Aktual',
-                'Qty Selisih',
-                'Harga Pokok (Rp)',
-                'Selisih Nilai (Rp)',
-                'Tgl. Kadaluwarsa',
-                'Rack / Lokasi',
-                'Catatan',
-            ]);
-
-            $no = 1;
-            foreach ($opname->details as $d) {
-                fputcsv($handle, [
-                    $no++,
-                    $d->item_name,
-                    $d->dtime ?: '-',
-                    $d->nqty_system,
-                    $d->nqty_actual,
-                    $d->nqty_diff,
-                    $d->ncost,
-                    $d->nsubtotal_diff,
-                    $d->dexpired ? Carbon::parse($d->dexpired)->format('d-M-Y') : '-',
-                    $d->crack ?: '-',
-                    $d->cnote ?: '-',
-                ]);
-            }
-
-            fputcsv($handle, []);
-            fputcsv($handle, [
-                'TOTAL',
-                '',
-                '',
-                $opname->ntotal_system_qty,
-                $opname->ntotal_actual_qty,
-                $opname->ntotal_diff_qty,
-                '',
-                $opname->ntotal_diff_amount,
-                '',
-                '',
-                '',
-            ]);
-
-            fclose($handle);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        return Excel::download(new StockOpnameDetailExport($opname), $filename);
     }
 
     /**
