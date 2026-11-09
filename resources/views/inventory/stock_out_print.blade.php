@@ -2,168 +2,164 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stok Keluar - {{ $stockOut->cno_stock_out }}</title>
+    <title>Stok Keluar #{{ $stockOut->cno_stock_out }}</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            color: #333;
-            margin: 20px;
+        @page {
+            margin: 15mm 20mm;
         }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            color: #111827;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Kop / Header Format Kita */
         .header {
             text-align: center;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid #1e293b;
             padding-bottom: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
         }
+
         .header h2 {
-            margin: 0 0 5px 0;
+            margin: 0 0 4px 0;
+            font-size: 15px;
+            font-weight: bold;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .info-table, .items-table {
+
+        .header .doc-number {
+            font-size: 12px;
+            color: #334155;
+            font-weight: normal;
+        }
+
+        /* Tabel Metadata */
+        .meta-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
         }
-        .info-table td {
-            padding: 4px 8px;
+
+        .meta-table td {
+            padding: 2.5px 0;
+            font-size: 11px;
             vertical-align: top;
         }
-        .items-table th, .items-table td {
-            border: 1px solid #ccc;
-            padding: 6px 8px;
+
+        .meta-label {
+            width: 130px;
+            font-weight: bold;
+            color: #0f172a;
         }
-        .items-table th {
-            background-color: #f2f2f2;
-            text-align: left;
+
+        .meta-sep {
+            width: 14px;
+            font-weight: bold;
+            color: #0f172a;
         }
-        .text-end {
-            text-align: right;
+
+        .meta-val {
+            color: #1e293b;
         }
-        .text-center {
-            text-align: center;
-        }
-        .signatures {
-            margin-top: 30px;
+
+        /* Tabel Produk (3 Kolom Sesuai Olsera) */
+        .items-table {
             width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #cbd5e1;
+            margin-bottom: 20px;
         }
-        .signatures td {
-            width: 50%;
-            text-align: center;
-            padding-top: 50px;
+
+        .items-table th, 
+        .items-table td {
+            border: 1px solid #cbd5e1;
+            padding: 6px 10px;
+            font-size: 11px;
         }
-        @media print {
-            .no-print {
-                display: none;
-            }
+
+        .items-table th {
+            background-color: #f8fafc;
+            color: #0f172a;
+            font-weight: bold;
+        }
+
+        /* Catatan di Bawah Tabel */
+        .bottom-note {
+            font-size: 11px;
+            color: #1e293b;
+            margin-top: 15px;
+        }
+
+        .bottom-note strong {
+            color: #0f172a;
         }
     </style>
 </head>
 <body>
-    <div class="no-print" style="margin-bottom: 15px;">
-        <button onclick="window.print()" style="padding: 8px 16px; background-color: #b63352; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-            Cetak Dokumen
-        </button>
-        <button onclick="window.close()" style="padding: 8px 16px; background-color: #6c757d; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
-            Tutup
-        </button>
-    </div>
-
+    {{-- 1. Kop Dokumen Format Kita dengan No. Stok Keluar --}}
     <div class="header">
         <h2>BUKTI PENGELUARAN BARANG (STOK KELUAR)</h2>
-        <div>{{ $stockOut->outlet?->cname ?? 'Matahati POS' }}</div>
+        <div class="doc-number">No. Stok Keluar #{{ $stockOut->cno_stock_out }}</div>
     </div>
 
-    <table class="info-table">
+    {{-- 2. Blok Info Metadata Transaksi --}}
+    <table class="meta-table">
         <tr>
-            <td style="width: 20%;"><strong>No. Stok Keluar</strong></td>
-            <td style="width: 30%;">: {{ $stockOut->cno_stock_out }}</td>
-            <td style="width: 20%;"><strong>Tanggal Keluar</strong></td>
-            <td style="width: 30%;">: {{ $stockOut->dstock_out ? \Carbon\Carbon::parse($stockOut->dstock_out)->format('d/m/Y H:i') : '-' }}</td>
+            <td class="meta-label">Tanggal</td>
+            <td class="meta-sep">:</td>
+            <td class="meta-val">{{ $stockOut->dstock_out ? \Carbon\Carbon::parse($stockOut->dstock_out)->format('d-M-Y') : '-' }}</td>
         </tr>
         <tr>
-            <td><strong>Jenis / Transfer ke</strong></td>
-            <td>: {{ $stockOut->targetOutlet ? 'Transfer ke ' . $stockOut->targetOutlet->cname : 'Pengeluaran Stok' }}</td>
-            <td><strong>Dikeluarkan Oleh</strong></td>
-            <td>: {{ $stockOut->user?->cname ?: ($stockOut->user?->email ?: 'Admin') }}</td>
+            <td class="meta-label">Transfer ke toko</td>
+            <td class="meta-sep">:</td>
+            <td class="meta-val">{{ $stockOut->targetOutlet ? $stockOut->targetOutlet->cname : ($stockOut->creason ?: '-') }}</td>
         </tr>
         <tr>
-            <td><strong>Alasan Pengeluaran</strong></td>
-            <td>: {{ $stockOut->creason ?: '-' }}</td>
-            <td><strong>Status</strong></td>
-            <td>: {{ $stockOut->cstatus ?? 'POSTED' }}</td>
+            <td class="meta-label">Posted</td>
+            <td class="meta-sep">:</td>
+            <td class="meta-val">{{ $stockOut->user?->cemail ?: ($stockOut->user?->email ?: ($stockOut->user?->cname ?: '-')) }}</td>
         </tr>
-        @if($stockOut->cnote)
-        <tr>
-            <td><strong>Catatan</strong></td>
-            <td colspan="3">: {{ $stockOut->cnote }}</td>
-        </tr>
-        @endif
     </table>
 
+    {{-- 3. Tabel Item Produk (3 Kolom Sederhana: #, Produk, Qty) --}}
     <table class="items-table">
         <thead>
             <tr>
-                <th style="width: 35px;" class="text-center">No</th>
-                <th>Tipe</th>
-                <th>Produk / Bahan Baku</th>
-                <th>Stock Dari</th>
-                <th class="text-center" style="width: 80px;">Qty</th>
-                <th class="text-end" style="width: 110px;">Harga Modal</th>
-                <th class="text-end" style="width: 120px;">Subtotal</th>
+                <th style="width: 6%; text-align: center;">#</th>
+                <th style="width: 80%; text-align: left;">Produk</th>
+                <th style="width: 14%; text-align: right;">Qty</th>
             </tr>
         </thead>
         <tbody>
-            @php
-                $totalQty = 0;
-                $totalCost = 0;
-            @endphp
             @forelse($stockOut->details as $idx => $d)
             @php
                 $isIng = $d->isIngredient();
                 $name = $d->product?->cname ?? ($isIng ? ($d->ingredient?->cname ?? 'Bahan Baku') : 'Produk');
-                $satuan = strtolower($d->getItemUnit());
-                $typeLabel = $d->getItemTypeLabel();
-                $totalQty += (float) $d->nqty;
-                $totalCost += (float) $d->nsubtotal;
+                $qty = is_numeric($d->nqty) ? (fmod((float)$d->nqty, 1) === 0.0 ? (int)$d->nqty : (float)$d->nqty) : $d->nqty;
             @endphp
             <tr>
-                <td class="text-center">{{ $idx + 1 }}</td>
-                <td>{{ $typeLabel }}</td>
-                <td>{{ $name }}</td>
-                <td>{{ $d->cstock_from ?: '-' }}</td>
-                <td class="text-center">{{ rtrim(rtrim(number_format((float) $d->nqty, 2, '.', ''), '0'), '.') }} {{ $satuan }}</td>
-                <td class="text-end">Rp {{ number_format((float) $d->ncost, 0, ',', '.') }}</td>
-                <td class="text-end">Rp {{ number_format((float) $d->nsubtotal, 0, ',', '.') }}</td>
+                <td style="text-align: center;">{{ $idx + 1 }}</td>
+                <td style="text-align: left;">{{ $name }}</td>
+                <td style="text-align: right;">{{ $qty }}</td>
             </tr>
             @empty
             <tr>
-                <td colspan="7" class="text-center">Tidak ada item.</td>
+                <td colspan="3" style="text-align: center; color: #94a3b8; padding: 15px;">Tidak ada item.</td>
             </tr>
             @endforelse
         </tbody>
-        <tfoot>
-            <tr style="font-weight: bold; background-color: #f9f9f9;">
-                <td colspan="4" class="text-end">Total:</td>
-                <td class="text-center">{{ rtrim(rtrim(number_format($totalQty, 2, '.', ''), '0'), '.') }}</td>
-                <td></td>
-                <td class="text-end">Rp {{ number_format($totalCost, 0, ',', '.') }}</td>
-            </tr>
-        </tfoot>
     </table>
 
-    <table class="signatures">
-        <tr>
-            <td>
-                Dibuat / Dikeluarkan oleh,<br><br><br><br>
-                ( {{ $stockOut->user?->cname ?: 'Petugas Gudang / Kasir' }} )
-            </td>
-            <td>
-                Diterima / Mengetahui,<br><br><br><br>
-                ( .................................... )
-            </td>
-        </tr>
-    </table>
+    {{-- 4. Catatan di Bawah Tabel --}}
+    <div class="bottom-note">
+        <strong>Catatan :</strong> {{ $stockOut->cnote ?: '-' }}
+    </div>
 </body>
 </html>
-
