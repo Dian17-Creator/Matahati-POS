@@ -1,15 +1,15 @@
 <div class="table-responsive">
-    <table class="table table-hover align-middle border mb-0">
+    <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
-                <th style="width: 15%;">Grup / Kategori</th>
-                <th style="width: 35%;">Produk</th>
-                <th class="text-center" style="width: 8%;">Awal</th>
-                <th class="text-center" style="width: 8%;">Masuk</th>
-                <th class="text-center" style="width: 9%;">Pengembalian</th>
-                <th class="text-center" style="width: 8%;">Penjualan</th>
-                <th class="text-center" style="width: 8%;">Keluar</th>
-                <th class="text-center" style="width: 9%;">Sisa</th>
+                <th class="px-3 py-3" style="width: 15%;">Grup / Kategori</th>
+                <th class="px-3 py-3" style="width: 35%;">Produk</th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">Awal</th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">Masuk</th>
+                <th class="px-3 py-3 text-center" style="width: 9%;">Pengembalian</th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">Penjualan</th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">Keluar</th>
+                <th class="px-3 py-3 text-center" style="width: 9%;">Sisa</th>
             </tr>
         </thead>
         <tbody>
@@ -23,10 +23,10 @@
                 $fmtSisa = is_numeric($p->qty_sisa) ? (fmod((float)$p->qty_sisa, 1) === 0.0 ? number_format($p->qty_sisa, 0, ',', '.') : number_format($p->qty_sisa, 2, ',', '.')) : $p->qty_sisa;
             @endphp
             <tr>
-                <td class="text-muted fw-semibold small">
+                <td class="px-3 py-3 text-muted fw-semibold small">
                     {{ $p->category_name ?? (optional($p->category)->cname ?: '-') }}
                 </td>
-                <td>
+                <td class="px-3 py-3">
                     @php
                         $movType = \App\Models\MposStockMutation::normalizeItemType($p->item_type ?? 'PRODUK');
                     @endphp
@@ -39,22 +39,22 @@
                         @endif
                     </div>
                 </td>
-                <td class="text-center text-secondary">
+                <td class="px-3 py-3 text-center text-secondary">
                     {{ $fmtAwal }}
                 </td>
-                <td class="text-center text-success fw-medium">
+                <td class="px-3 py-3 text-center text-success fw-medium">
                     {{ $fmtMasuk }}
                 </td>
-                <td class="text-center text-info fw-medium">
+                <td class="px-3 py-3 text-center text-info fw-medium">
                     {{ $fmtPengembalian }}
                 </td>
-                <td class="text-center text-primary fw-medium">
+                <td class="px-3 py-3 text-center text-primary fw-medium">
                     {{ $fmtPenjualan }}
                 </td>
-                <td class="text-center text-danger fw-medium">
+                <td class="px-3 py-3 text-center text-danger fw-medium">
                     {{ $fmtKeluar }}
                 </td>
-                <td class="text-center fw-bold text-dark">
+                <td class="px-3 py-3 text-center fw-bold text-dark">
                     {{ $fmtSisa }}
                 </td>
             </tr>

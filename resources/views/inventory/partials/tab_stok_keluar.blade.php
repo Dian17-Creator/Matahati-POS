@@ -142,43 +142,43 @@
 
 <!-- Tabel Daftar Stok Keluar (Persis Kolom Olsera Image 1 & Image 5) -->
 <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 border">
-        <thead class="table-light border-bottom">
+    <table class="table table-bordered table-hover align-middle mb-0">
+        <thead class="table-light">
             <tr class="text-secondary small fw-semibold">
-                <th class="ps-3 py-3">No. <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3">Transfer ke <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3">Tanggal <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3">Catatan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3">Alasan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3 text-center">Status <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="py-3">Dibuat Oleh</th>
+                <th class="px-3 py-3">No. <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3">Transfer ke <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3">Tanggal <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3">Catatan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3">Alasan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3 text-center">Status <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
+                <th class="px-3 py-3">Dibuat Oleh</th>
             </tr>
         </thead>
         <tbody class="small">
             @forelse($stockOuts as $so)
-            <tr class="border-bottom">
-                <td class="ps-3 py-3">
+            <tr>
+                <td class="px-3 py-3">
                     <a href="{{ route('inventory.stock-out.show', $so->cno_stock_out) }}" class="fw-bold text-primary text-decoration-none">
                         {{ $so->cno_stock_out }}
                     </a>
                 </td>
-                <td class="py-3 text-secondary">
+                <td class="px-3 py-3 text-secondary">
                     @if($so->targetOutlet)
                     <span class="fw-semibold text-primary"><i class="bi bi-shop me-1"></i>{{ $so->targetOutlet->cname }}</span>
                     @else
                     <span class="text-muted">-</span>
                     @endif
                 </td>
-                <td class="py-3 text-dark fw-semibold">
+                <td class="px-3 py-3 text-dark fw-semibold">
                     {{ $so->dstock_out ? \Carbon\Carbon::parse($so->dstock_out)->format('d-M-Y') : '-' }}
                 </td>
-                <td class="py-3 text-secondary">
+                <td class="px-3 py-3 text-secondary">
                     {{ $so->cnote ?: '-' }}
                 </td>
-                <td class="py-3 text-secondary">
+                <td class="px-3 py-3 text-secondary">
                     {{ $so->creason ?: '-' }}
                 </td>
-                <td class="py-3 text-center">
+                <td class="px-3 py-3 text-center">
                     @if(strtoupper($so->cstatus) === 'POSTED')
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill">Posted</span>
                     @elseif(strtoupper($so->cstatus) === 'DRAFT')
@@ -189,14 +189,14 @@
                     <span class="badge bg-secondary px-2 py-1 rounded-pill">{{ $so->cstatus }}</span>
                     @endif
                 </td>
-                <td class="py-3 text-secondary">
+                <td class="px-3 py-3 text-secondary">
                     {{ $so->user?->cemail ?: ($so->user?->email ?: ($so->user?->cname ?: 'admin')) }}
                 </td>
 
             </tr>
             @empty
             <tr>
-                <td colspan="8" class="text-center py-5 text-muted">
+                <td colspan="7" class="text-center py-5 text-muted">
                     <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
                     Tidak ada riwayat transaksi stok keluar pada periode ini.
                 </td>

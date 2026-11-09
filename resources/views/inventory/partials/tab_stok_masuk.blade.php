@@ -149,27 +149,27 @@
 
         <!-- Tabel Daftar Stok Masuk Sesuai Layout Referensi Olsera -->
         <div class="table-responsive">
-            <table class="table table-hover align-middle border mb-0">
+            <table class="table table-bordered table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr class="text-secondary small fw-semibold">
-                        <th class="ps-3 py-3" style="width: 18%;">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3" style="width: 14%;">Diterima dari <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3" style="width: 14%;">Supplier <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3" style="width: 12%;">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3" style="width: 18%;">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3 text-center" style="width: 10%;">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="py-3" style="width: 14%;">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 18%;">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 14%;">Diterima dari <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 14%;">Supplier <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 12%;">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 18%;">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3 text-center" style="width: 10%;">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 14%;">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($stockIns as $item)
-                    <tr class="border-bottom">
-                        <td class="ps-3 py-3">
+                    <tr>
+                        <td class="px-3 py-3">
                             <a href="{{ route('inventory.stock-in.show', $item->cno_stock_in) }}" class="fw-semibold text-primary text-decoration-none">
                                 {{ $item->cno_stock_in }}
                             </a>
                         </td>
-                        <td class="py-3 text-muted small">
+                        <td class="px-3 py-3 text-muted small">
                             @if(!empty($item->targetOutlet))
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2">
                                 <i class="bi bi-shop me-1"></i>{{ $item->targetOutlet->cname }}
@@ -178,16 +178,16 @@
                             {{ $item->outlet?->cname ?? '-' }}
                             @endif
                         </td>
-                        <td class="py-3 fw-medium text-dark small">
+                        <td class="px-3 py-3 fw-medium text-dark small">
                             {{ $item->supplier?->cname ?? '-' }}
                         </td>
-                        <td class="py-3 text-secondary small">
+                        <td class="px-3 py-3 text-secondary small">
                             {{ $item->dstock_in ? \Carbon\Carbon::parse($item->dstock_in)->format('d-M-Y') : '-' }}
                         </td>
-                        <td class="py-3 text-muted small">
+                        <td class="px-3 py-3 text-muted small">
                             {{ $item->cnote ?? '-' }}
                         </td>
-                        <td class="py-3 text-center">
+                        <td class="px-3 py-3 text-center">
                             @if(strtoupper($item->cstatus ?? '') === 'POSTED')
                             <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small rounded-pill">Posted</span>
                             @elseif(strtoupper($item->cstatus ?? '') === 'DRAFT')
@@ -198,7 +198,7 @@
                             <span class="badge bg-secondary px-2 py-1 small rounded-pill">{{ $item->cstatus ?? 'Posted' }}</span>
                             @endif
                         </td>
-                        <td class="py-3 text-secondary small text-truncate" style="max-width: 180px;" title="{{ $item->creceived_by ?? ($item->user?->email ?? '-') }}">
+                        <td class="px-3 py-3 text-secondary small text-truncate" style="max-width: 180px;" title="{{ $item->creceived_by ?? ($item->user?->email ?? '-') }}">
                             {{ $item->creceived_by ?? ($item->user?->email ?? '-') }}
                         </td>
                     </tr>
