@@ -242,10 +242,10 @@ $currentTabName = $tabTitles[$activeTab] ?? 'Stok Masuk';
             class="catalog-nav-tab {{ $activeTab === 'stok_keluar' ? 'active' : '' }}">
             <span>Stok Keluar</span>
         </a>
-        <!-- <a href="{{ route('inventory.index', ['tab' => 'produksi_stok']) }}"
+        <a href="{{ route('inventory.index', ['tab' => 'produksi_stok']) }}"
             class="catalog-nav-tab {{ $activeTab === 'produksi_stok' ? 'active' : '' }}">
             <span>Produksi Stok</span>
-        </a> -->
+        </a>
         <a href="{{ route('inventory.index', ['tab' => 'stok_opname']) }}"
             class="catalog-nav-tab {{ $activeTab === 'stok_opname' ? 'active' : '' }}">
             <span>Stok Opname</span>

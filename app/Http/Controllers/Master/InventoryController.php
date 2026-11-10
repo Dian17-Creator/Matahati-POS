@@ -16,6 +16,10 @@ use App\Models\MposSalesH;
 use App\Models\MposStockMutation;
 use App\Models\MposStockOpnameH;
 use App\Models\MposStockOpnameD;
+use App\Models\MposProductionH;
+use App\Models\MposProductionProduct;
+use App\Models\MposProductionMaterial;
+use App\Models\MposRecipe;
 use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -62,6 +66,8 @@ class InventoryController extends Controller
         $totalStockOut = 0;
         $stockOpnames = null;
         $totalStockOpname = 0;
+        $productions = null;
+        $totalProduction = 0;
         $modalProducts = collect();
         $modalIngredients = collect();
 
@@ -228,6 +234,31 @@ class InventoryController extends Controller
                 ['path' => Paginator::resolveCurrentPath(), 'query' => $request->query()]
             );
             $totalStockOut = $stockOutDocs->count();
+        } elseif ($activeTab === 'produksi_stok') {
+            $productionQuery = MposProductionH::with(['outlet', 'user'])->withCount(['products', 'materials']);
+
+            if (!empty($selectedOutletId)) {
+                $productionQuery->where('nid_outlet', $selectedOutletId);
+            } elseif (!$isSuperAdmin) {
+                $productionQuery->whereIn('nid_outlet', $allowedOutletIds);
+            }
+
+            if (!empty($startDate) && !empty($endDate)) {
+                $productionQuery->whereBetween('dproduction', [$startDate, $endDate]);
+            }
+
+            if (!empty($search)) {
+                $productionQuery->where(function ($q) use ($search) {
+                    $q->where('cno_production', 'like', "%{$search}%")
+                        ->orWhere('cnote', 'like', "%{$search}%");
+                });
+            }
+
+            $productions = $productionQuery->orderBy('dproduction', 'desc')
+                ->orderBy('nid', 'desc')
+                ->paginate($perPage)
+                ->withQueryString();
+            $totalProduction = $productions->total();
         } elseif ($activeTab === 'stok_opname') {
             $stockOpnameQuery = MposStockOpnameH::with(['outlet', 'user'])->withCount('details');
 
@@ -319,6 +350,8 @@ class InventoryController extends Controller
             'totalStockOut',
             'stockOpnames',
             'totalStockOpname',
+            'productions',
+            'totalProduction',
             'modalProducts',
             'modalIngredients'
         ));
@@ -2847,5 +2880,756 @@ class InventoryController extends Controller
         })->sortBy('cname')->values();
 
         return $allItems;
+    }
+
+    // =========================================================================
+    // PRODUKSI STOK METHODS
+    // =========================================================================
+
+    /**
+     * Simpan dokumen draft Produksi Stok baru
+     */
+    public function storeProduction(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'dproduction' => 'required|date',
+            'nid_outlet' => 'required|integer',
+            'cnote' => 'nullable|string|max:1000',
+        ]);
+
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        if (!$this->isSuperAdminUser() && !in_array((int) $validated['nid_outlet'], $allowedOutletIds)) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki hak akses ke outlet yang dipilih.')->withInput();
+        }
+
+        $dproduction = Carbon::parse($validated['dproduction']);
+        $prodNo = MposProductionH::generateNumber($dproduction);
+
+        DB::beginTransaction();
+        try {
+            $production = MposProductionH::create([
+                'cno_production' => $prodNo,
+                'dproduction' => $dproduction->format('Y-m-d'),
+                'nid_outlet' => $validated['nid_outlet'],
+                'nid_user' => Auth::id() ?? 1,
+                'cstatus' => MposProductionH::STATUS_DRAFT,
+                'cnote' => $validated['cnote'] ?? null,
+                'ntotal_product_qty' => 0,
+                'ntotal_material_cost' => 0,
+                'nadditional_cost' => 0,
+                'ntotal_production_cost' => 0,
+                'dcreated' => Carbon::now(),
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('inventory.production.show', $production->nid)
+                ->with('success', "Dokumen Produksi {$prodNo} berhasil dibuat. Silakan tambahkan produk jadi dan bahan baku.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal membuat dokumen produksi: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Tampilkan detail dokumen Produksi Stok
+     */
+    public function showProduction(string $id)
+    {
+        $production = MposProductionH::with([
+            'outlet',
+            'user',
+            'products.product',
+            'materials.product',
+            'materials.ingredient',
+        ])
+        ->where('nid', $id)
+        ->orWhere('cno_production', $id)
+        ->firstOrFail();
+
+        // Ambil daftar produk dan bahan baku untuk autocomplete
+        $outletId = $production->nid_outlet;
+        $prodCols = ['nid', 'cname', 'nid_category', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
+        if (MposProduct::hasSatuanColumn()) {
+            $prodCols[] = 'csatuan';
+        }
+        if (MposProduct::hasProductTypeColumn()) {
+            $prodCols[] = 'cproduct_type';
+        }
+
+        $allProducts = MposProduct::where(function ($q) {
+            $q->where('cstatus', 'ACTIVE')->orWhere('cstatus', '1')->orWhereNull('cstatus');
+        })
+        ->orderBy('cname', 'asc')
+        ->get($prodCols);
+
+        // Grouping per nama produk agar unik dan menampilkan stok pada outlet produksi ini
+        $byName = [];
+        foreach ($allProducts as $p) {
+            $key = strtoupper(trim((string) $p->cname));
+            if (!$key) {
+                continue;
+            }
+            $byName[$key][] = $p;
+        }
+
+        $availableProducts = collect();
+        foreach ($byName as $prods) {
+            $match = null;
+            if ($outletId) {
+                foreach ($prods as $p) {
+                    if ((string) $p->nid_outlet === (string) $outletId) {
+                        $match = $p;
+                        break;
+                    }
+                }
+            }
+            if (!$match) {
+                $tmpl = $prods[0];
+                $match = clone $tmpl;
+                $match->nqty = 0;
+            }
+            $availableProducts->push($match);
+        }
+
+        $availableProducts = $availableProducts->sortBy('cname')->values();
+
+        $availableIngredients = MposIngredients::where(function ($q) use ($outletId) {
+            $q->where('nid_outlet', $outletId)->orWhereNull('nid_outlet');
+        })
+        ->orderBy('cname', 'asc')
+        ->get();
+
+        return view('inventory.production_show', compact(
+            'production',
+            'availableProducts',
+            'availableIngredients'
+        ));
+    }
+
+    /**
+     * Update header (tanggal & catatan)
+     */
+    public function updateProductionHeader(Request $request, string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'dproduction' => 'required|date',
+            'cnote' => 'nullable|string|max:1000',
+        ]);
+
+        $production->update([
+            'dproduction' => $validated['dproduction'],
+            'cnote' => $validated['cnote'] ?? null,
+            'dupdated' => Carbon::now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Informasi dokumen produksi berhasil diperbarui.');
+    }
+
+    /**
+     * Tambah Produk Jadi (Hasil Produksi / PLUS)
+     */
+    public function addProductionProduct(Request $request, string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat ditambahkan produk.');
+        }
+
+        $validated = $request->validate([
+            'nid_product' => 'required|integer',
+            'nqty' => 'required|numeric|min:0.01',
+            'ncost_unit' => 'nullable|numeric|min:0',
+            'dexpired' => 'nullable|date',
+            'crack' => 'nullable|string|max:100',
+            'cnote' => 'nullable|string|max:255',
+        ]);
+
+        $product = MposProduct::findOrFail($validated['nid_product']);
+        $product = $this->resolveOrCreateOutletProduct($product, (int) $production->nid_outlet, (float) ($product->nprice_buy ?? 0));
+        $qty = (float) $validated['nqty'];
+        $costUnit = isset($validated['ncost_unit']) && $validated['ncost_unit'] !== '' ? (float) $validated['ncost_unit'] : (float) ($product->nprice_buy ?? 0);
+        $subtotal = $qty * $costUnit;
+
+        DB::beginTransaction();
+        try {
+            // Cek apakah produk sudah ada di daftar hasil produksi dokumen ini
+            $existing = MposProductionProduct::where('nid_production', $production->nid)
+                ->where('nid_product', $product->nid)
+                ->first();
+
+            if ($existing) {
+                $newQty = (float) $existing->nqty + $qty;
+                $existing->update([
+                    'nqty' => $newQty,
+                    'nsubtotal' => $newQty * (float) $existing->ncost_unit,
+                    'dexpired' => $validated['dexpired'] ?? $existing->dexpired,
+                    'crack' => $validated['crack'] ?? $existing->crack,
+                    'cnote' => $validated['cnote'] ?? $existing->cnote,
+                    'dupdated' => Carbon::now(),
+                ]);
+                $prodRecord = $existing;
+            } else {
+                $prodRecord = MposProductionProduct::create([
+                    'nid_production' => $production->nid,
+                    'nid_product' => $product->nid,
+                    'nqty' => $qty,
+                    'ncost_unit' => $costUnit,
+                    'nsubtotal' => $subtotal,
+                    'dexpired' => $validated['dexpired'] ?? null,
+                    'crack' => $validated['crack'] ?? null,
+                    'cnote' => $validated['cnote'] ?? null,
+                    'dcreated' => Carbon::now(),
+                ]);
+            }
+
+            // AUTO-FILL RESEP DARI mpos_recipe (jika tersedia)
+            $recipes = MposRecipe::where('nid_product', $product->nid)->get();
+            if ($recipes->isNotEmpty()) {
+                foreach ($recipes as $rc) {
+                    $neededQty = (float) $rc->nqty * $qty;
+                    $matProduct = MposProduct::find($rc->nid_ingredient);
+                    $matCost = $matProduct ? (float) ($matProduct->nprice_buy ?? 0) : 0;
+
+                    // Cek apakah bahan untuk produk ini sudah ada
+                    $existingMat = MposProductionMaterial::where('nid_production', $production->nid)
+                        ->where('nid_production_product', $prodRecord->nid)
+                        ->where('nid_product', $rc->nid_ingredient)
+                        ->first();
+
+                    if ($existingMat) {
+                        $updQty = (float) $existingMat->nqty + $neededQty;
+                        $existingMat->update([
+                            'nqty' => $updQty,
+                            'nsubtotal' => $updQty * (float) $existingMat->ncost,
+                            'dupdated' => Carbon::now(),
+                        ]);
+                    } else {
+                        MposProductionMaterial::create([
+                            'nid_production' => $production->nid,
+                            'nid_production_product' => $prodRecord->nid,
+                            'citem_type' => $matProduct?->cproduct_type ?: 'PRODUK',
+                            'nid_product' => $rc->nid_ingredient,
+                            'nid_ingredient' => null,
+                            'nqty' => $neededQty,
+                            'ncost' => $matCost,
+                            'nsubtotal' => $neededQty * $matCost,
+                            'cnote' => 'Resep: ' . $product->cname,
+                            'dcreated' => Carbon::now(),
+                        ]);
+                    }
+                }
+            }
+
+            $production->recalculateTotals();
+            DB::commit();
+
+            return redirect()->back()->with('success', "Produk '{$product->cname}' berhasil ditambahkan ke daftar produksi.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menambahkan produk: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update item produk jadi
+     */
+    public function updateProductionProduct(Request $request, string $id, string $productId): RedirectResponse|JsonResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['status' => 'error', 'message' => 'Hanya dokumen berstatus Draf yang dapat diubah.'], 422);
+            }
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $prodItem = MposProductionProduct::where('nid_production', $production->nid)
+            ->where('nid', $productId)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'nqty' => 'required|numeric|min:0.01',
+            'ncost_unit' => 'nullable|numeric|min:0',
+            'dexpired' => 'nullable|date',
+            'crack' => 'nullable|string|max:100',
+        ]);
+
+        $qty = (float) $validated['nqty'];
+        $cost = isset($validated['ncost_unit']) ? (float) $validated['ncost_unit'] : (float) $prodItem->ncost_unit;
+
+        $oldProductQty = (float) $prodItem->nqty > 0 ? (float) $prodItem->nqty : 1;
+
+        $prodItem->update([
+            'nqty' => $qty,
+            'ncost_unit' => $cost,
+            'nsubtotal' => $qty * $cost,
+            'dexpired' => $validated['dexpired'] ?? $prodItem->dexpired,
+            'crack' => $validated['crack'] ?? $prodItem->crack,
+            'dupdated' => Carbon::now(),
+        ]);
+
+        // Otomatis sesuaikan Qty semua bahan baku yang digunakan untuk produk ini (baik resep resmi maupun manual)
+        $updatedMaterials = [];
+        $linkedMaterials = MposProductionMaterial::where('nid_production', $production->nid)
+            ->where('nid_production_product', $prodItem->nid)
+            ->get();
+
+        foreach ($linkedMaterials as $mat) {
+            $recipeItem = MposRecipe::where('nid_product', $prodItem->nid_product)
+                ->where('nid_ingredient', $mat->nid_product)
+                ->first();
+
+            $unitQty = $recipeItem ? (float) $recipeItem->nqty : ((float) $mat->nqty / $oldProductQty);
+            $newMatQty = $unitQty * $qty;
+
+            $mat->update([
+                'nqty' => $newMatQty,
+                'nsubtotal' => $newMatQty * (float) $mat->ncost,
+                'dupdated' => Carbon::now(),
+            ]);
+
+            $updatedMaterials[] = [
+                'nid' => $mat->nid,
+                'nqty' => $newMatQty,
+                'unit_qty' => $unitQty,
+                'formatted_unit_qty' => number_format($unitQty, 2, ',', '.'),
+                'formatted_qty' => '-' . number_format($newMatQty, 2, ',', '.'),
+                'nsubtotal' => (float) $mat->nsubtotal,
+                'formatted_subtotal' => 'Rp ' . number_format($mat->nsubtotal, 0, ',', '.'),
+            ];
+        }
+
+        $production->recalculateTotals();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Qty produk berhasil diperbarui.',
+                'product' => [
+                    'nid' => $prodItem->nid,
+                    'nqty' => $qty,
+                    'formatted_qty' => number_format($qty, 2, ',', '.'),
+                    'nsubtotal' => (float) $prodItem->nsubtotal,
+                    'formatted_subtotal' => 'Rp ' . number_format($prodItem->nsubtotal, 0, ',', '.'),
+                ],
+                'materials' => $updatedMaterials,
+                'total_product_qty' => (float) $production->ntotal_product_qty,
+                'formatted_total_product_qty' => number_format($production->ntotal_product_qty, 2, ',', '.'),
+                'total_production_cost' => (float) $production->ntotal_production_cost,
+                'formatted_total_production_cost' => 'Rp ' . number_format($production->ntotal_production_cost, 0, ',', '.'),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Qty dan informasi produk berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus item produk jadi
+     */
+    public function destroyProductionProduct(string $id, string $productId): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $prodItem = MposProductionProduct::where('nid_production', $production->nid)
+            ->where('nid', $productId)
+            ->firstOrFail();
+
+        DB::beginTransaction();
+        try {
+            // Hapus bahan yang terikat dengan produk ini
+            MposProductionMaterial::where('nid_production_product', $prodItem->nid)->delete();
+            $prodItem->delete();
+
+            $production->recalculateTotals();
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Produk dan bahan terkait berhasil dihapus dari daftar produksi.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menghapus produk: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tambah Bahan Baku (Material / MINUS)
+     */
+    public function addProductionMaterial(Request $request, string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat ditambahkan bahan.');
+        }
+
+        $validated = $request->validate([
+            'nid_production_product' => 'nullable|integer',
+            'citem_type' => 'nullable|string|in:PRODUK,BAHAN_BAKU,SETENGAH_JADI,INGREDIENT',
+            'nid_product' => 'nullable|integer',
+            'nid_ingredient' => 'nullable|integer',
+            'nqty' => 'required|numeric|min:0.001',
+            'ncost' => 'nullable|numeric|min:0',
+            'cnote' => 'nullable|string|max:255',
+        ]);
+
+        if (empty($validated['nid_product']) && empty($validated['nid_ingredient'])) {
+            return redirect()->back()->with('error', 'Pilih salah satu item produk atau bahan baku.');
+        }
+
+        $itemType = $validated['citem_type'] ?? 'PRODUK';
+        $cost = 0;
+        if (isset($validated['ncost']) && $validated['ncost'] !== '') {
+            $cost = (float) $validated['ncost'];
+        } elseif (!empty($validated['nid_product'])) {
+            $p = MposProduct::find($validated['nid_product']);
+            $cost = (float) ($p->nprice_buy ?? 0);
+        }
+
+        $prodItem = null;
+        if (!empty($validated['nid_production_product'])) {
+            $prodItem = MposProductionProduct::where('nid_production', $production->nid)
+                ->where('nid', $validated['nid_production_product'])
+                ->first();
+        }
+
+        $unitQty = (float) $validated['nqty'];
+        // Jika bahan ini ditambahkan untuk produk tertentu, kalikan dengan Qty produk jadi tersebut
+        $productQty = ($prodItem && (float)$prodItem->nqty > 0) ? (float)$prodItem->nqty : 1;
+        $totalQty = $unitQty * $productQty;
+        $subtotal = $totalQty * $cost;
+
+        MposProductionMaterial::create([
+            'nid_production' => $production->nid,
+            'nid_production_product' => $validated['nid_production_product'] ?? null,
+            'citem_type' => $itemType,
+            'nid_product' => $validated['nid_product'] ?? null,
+            'nid_ingredient' => $validated['nid_ingredient'] ?? null,
+            'nqty' => $totalQty,
+            'ncost' => $cost,
+            'nsubtotal' => $subtotal,
+            'cnote' => $validated['cnote'] ?? null,
+            'dcreated' => Carbon::now(),
+        ]);
+
+        $production->recalculateTotals();
+
+        return redirect()->back()->with('success', 'Bahan baku berhasil ditambahkan.');
+    }
+
+    /**
+     * Update Bahan Baku
+     */
+    public function updateProductionMaterial(Request $request, string $id, string $materialId): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $mat = MposProductionMaterial::where('nid_production', $production->nid)
+            ->where('nid', $materialId)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'nqty' => 'required|numeric|min:0.001',
+            'ncost' => 'nullable|numeric|min:0',
+            'cnote' => 'nullable|string|max:255',
+        ]);
+
+        $qty = (float) $validated['nqty'];
+        $cost = isset($validated['ncost']) ? (float) $validated['ncost'] : (float) $mat->ncost;
+
+        $mat->update([
+            'nqty' => $qty,
+            'ncost' => $cost,
+            'nsubtotal' => $qty * $cost,
+            'cnote' => $validated['cnote'] ?? $mat->cnote,
+            'dupdated' => Carbon::now(),
+        ]);
+
+        $production->recalculateTotals();
+
+        return redirect()->back()->with('success', 'Bahan baku berhasil diperbarui.');
+    }
+
+    /**
+     * Hapus Bahan Baku
+     */
+    public function destroyProductionMaterial(string $id, string $materialId): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $mat = MposProductionMaterial::where('nid_production', $production->nid)
+            ->where('nid', $materialId)
+            ->firstOrFail();
+
+        $mat->delete();
+        $production->recalculateTotals();
+
+        return redirect()->back()->with('success', 'Bahan baku berhasil dihapus.');
+    }
+
+    /**
+     * Update Biaya Tambahan Produksi (Operasional / Tenaga Kerja / Listrik)
+     */
+    public function updateAdditionalCost(Request $request, string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
+        }
+
+        $validated = $request->validate([
+            'nadditional_cost' => 'required|numeric|min:0',
+        ]);
+
+        $production->nadditional_cost = (float) $validated['nadditional_cost'];
+        $production->save();
+        $production->recalculateTotals();
+
+        return redirect()->back()->with('success', 'Biaya produksi berhasil diperbarui.');
+    }
+
+    /**
+     * Posting Dokumen Produksi Sekarang
+     * - Memotong stok bahan baku (mpos_stock_mutations TYPE_OUT)
+     * - Menambah stok produk jadi (mpos_stock_mutations TYPE_IN)
+     * - Mengubah status dokumen menjadi POSTED
+     */
+    public function postProduction(string $id): RedirectResponse
+    {
+        $production = MposProductionH::with(['products.product', 'materials.product', 'materials.ingredient'])
+            ->where('nid', $id)
+            ->orWhere('cno_production', $id)
+            ->firstOrFail();
+
+        if (!$production->isDraft()) {
+            return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diposting.');
+        }
+
+        if ($production->products->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak dapat memposting: Dokumen belum memiliki produk hasil produksi.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $mutationTime = Carbon::now();
+            $dmutation = Carbon::parse($production->dproduction)->setTime($mutationTime->hour, $mutationTime->minute, $mutationTime->second);
+
+            // 1. Catat mutasi MASUK untuk setiap produk hasil produksi & tambah stok fisik
+            foreach ($production->products as $prod) {
+                MposStockMutation::create([
+                    'cno_ref' => $production->cno_production,
+                    'dmutation' => $dmutation,
+                    'ctype' => MposStockMutation::TYPE_IN,
+                    'nid_outlet' => $production->nid_outlet,
+                    'nid_target_outlet' => null,
+                    'nid_user' => Auth::id() ?? $production->nid_user,
+                    'citem_type' => MposStockMutation::ITEM_PRODUK,
+                    'nid_product' => $prod->nid_product,
+                    'nid_ingredient' => null,
+                    'nqty' => $prod->nqty,
+                    'ncost' => $prod->ncost_unit,
+                    'nsubtotal' => $prod->nsubtotal,
+                    'creason' => 'Hasil Produksi',
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => 'Hasil Produksi #' . $production->cno_production,
+                    'dexpired' => $prod->dexpired,
+                    'crack' => $prod->crack,
+                    'dcreated' => Carbon::now(),
+                ]);
+
+                // Update stok fisik master produk jadi
+                if ($prod->nid_product) {
+                    $product = MposProduct::lockForUpdate()->find($prod->nid_product);
+                    if ($product) {
+                        $product->nqty = (float) $product->nqty + (float) $prod->nqty;
+                        $product->save();
+                    }
+                }
+            }
+
+            // 2. Catat mutasi KELUAR untuk setiap bahan baku yang digunakan & kurangi stok fisik
+            foreach ($production->materials as $mat) {
+                MposStockMutation::create([
+                    'cno_ref' => $production->cno_production,
+                    'dmutation' => $dmutation,
+                    'ctype' => MposStockMutation::TYPE_OUT,
+                    'nid_outlet' => $production->nid_outlet,
+                    'nid_target_outlet' => null,
+                    'nid_user' => Auth::id() ?? $production->nid_user,
+                    'citem_type' => $mat->citem_type ?: MposStockMutation::ITEM_PRODUK,
+                    'nid_product' => $mat->nid_product,
+                    'nid_ingredient' => $mat->nid_ingredient,
+                    'nqty' => $mat->nqty,
+                    'ncost' => $mat->ncost,
+                    'nsubtotal' => $mat->nsubtotal,
+                    'creason' => 'Bahan Produksi',
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => 'Bahan Produksi #' . $production->cno_production,
+                    'dcreated' => Carbon::now(),
+                ]);
+
+                // Update stok fisik master produk / bahan baku
+                if (!$mat->isIngredient() && $mat->nid_product) {
+                    $matProd = MposProduct::lockForUpdate()->find($mat->nid_product);
+                    if ($matProd) {
+                        $matProd->nqty = max(0, (float) $matProd->nqty - (float) $mat->nqty);
+                        $matProd->save();
+                    }
+                } elseif ($mat->isIngredient() && $mat->nid_ingredient) {
+                    $ing = MposIngredients::lockForUpdate()->find($mat->nid_ingredient);
+                    if ($ing) {
+                        $ing->nstock = max(0, (float) $ing->nstock - (float) $mat->nqty);
+                        $ing->save();
+                    }
+                }
+            }
+
+            // 3. Update status dokumen produksi menjadi POSTED
+            $production->update([
+                'cstatus' => MposProductionH::STATUS_POSTED,
+                'dposted' => Carbon::now(),
+                'dupdated' => Carbon::now(),
+            ]);
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Dokumen Produksi berhasil diposting. Stok bahan baku telah dipotong dan stok produk jadi telah ditambahkan.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal memposting dokumen produksi: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Batalkan Dokumen Produksi
+     */
+    public function cancelProduction(string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if ($production->isPosted()) {
+            return redirect()->back()->with('error', 'Dokumen yang sudah diposting tidak dapat dibatalkan.');
+        }
+
+        $production->update([
+            'cstatus' => MposProductionH::STATUS_CANCELLED,
+            'dupdated' => Carbon::now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Dokumen Produksi berhasil dibatalkan.');
+    }
+
+    /**
+     * Sinkronkan Stok Fisik Dokumen Produksi yang Sudah Diposting
+     */
+    public function syncProductionStock(string $id): RedirectResponse
+    {
+        $production = MposProductionH::with(['products', 'materials'])
+            ->where('nid', $id)
+            ->orWhere('cno_production', $id)
+            ->firstOrFail();
+
+        if (!$production->isPosted()) {
+            return redirect()->back()->with('error', 'Hanya dokumen yang berstatus POSTED yang dapat disinkronkan stoknya.');
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update stok produk hasil produksi
+            foreach ($production->products as $prod) {
+                if ($prod->nid_product) {
+                    $product = MposProduct::lockForUpdate()->find($prod->nid_product);
+                    if ($product) {
+                        $product->nqty = (float) $product->nqty + (float) $prod->nqty;
+                        $product->save();
+                    }
+                }
+            }
+
+            // Update stok bahan baku
+            foreach ($production->materials as $mat) {
+                if (!$mat->isIngredient() && $mat->nid_product) {
+                    $matProd = MposProduct::lockForUpdate()->find($mat->nid_product);
+                    if ($matProd) {
+                        $matProd->nqty = max(0, (float) $matProd->nqty - (float) $mat->nqty);
+                        $matProd->save();
+                    }
+                } elseif ($mat->isIngredient() && $mat->nid_ingredient) {
+                    $ing = MposIngredients::lockForUpdate()->find($mat->nid_ingredient);
+                    if ($ing) {
+                        $ing->nstock = max(0, (float) $ing->nstock - (float) $mat->nqty);
+                        $ing->save();
+                    }
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Stok master produk berhasil disinkronkan! Stok produk jadi bertambah dan stok bahan baku berkurang.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal menyinkronkan stok: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Hapus Dokumen Produksi Draft / Batal
+     */
+    public function destroyProduction(string $id): RedirectResponse
+    {
+        $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
+
+        if ($production->isPosted()) {
+            return redirect()->back()->with('error', 'Dokumen yang sudah diposting tidak dapat dihapus.');
+        }
+
+        $production->delete();
+
+        return redirect()->route('inventory.index', ['tab' => 'produksi_stok'])
+            ->with('success', 'Dokumen Produksi berhasil dihapus.');
+    }
+
+    /**
+     * Cetak PDF Dokumen Produksi
+     */
+    public function printProduction(string $id)
+    {
+        $production = MposProductionH::with([
+            'outlet',
+            'user',
+            'products.product',
+            'materials.product',
+            'materials.ingredient',
+        ])
+        ->where('nid', $id)
+        ->orWhere('cno_production', $id)
+        ->firstOrFail();
+
+        $pdf = Pdf::loadView('inventory.production_print', compact('production'))
+            ->setPaper('a4', 'portrait');
+
+        $filename = "Produksi_Stok_{$production->cno_production}.pdf";
+
+        return $pdf->stream($filename);
     }
 }

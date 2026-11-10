@@ -135,6 +135,23 @@ Route::middleware(['auth'])->group(function () {
 
         // Pergerakan Stok Export
         Route::get('/movement/export-excel', [InventoryController::class, 'exportStockMovementExcel'])->name('movement.export-excel');
+
+        // Produksi Stok Routes
+        Route::post('/production', [InventoryController::class, 'storeProduction'])->name('production.store');
+        Route::get('/production/{id}', [InventoryController::class, 'showProduction'])->name('production.show');
+        Route::put('/production/{id}', [InventoryController::class, 'updateProductionHeader'])->name('production.update');
+        Route::post('/production/{id}/post', [InventoryController::class, 'postProduction'])->name('production.post');
+        Route::post('/production/{id}/cancel', [InventoryController::class, 'cancelProduction'])->name('production.cancel');
+        Route::delete('/production/{id}', [InventoryController::class, 'destroyProduction'])->name('production.destroy');
+        Route::post('/production/{id}/products', [InventoryController::class, 'addProductionProduct'])->name('production.products.store');
+        Route::put('/production/{id}/products/{productId}', [InventoryController::class, 'updateProductionProduct'])->name('production.products.update');
+        Route::delete('/production/{id}/products/{productId}', [InventoryController::class, 'destroyProductionProduct'])->name('production.products.destroy');
+        Route::post('/production/{id}/materials', [InventoryController::class, 'addProductionMaterial'])->name('production.materials.store');
+        Route::put('/production/{id}/materials/{materialId}', [InventoryController::class, 'updateProductionMaterial'])->name('production.materials.update');
+        Route::delete('/production/{id}/materials/{materialId}', [InventoryController::class, 'destroyProductionMaterial'])->name('production.materials.destroy');
+        Route::post('/production/{id}/additional-cost', [InventoryController::class, 'updateAdditionalCost'])->name('production.additional-cost');
+        Route::post('/production/{id}/sync-stock', [InventoryController::class, 'syncProductionStock'])->name('production.sync-stock');
+        Route::get('/production/{id}/print', [InventoryController::class, 'printProduction'])->name('production.print');
     });
 
     // POS Management Routes
