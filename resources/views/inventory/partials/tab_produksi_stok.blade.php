@@ -200,51 +200,733 @@
 </div>
 @endif
 
-<!-- Modal Tambah Produksi Stok Baru -->
+<!-- ==================== MODAL TAMBAH PRODUKSI STOK BARU (LENGKAP DENGAN PRODUK & BAHAN) ==================== -->
 <div class="modal fade" id="modalTambahProduksi" tabindex="-1" aria-labelledby="modalTambahProduksiLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1060px;">
         <div class="modal-content border-0 shadow">
-            <form action="{{ route('inventory.production.store') }}" method="POST">
+            <form action="{{ route('inventory.production.store') }}" method="POST" id="formCreateProduction">
                 @csrf
-                <div class="modal-header border-bottom py-3">
-                    <h6 class="modal-title fw-bold text-dark" id="modalTambahProduksiLabel">
-                        <i class="bi bi-gear-wide-connected text-primary me-2"></i>Buat Produksi Stok Baru
-                    </h6>
+                <div class="modal-header bg-light-subtle py-3 border-bottom">
+                    <h5 class="modal-title fw-bold text-dark" id="modalTambahProduksiLabel">
+                        <i class="bi bi-gear-wide-connected text-primary me-2"></i>Tambah Produksi Stok Baru
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Outlet Produksi <span class="text-danger">*</span></label>
-                        <select name="nid_outlet" class="form-select form-select-sm" required>
-                            @foreach($outlets as $outlet)
-                            <option value="{{ $outlet->nid }}" {{ (string)$selectedOutletId === (string)$outlet->nid ? 'selected' : '' }}>
-                                {{ $outlet->cname }}
-                            </option>
-                            @endforeach
-                        </select>
+                    <!-- Baris 1: Outlet, Tanggal Produksi, Catatan -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-secondary">Outlet Produksi <span class="text-danger">*</span></label>
+                            <select name="nid_outlet" id="prodModalOutlet" class="form-select" required {{ $isOutletLocked ? 'disabled' : '' }}>
+                                @foreach($outlets as $ot)
+                                <option value="{{ $ot->nid }}" {{ (string)($selectedOutletId ?: $outlets->first()?->nid) === (string)$ot->nid ? 'selected' : '' }}>
+                                    {{ $ot->cname }}
+                                </option>
+                                @endforeach
+                            </select>
+                            @if($isOutletLocked)
+                            <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                            @endif
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-secondary">Tanggal Produksi <span class="text-danger">*</span></label>
+                            <input type="date" name="dproduction" class="form-control" value="{{ date('Y-m-d') }}" required>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-secondary">Catatan (Opsional)</label>
+                            <input type="text" name="cnote" class="form-control" placeholder="Contoh: Produksi batch pagi, target 50 pcs...">
+                        </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Tanggal Produksi <span class="text-danger">*</span></label>
-                        <input type="date" name="dproduction" class="form-control form-control-sm" value="{{ \Carbon\Carbon::now()->format('Y-m-d') }}" required>
+                    <!-- ==================== BAGIAN 1: PRODUK HASIL PRODUKSI (PLUS) ==================== -->
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <div>
+                            <span class="fw-bold text-dark fs-6">
+                                <i class="bi bi-box-seam me-1 text-primary"></i> Produk Hasil Produksi (Stok Bertambah)
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border ms-2">Hasil Jadi</span>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold shadow-sm" id="btnAddProdRow">
+                            <i class="bi bi-plus-lg me-1"></i> Tambah Produk
+                        </button>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Catatan (Opsional)</label>
-                        <textarea name="cnote" class="form-control form-control-sm" rows="3" placeholder="Contoh: Produksi batch pagi, target 50 pcs mie kering..."></textarea>
+                    <div class="table-responsive mt-2" style="overflow: visible;">
+                        <table class="table align-middle mb-0" id="tableProductionProducts">
+                            <thead>
+                                <tr class="bg-light text-secondary small">
+                                    <th style="width: 35px;" class="text-center py-2 text-nowrap">NO</th>
+                                    <th class="py-2 text-center text-nowrap" style="min-width: 280px;">PRODUK JADI</th>
+                                    <th style="width: 125px;" class="text-center py-2 text-nowrap">STOK SEKARANG</th>
+                                    <th style="width: 135px;" class="text-center py-2 text-nowrap">QTY PRODUKSI</th>
+                                    <th style="width: 95px;" class="text-center py-2 text-nowrap">SATUAN</th>
+                                    <th style="width: 40px;" class="text-center py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="productionProductsTableBody" class="small">
+                                <!-- Baris produk di-generate via JS -->
+                            </tbody>
+                        </table>
                     </div>
 
-                    <div class="alert alert-info py-2 px-3 small mb-0 border-0 bg-info-subtle text-info-emphasis">
-                        <i class="bi bi-info-circle me-1"></i> Setelah dokumen dibuat, Anda dapat menambahkan produk jadi dan bahan baku pada halaman detail.
+                    <!-- ==================== BAGIAN 2: BAHAN BAKU YANG DIGUNAKAN (MINUS) ==================== -->
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <div>
+                            <span class="fw-bold text-dark fs-6">
+                                <i class="bi bi-layers me-1 text-danger"></i> Bahan Baku yang Digunakan (Stok Berkurang)
+                            </span>
+                            <span class="badge bg-danger-subtle text-danger border ms-2">Bahan / Resep</span>
+                        </div>
+                        <button type="button" class="btn btn-outline-danger btn-sm px-3 fw-semibold shadow-sm" id="btnAddMatRow">
+                            <i class="bi bi-plus-lg me-1"></i> Tambah Bahan Baku
+                        </button>
+                    </div>
+
+                    <div class="table-responsive mt-2" style="overflow: visible;">
+                        <table class="table align-middle mb-0" id="tableProductionMaterials">
+                            <thead>
+                                <tr class="bg-light text-secondary small">
+                                    <th style="width: 35px;" class="text-center py-2 text-nowrap">NO</th>
+                                    <th class="py-2 text-center text-nowrap" style="min-width: 240px;">NAMA BAHAN BAKU</th>
+                                    <th style="width: 175px;" class="text-center py-2 text-nowrap">UNTUK PRODUK</th>
+                                    <th style="width: 130px;" class="text-center py-2 text-nowrap">TAKARAN / UNIT</th>
+                                    <th style="width: 135px;" class="text-center py-2 text-nowrap">TOTAL DIPOTONG</th>
+                                    <th style="width: 90px;" class="text-center py-2 text-nowrap">SATUAN</th>
+                                    <th style="width: 40px;" class="text-center py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="productionMaterialsTableBody" class="small">
+                                <!-- Baris bahan baku di-generate via JS -->
+                            </tbody>
+                        </table>
+                        <div id="emptyMatNotice" class="text-center py-3 text-muted small bg-light-subtle border rounded mt-1">
+                            <i class="bi bi-info-circle me-1"></i> Belum ada bahan baku. Bahan baku otomatis muncul jika produk memiliki resep, atau klik <strong>+ Tambah Bahan Baku</strong>.
+                        </div>
+                    </div>
+
+                    <!-- Ringkasan Kuantitas di Bawah -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-4 pt-3 border-top bg-light-subtle rounded-3 p-3">
+                        <div class="text-muted small">
+                            <i class="bi bi-shield-check me-1 text-success"></i> Dokumen akan disimpan sebagai <strong>Draf</strong> terlebih dahulu sebelum diposting.
+                        </div>
+                        <div class="d-flex align-items-center gap-4 text-end ms-auto">
+                            <div>
+                                <span class="text-secondary small d-block">Total Hasil Jadi:</span>
+                                <span class="fw-bold fs-6 text-primary" id="prodModalTotalQty">0</span> <span class="small text-muted">unit</span>
+                            </div>
+                            <div>
+                                <span class="text-secondary small d-block">Jumlah Bahan Baku:</span>
+                                <span class="fw-bold fs-6 text-danger" id="prodModalTotalMatCount">0</span> <span class="small text-muted">item</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer border-top py-2 bg-light">
-                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-sm btn-success px-3 fw-semibold">
-                        <i class="bi bi-check2-circle me-1"></i> Buat Dokumen
+
+                <div class="modal-footer bg-light-subtle py-2 px-4 border-top">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success btn-sm px-4 fw-semibold shadow-sm" id="btnSubmitProduction">
+                        <i class="bi bi-check2-circle me-1"></i> Simpan Dokumen
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script type="application/json" id="productionProductsData">
+    @json($modalProducts ?? [])
+</script>
+
+<script type="application/json" id="productionRecipesData">
+    @json($modalRecipes ?? [])
+</script>
+
+<script>
+    let prodRowCounter = 0;
+    let matRowCounter = 0;
+    const prodTsInstances = {};
+    const matTsInstances = {};
+
+    let rawProdProducts = [];
+    let rawProdRecipes = {};
+
+    try {
+        const pEl = document.getElementById('productionProductsData');
+        if (pEl) rawProdProducts = JSON.parse(pEl.textContent || '[]');
+    } catch (e) {
+        rawProdProducts = [];
+    }
+
+    try {
+        const rEl = document.getElementById('productionRecipesData');
+        if (rEl) rawProdRecipes = JSON.parse(rEl.textContent || '{}');
+    } catch (e) {
+        rawProdRecipes = {};
+    }
+
+    function getSelectedProdModalOutlet() {
+        const sel = document.getElementById('prodModalOutlet');
+        if (sel) return sel.value;
+        return "{{ $selectedOutletId ?: ($outlets->first()?->nid ?? '') }}";
+    }
+
+    // Filter daftar produk berdasarkan outlet
+    function getFilteredProductionProducts() {
+        const curOutlet = getSelectedProdModalOutlet();
+        return rawProdProducts.filter(p => {
+            if (!curOutlet) return true;
+            return !p.nid_outlet || String(p.nid_outlet) === String(curOutlet);
+        });
+    }
+
+    // Tambah Baris Produk Hasil Produksi
+    function addProductionProductRow(defaultProdId = '', defaultQty = 1) {
+        prodRowCounter++;
+        const curIdx = prodRowCounter;
+        const tempId = 'prod_' + curIdx;
+        const tbody = document.getElementById('productionProductsTableBody');
+        const tr = document.createElement('tr');
+        tr.id = 'prod-row-' + curIdx;
+        tr.setAttribute('data-temp-id', tempId);
+        tr.setAttribute('data-row-id', curIdx);
+
+        tr.innerHTML = `
+            <td class="text-center text-muted fw-semibold align-middle prod-row-number py-2">${tbody.children.length + 1}</td>
+            <td class="py-2 align-middle">
+                <input type="hidden" name="products[${curIdx}][temp_id]" value="${tempId}">
+                <select name="products[${curIdx}][nid_product]" class="form-select form-select-sm prod-item-select" id="prod_select_${curIdx}" data-row="${curIdx}" required>
+                    <option value="">-- Cari atau pilih produk jadi --</option>
+                </select>
+            </td>
+            <td class="text-center py-2 align-middle">
+                <span class="badge bg-light text-secondary border prod-stock-badge" id="prod_stock_badge_${curIdx}">-</span>
+            </td>
+            <td class="py-2 text-center align-middle">
+                <div class="qty-stepper mx-auto">
+                    <button type="button" class="qty-stepper-btn qty-stepper-minus prod-btn-minus" title="Kurangi 1">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" step="any" min="0.01" name="products[${curIdx}][nqty]" class="qty-stepper-input prod-qty-input no-spinners" value="${defaultQty}" placeholder="1" required>
+                    <button type="button" class="qty-stepper-btn qty-stepper-plus prod-btn-plus" title="Tambah 1">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </td>
+            <td class="text-center py-2 align-middle text-muted prod-satuan-cell" id="prod_satuan_${curIdx}">
+                PCS
+            </td>
+            <td class="text-center py-2 align-middle">
+                <button type="button" class="btn btn-outline-danger btn-sm p-1 border-0 rounded-circle" onclick="removeProductionProductRow(${curIdx})" title="Hapus Produk" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+
+        const selectEl = tr.querySelector('.prod-item-select');
+        const qtyInput = tr.querySelector('.prod-qty-input');
+        const btnMinus = tr.querySelector('.prod-btn-minus');
+        const btnPlus = tr.querySelector('.prod-btn-plus');
+
+        // Init TomSelect untuk produk jadi
+        const ts = new TomSelect(selectEl, {
+            create: false,
+            maxItems: 1,
+            placeholder: '-- Cari atau pilih produk jadi --',
+            allowEmptyOption: true,
+            sortField: { field: "text", direction: "asc" },
+            render: {
+                item: function(data, escape) {
+                    const cleanName = data.cname || data.text || '';
+                    return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                },
+                option: function(data, escape) {
+                    if (!data.value) return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                    const stockVal = data.nqty !== undefined ? data.nqty : '-';
+                    const unitVal = data.csatuan || 'PCS';
+                    return '<div class="d-flex justify-content-between align-items-center py-1">' +
+                        '<span class="fw-medium text-dark">' + escape(data.cname || data.text) + '</span>' +
+                        '<span class="badge bg-light text-secondary border ms-2" style="font-size: 0.72rem;">Stok: ' + escape(stockVal) + ' ' + escape(unitVal) + '</span>' +
+                        '</div>';
+                }
+            }
+        });
+
+        prodTsInstances[curIdx] = ts;
+        populateProdTsOptions(ts, defaultProdId);
+
+        // Event saat produk dipilih
+        ts.on('change', function(val) {
+            const stockBadge = document.getElementById('prod_stock_badge_' + curIdx);
+            const satuanCell = document.getElementById('prod_satuan_' + curIdx);
+            const opt = val ? ts.options[val] : null;
+
+            if (opt) {
+                if (stockBadge) stockBadge.textContent = (opt.nqty !== undefined ? opt.nqty : '-') + ' ' + (opt.csatuan || 'PCS');
+                if (satuanCell) satuanCell.textContent = opt.csatuan || 'PCS';
+
+                // Update opsi target produk pada tabel bahan
+                refreshMaterialParentDropdowns();
+
+                // Otomatis muat bahan dari resep jika tersedia
+                loadRecipeMaterialsForProduct(tempId, val, parseFloat(qtyInput.value) || 1);
+            } else {
+                if (stockBadge) stockBadge.textContent = '-';
+                if (satuanCell) satuanCell.textContent = 'PCS';
+                refreshMaterialParentDropdowns();
+            }
+            calculateProductionModalTotals();
+        });
+
+        // Event Stepper Qty Produk
+        btnMinus.addEventListener('click', function() {
+            let v = parseFloat(qtyInput.value) || 0;
+            v = Math.max(1, v - 1);
+            qtyInput.value = v;
+            scaleMaterialsForProduct(tempId, v);
+            calculateProductionModalTotals();
+        });
+
+        btnPlus.addEventListener('click', function() {
+            let v = parseFloat(qtyInput.value) || 0;
+            v = v + 1;
+            qtyInput.value = v;
+            scaleMaterialsForProduct(tempId, v);
+            calculateProductionModalTotals();
+        });
+
+        qtyInput.addEventListener('input', function() {
+            let v = Math.max(0.01, parseFloat(qtyInput.value) || 0);
+            scaleMaterialsForProduct(tempId, v);
+            calculateProductionModalTotals();
+        });
+
+        renumberProductionProductRows();
+        refreshMaterialParentDropdowns();
+        calculateProductionModalTotals();
+    }
+
+    function populateProdTsOptions(ts, selectedVal = '') {
+        ts.clearOptions();
+        const items = getFilteredProductionProducts();
+        items.forEach(p => {
+            ts.addOption({
+                value: String(p.nid),
+                text: p.cname,
+                cname: p.cname,
+                nqty: p.nqty,
+                csatuan: p.csatuan || 'PCS',
+                nprice_buy: p.nprice_buy || 0
+            });
+        });
+        if (selectedVal) {
+            ts.setValue(String(selectedVal), true);
+        }
+    }
+
+    function removeProductionProductRow(rowId) {
+        const tr = document.getElementById('prod-row-' + rowId);
+        if (!tr) return;
+        const tempId = tr.getAttribute('data-temp-id');
+
+        if (prodTsInstances[rowId]) {
+            try { prodTsInstances[rowId].destroy(); } catch (e) {}
+            delete prodTsInstances[rowId];
+        }
+        tr.remove();
+
+        // Hapus juga bahan baku yang terhubung dengan produk ini
+        const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+        matRows.forEach(mr => {
+            const parentSelect = mr.querySelector('.mat-parent-select');
+            if (parentSelect && parentSelect.value === tempId) {
+                const matRowId = mr.getAttribute('data-mat-id');
+                removeProductionMaterialRow(matRowId);
+            }
+        });
+
+        renumberProductionProductRows();
+        refreshMaterialParentDropdowns();
+        calculateProductionModalTotals();
+    }
+
+    function renumberProductionProductRows() {
+        const rows = document.querySelectorAll('#productionProductsTableBody tr');
+        rows.forEach((r, idx) => {
+            const numCell = r.querySelector('.prod-row-number');
+            if (numCell) numCell.textContent = idx + 1;
+        });
+    }
+
+    // ==================== BAGIAN BAHAN BAKU ====================
+
+    function addProductionMaterialRow(parentTempId = '', defaultMatId = '', defaultUnitQty = 1, isFromRecipe = false) {
+        matRowCounter++;
+        const curIdx = matRowCounter;
+        const tbody = document.getElementById('productionMaterialsTableBody');
+        const tr = document.createElement('tr');
+        tr.id = 'mat-row-' + curIdx;
+        tr.setAttribute('data-mat-id', curIdx);
+        if (isFromRecipe) tr.setAttribute('data-is-recipe', '1');
+
+        tr.innerHTML = `
+            <td class="text-center text-muted fw-semibold align-middle mat-row-number py-2">${tbody.children.length + 1}</td>
+            <td class="py-2 align-middle">
+                <select name="materials[${curIdx}][nid_product]" class="form-select form-select-sm mat-item-select" id="mat_select_${curIdx}" data-mat="${curIdx}" required>
+                    <option value="">-- Cari atau pilih bahan baku --</option>
+                </select>
+            </td>
+            <td class="py-2 align-middle">
+                <select name="materials[${curIdx}][product_temp_id]" class="form-select form-select-sm mat-parent-select" id="mat_parent_${curIdx}">
+                    <!-- Pilihan produk hasil produksi -->
+                </select>
+            </td>
+            <td class="py-2 text-center align-middle">
+                <div class="qty-stepper mx-auto">
+                    <button type="button" class="qty-stepper-btn qty-stepper-minus mat-btn-minus" title="Kurangi 1">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" step="any" min="0.001" name="materials[${curIdx}][unit_qty]" class="qty-stepper-input mat-unit-qty-input no-spinners" value="${defaultUnitQty}" placeholder="1" required>
+                    <button type="button" class="qty-stepper-btn qty-stepper-plus mat-btn-plus" title="Tambah 1">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </td>
+            <td class="py-2 text-center align-middle">
+                <input type="number" step="any" min="0.001" name="materials[${curIdx}][nqty]" class="form-control form-control-sm mat-total-qty-input text-center fw-bold text-danger bg-light" value="${defaultUnitQty}" readonly>
+            </td>
+            <td class="text-center py-2 align-middle text-muted mat-satuan-cell" id="mat_satuan_${curIdx}">
+                PCS
+            </td>
+            <td class="text-center py-2 align-middle">
+                <button type="button" class="btn btn-outline-danger btn-sm p-1 border-0 rounded-circle" onclick="removeProductionMaterialRow(${curIdx})" title="Hapus Bahan" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+
+        const selectEl = tr.querySelector('.mat-item-select');
+        const parentSelect = tr.querySelector('.mat-parent-select');
+        const unitQtyInput = tr.querySelector('.mat-unit-qty-input');
+        const totalQtyInput = tr.querySelector('.mat-total-qty-input');
+
+        // Populate parent dropdown
+        populateMaterialParentSelect(parentSelect, parentTempId);
+
+        // Init TomSelect bahan
+        const ts = new TomSelect(selectEl, {
+            create: false,
+            maxItems: 1,
+            placeholder: '-- Cari atau pilih bahan baku --',
+            allowEmptyOption: true,
+            sortField: { field: "text", direction: "asc" },
+            render: {
+                item: function(data, escape) {
+                    const cleanName = data.cname || data.text || '';
+                    return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                },
+                option: function(data, escape) {
+                    if (!data.value) return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                    const stockVal = data.nqty !== undefined ? data.nqty : '-';
+                    const unitVal = data.csatuan || 'PCS';
+                    return '<div class="d-flex justify-content-between align-items-center py-1">' +
+                        '<span class="fw-medium text-dark">' + escape(data.cname || data.text) + '</span>' +
+                        '<span class="badge bg-light text-secondary border ms-2" style="font-size: 0.72rem;">Stok: ' + escape(stockVal) + ' ' + escape(unitVal) + '</span>' +
+                        '</div>';
+                }
+            }
+        });
+
+        matTsInstances[curIdx] = ts;
+        populateProdTsOptions(ts, defaultMatId);
+
+        ts.on('change', function(val) {
+            const satuanCell = document.getElementById('mat_satuan_' + curIdx);
+            const opt = val ? ts.options[val] : null;
+            if (satuanCell) {
+                satuanCell.textContent = opt ? (opt.csatuan || 'PCS') : 'PCS';
+            }
+        });
+
+        const btnMatMinus = tr.querySelector('.mat-btn-minus');
+        const btnMatPlus = tr.querySelector('.mat-btn-plus');
+
+        btnMatMinus.addEventListener('click', function() {
+            let v = parseFloat(unitQtyInput.value) || 0;
+            v = Math.max(0.001, parseFloat((v - 1).toFixed(3)));
+            unitQtyInput.value = v;
+            recalculateSingleMaterialTotal(tr);
+        });
+
+        btnMatPlus.addEventListener('click', function() {
+            let v = parseFloat(unitQtyInput.value) || 0;
+            v = parseFloat((v + 1).toFixed(3));
+            unitQtyInput.value = v;
+            recalculateSingleMaterialTotal(tr);
+        });
+
+        // Event perubahan takaran per unit
+        unitQtyInput.addEventListener('input', function() {
+            recalculateSingleMaterialTotal(tr);
+        });
+
+        parentSelect.addEventListener('change', function() {
+            recalculateSingleMaterialTotal(tr);
+        });
+
+        recalculateSingleMaterialTotal(tr);
+        renumberProductionMaterialRows();
+        checkEmptyMaterialsNotice();
+        calculateProductionModalTotals();
+    }
+
+    function removeProductionMaterialRow(matRowId) {
+        const tr = document.getElementById('mat-row-' + matRowId);
+        if (!tr) return;
+
+        if (matTsInstances[matRowId]) {
+            try { matTsInstances[matRowId].destroy(); } catch (e) {}
+            delete matTsInstances[matRowId];
+        }
+        tr.remove();
+
+        renumberProductionMaterialRows();
+        checkEmptyMaterialsNotice();
+        calculateProductionModalTotals();
+    }
+
+    function renumberProductionMaterialRows() {
+        const rows = document.querySelectorAll('#productionMaterialsTableBody tr');
+        rows.forEach((r, idx) => {
+            const numCell = r.querySelector('.mat-row-number');
+            if (numCell) numCell.textContent = idx + 1;
+        });
+    }
+
+    function checkEmptyMaterialsNotice() {
+        const rows = document.querySelectorAll('#productionMaterialsTableBody tr');
+        const notice = document.getElementById('emptyMatNotice');
+        if (notice) {
+            notice.style.display = rows.length === 0 ? 'block' : 'none';
+        }
+    }
+
+    // Refresh opsi dropdown "UNTUK PRODUK" di seluruh baris bahan
+    function refreshMaterialParentDropdowns() {
+        const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+        matRows.forEach(mr => {
+            const parentSelect = mr.querySelector('.mat-parent-select');
+            if (parentSelect) {
+                const curVal = parentSelect.value;
+                populateMaterialParentSelect(parentSelect, curVal);
+            }
+        });
+    }
+
+    function populateMaterialParentSelect(selectEl, selectedTempId = '') {
+        const prodRows = document.querySelectorAll('#productionProductsTableBody tr');
+        selectEl.innerHTML = '';
+
+        if (prodRows.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '-- Belum ada produk --';
+            selectEl.appendChild(opt);
+            return;
+        }
+
+        prodRows.forEach(pr => {
+            const tempId = pr.getAttribute('data-temp-id');
+            const rowId = pr.getAttribute('data-row-id');
+            const ts = prodTsInstances[rowId];
+            let prodName = 'Produk #' + pr.querySelector('.prod-row-number')?.textContent;
+            if (ts && ts.getValue()) {
+                const optData = ts.options[ts.getValue()];
+                if (optData) prodName = optData.cname || optData.text;
+            }
+
+            const opt = document.createElement('option');
+            opt.value = tempId;
+            opt.textContent = prodName;
+            if (selectedTempId && selectedTempId === tempId) {
+                opt.selected = true;
+            }
+            selectEl.appendChild(opt);
+        });
+
+        if (!selectEl.value && selectEl.children.length > 0) {
+            selectEl.children[0].selected = true;
+        }
+    }
+
+    // Otomatis muat bahan resep saat produk dipilih
+    function loadRecipeMaterialsForProduct(tempId, productId, parentQty) {
+        if (!productId || !rawProdRecipes[productId]) return;
+
+        const recipes = rawProdRecipes[productId];
+        if (Array.isArray(recipes) && recipes.length > 0) {
+            // Hapus bahan resep lama untuk produk ini jika ada
+            const existingMatRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+            existingMatRows.forEach(mr => {
+                const pSelect = mr.querySelector('.mat-parent-select');
+                if (pSelect && pSelect.value === tempId && mr.getAttribute('data-is-recipe') === '1') {
+                    removeProductionMaterialRow(mr.getAttribute('data-mat-id'));
+                }
+            });
+
+            recipes.forEach(rc => {
+                const unitQty = parseFloat(rc.nqty) || 1;
+                addProductionMaterialRow(tempId, rc.nid_ingredient, unitQty, true);
+            });
+        }
+    }
+
+    // Skala bahan saat Qty produk diubah
+    function scaleMaterialsForProduct(tempId, parentQty) {
+        const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+        matRows.forEach(mr => {
+            const pSelect = mr.querySelector('.mat-parent-select');
+            if (pSelect && pSelect.value === tempId) {
+                const unitInput = mr.querySelector('.mat-unit-qty-input');
+                const totalInput = mr.querySelector('.mat-total-qty-input');
+                if (unitInput && totalInput) {
+                    const unitVal = parseFloat(unitInput.value) || 0;
+                    totalInput.value = parseFloat((unitVal * parentQty).toFixed(4));
+                }
+            }
+        });
+    }
+
+    function recalculateSingleMaterialTotal(tr) {
+        const parentSelect = tr.querySelector('.mat-parent-select');
+        const unitInput = tr.querySelector('.mat-unit-qty-input');
+        const totalInput = tr.querySelector('.mat-total-qty-input');
+        if (!parentSelect || !unitInput || !totalInput) return;
+
+        const parentTempId = parentSelect.value;
+        let parentQty = 1;
+
+        if (parentTempId) {
+            const parentRow = document.querySelector(`[data-temp-id="${parentTempId}"]`);
+            if (parentRow) {
+                const pQtyInput = parentRow.querySelector('.prod-qty-input');
+                if (pQtyInput) parentQty = parseFloat(pQtyInput.value) || 1;
+            }
+        }
+
+        const unitVal = parseFloat(unitInput.value) || 0;
+        totalInput.value = parseFloat((unitVal * parentQty).toFixed(4));
+    }
+
+    function calculateProductionModalTotals() {
+        const prodRows = document.querySelectorAll('#productionProductsTableBody tr');
+        let totalProdQty = 0;
+        prodRows.forEach(pr => {
+            const inp = pr.querySelector('.prod-qty-input');
+            if (inp) totalProdQty += parseFloat(inp.value) || 0;
+        });
+
+        const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+
+        const totalQtyEl = document.getElementById('prodModalTotalQty');
+        const totalMatEl = document.getElementById('prodModalTotalMatCount');
+
+        if (totalQtyEl) totalQtyEl.textContent = totalProdQty.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        if (totalMatEl) totalMatEl.textContent = matRows.length;
+    }
+
+    // Inisialisasi Event Listener Modal
+    document.addEventListener('DOMContentLoaded', function() {
+        const addProdBtn = document.getElementById('btnAddProdRow');
+        if (addProdBtn) {
+            addProdBtn.addEventListener('click', function() {
+                addProductionProductRow();
+            });
+        }
+
+        const addMatBtn = document.getElementById('btnAddMatRow');
+        if (addMatBtn) {
+            addMatBtn.addEventListener('click', function() {
+                // Pilih produk pertama sebagai default parent jika ada
+                const firstProdRow = document.querySelector('#productionProductsTableBody tr');
+                const defaultParentTempId = firstProdRow ? firstProdRow.getAttribute('data-temp-id') : '';
+                addProductionMaterialRow(defaultParentTempId);
+            });
+        }
+
+        // Auto tambah 1 baris saat modal dibuka jika kosong
+        const modalEl = document.getElementById('modalTambahProduksi');
+        if (modalEl) {
+            modalEl.addEventListener('show.bs.modal', function() {
+                const tbody = document.getElementById('productionProductsTableBody');
+                if (tbody && tbody.children.length === 0) {
+                    addProductionProductRow();
+                }
+            });
+        }
+
+        // Outlet di modal berubah: refresh semua opsi TomSelect
+        const outletSelect = document.getElementById('prodModalOutlet');
+        if (outletSelect) {
+            outletSelect.addEventListener('change', function() {
+                Object.keys(prodTsInstances).forEach(rowId => {
+                    const ts = prodTsInstances[rowId];
+                    if (ts) populateProdTsOptions(ts, ts.getValue());
+                });
+                Object.keys(matTsInstances).forEach(rowId => {
+                    const ts = matTsInstances[rowId];
+                    if (ts) populateProdTsOptions(ts, ts.getValue());
+                });
+            });
+        }
+
+        // Validasi Submit Form
+        const formEl = document.getElementById('formCreateProduction');
+        if (formEl) {
+            formEl.addEventListener('submit', function(e) {
+                const prodRows = document.querySelectorAll('#productionProductsTableBody tr');
+                if (prodRows.length === 0) {
+                    e.preventDefault();
+                    alert('Silakan tambahkan minimal 1 produk hasil produksi.');
+                    return;
+                }
+
+                let hasEmptyProduct = false;
+                prodRows.forEach(pr => {
+                    const rowId = pr.getAttribute('data-row-id');
+                    const ts = prodTsInstances[rowId];
+                    if (!ts || !ts.getValue()) {
+                        hasEmptyProduct = true;
+                    }
+                });
+
+                if (hasEmptyProduct) {
+                    e.preventDefault();
+                    alert('Mohon pilih produk jadi untuk setiap baris produk hasil produksi.');
+                    return;
+                }
+
+                const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
+                let hasEmptyMaterial = false;
+                matRows.forEach(mr => {
+                    const matId = mr.getAttribute('data-mat-id');
+                    const ts = matTsInstances[matId];
+                    if (!ts || !ts.getValue()) {
+                        hasEmptyMaterial = true;
+                    }
+                });
+
+                if (hasEmptyMaterial) {
+                    e.preventDefault();
+                    alert('Mohon pilih item bahan baku untuk setiap baris bahan yang ditambahkan, atau hapus baris yang kosong.');
+                    return;
+                }
+            });
+        }
+    });
+</script>

@@ -307,8 +307,9 @@ class InventoryController extends Controller
             );
         }
 
-        // Produk, Setengah Jadi & Bahan Baku dari mpos_product untuk modal tambah stok masuk, keluar & stok opname
-        if (in_array($activeTab, ['stok_masuk', 'stok_keluar', 'stok_opname'])) {
+        // Produk, Setengah Jadi & Bahan Baku dari mpos_product untuk modal tambah stok masuk, keluar, stok opname & produksi stok
+        $modalRecipes = collect();
+        if (in_array($activeTab, ['stok_masuk', 'stok_keluar', 'stok_opname', 'produksi_stok'])) {
             $modalProductsQuery = MposProduct::where('cstatus', 'ACTIVE');
             if (!$isSuperAdmin) {
                 $modalProductsQuery->whereIn('nid_outlet', $allowedOutletIds);
@@ -321,6 +322,21 @@ class InventoryController extends Controller
                 $prodCols[] = 'cproduct_type';
             }
             $modalProducts = $modalProductsQuery->orderBy('cname')->get($prodCols);
+
+            if ($activeTab === 'produksi_stok') {
+                $modalRecipes = MposRecipe::with(['ingredient' => function ($q) {
+                    $cols = ['nid', 'cname', 'nprice_buy', 'nqty'];
+                    if (MposProduct::hasSatuanColumn()) {
+                        $cols[] = 'csatuan';
+                    }
+                    if (MposProduct::hasProductTypeColumn()) {
+                        $cols[] = 'cproduct_type';
+                    }
+                    $q->select($cols);
+                }])
+                ->get()
+                ->groupBy('nid_product');
+            }
         }
 
         if ($request->ajax()) {
@@ -353,7 +369,8 @@ class InventoryController extends Controller
             'productions',
             'totalProduction',
             'modalProducts',
-            'modalIngredients'
+            'modalIngredients',
+            'modalRecipes'
         ));
     }
 
@@ -2895,6 +2912,21 @@ class InventoryController extends Controller
             'dproduction' => 'required|date',
             'nid_outlet' => 'required|integer',
             'cnote' => 'nullable|string|max:1000',
+            'products' => 'required|array|min:1',
+            'products.*.temp_id' => 'nullable|string',
+            'products.*.nid_product' => 'required|integer',
+            'products.*.nqty' => 'required|numeric|min:0.01',
+            'products.*.ncost_unit' => 'nullable|numeric|min:0',
+            'products.*.dexpired' => 'nullable|date',
+            'products.*.crack' => 'nullable|string|max:100',
+            'materials' => 'nullable|array',
+            'materials.*.product_temp_id' => 'nullable|string',
+            'materials.*.citem_type' => 'nullable|string|max:50',
+            'materials.*.nid_product' => 'nullable|integer',
+            'materials.*.nid_ingredient' => 'nullable|integer',
+            'materials.*.nqty' => 'required|numeric|min:0.001',
+            'materials.*.ncost' => 'nullable|numeric|min:0',
+            'materials.*.cnote' => 'nullable|string|max:255',
         ]);
 
         $allowedOutletIds = $this->getUserAllowedOutletIds();
@@ -2921,10 +2953,80 @@ class InventoryController extends Controller
                 'dcreated' => Carbon::now(),
             ]);
 
+            // Simpan produk hasil produksi
+            $productMap = []; // temp_id => MposProductionProduct instance
+            $firstProductRecord = null;
+
+            foreach ($validated['products'] as $pData) {
+                $pQty = (float) $pData['nqty'];
+                $pModel = MposProduct::find($pData['nid_product']);
+                $costUnit = isset($pData['ncost_unit']) && $pData['ncost_unit'] !== '' 
+                    ? (float) $pData['ncost_unit'] 
+                    : (float) ($pModel?->nprice_buy ?? 0);
+
+                $prodRecord = MposProductionProduct::create([
+                    'nid_production' => $production->nid,
+                    'nid_product' => $pData['nid_product'],
+                    'nqty' => $pQty,
+                    'ncost_unit' => $costUnit,
+                    'nsubtotal' => $pQty * $costUnit,
+                    'dexpired' => $pData['dexpired'] ?? null,
+                    'crack' => $pData['crack'] ?? null,
+                    'dcreated' => Carbon::now(),
+                ]);
+
+                if (!$firstProductRecord) {
+                    $firstProductRecord = $prodRecord;
+                }
+
+                $tempId = $pData['temp_id'] ?? null;
+                if ($tempId) {
+                    $productMap[$tempId] = $prodRecord;
+                }
+            }
+
+            // Simpan bahan baku jika diinputkan
+            if (!empty($validated['materials'])) {
+                foreach ($validated['materials'] as $mData) {
+                    $targetProdRecord = null;
+                    if (!empty($mData['product_temp_id']) && isset($productMap[$mData['product_temp_id']])) {
+                        $targetProdRecord = $productMap[$mData['product_temp_id']];
+                    } else {
+                        $targetProdRecord = $firstProductRecord;
+                    }
+
+                    $matCost = 0;
+                    if (isset($mData['ncost']) && $mData['ncost'] !== '') {
+                        $matCost = (float) $mData['ncost'];
+                    } elseif (!empty($mData['nid_product'])) {
+                        $matProduct = MposProduct::find($mData['nid_product']);
+                        $matCost = (float) ($matProduct?->nprice_buy ?? 0);
+                    }
+
+                    $matQty = (float) $mData['nqty'];
+                    $matSubtotal = $matQty * $matCost;
+
+                    MposProductionMaterial::create([
+                        'nid_production' => $production->nid,
+                        'nid_production_product' => $targetProdRecord?->nid,
+                        'citem_type' => $mData['citem_type'] ?? 'PRODUK',
+                        'nid_product' => $mData['nid_product'] ?? null,
+                        'nid_ingredient' => $mData['nid_ingredient'] ?? null,
+                        'nqty' => $matQty,
+                        'ncost' => $matCost,
+                        'nsubtotal' => $matSubtotal,
+                        'cnote' => $mData['cnote'] ?? null,
+                        'dcreated' => Carbon::now(),
+                    ]);
+                }
+            }
+
+            $production->recalculateTotals();
+
             DB::commit();
 
             return redirect()->route('inventory.production.show', $production->nid)
-                ->with('success', "Dokumen Produksi {$prodNo} berhasil dibuat. Silakan tambahkan produk jadi dan bahan baku.");
+                ->with('success', "Dokumen Produksi {$prodNo} berhasil disimpan sebagai Draf. Silakan periksa kembali sebelum diposting.");
         } catch (\Throwable $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Gagal membuat dokumen produksi: ' . $e->getMessage())->withInput();
@@ -3331,11 +3433,14 @@ class InventoryController extends Controller
     /**
      * Update Bahan Baku
      */
-    public function updateProductionMaterial(Request $request, string $id, string $materialId): RedirectResponse
+    public function updateProductionMaterial(Request $request, string $id, string $materialId): RedirectResponse|JsonResponse
     {
         $production = MposProductionH::where('nid', $id)->orWhere('cno_production', $id)->firstOrFail();
 
         if (!$production->isDraft()) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['status' => 'error', 'message' => 'Hanya dokumen berstatus Draf yang dapat diubah.'], 422);
+            }
             return redirect()->back()->with('error', 'Hanya dokumen berstatus Draf yang dapat diubah.');
         }
 
@@ -3361,6 +3466,20 @@ class InventoryController extends Controller
         ]);
 
         $production->recalculateTotals();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Bahan baku berhasil diperbarui.',
+                'material' => [
+                    'nid' => $mat->nid,
+                    'nqty' => $qty,
+                    'formatted_qty' => '-' . number_format($qty, 2, ',', '.'),
+                    'nsubtotal' => (float) $mat->nsubtotal,
+                    'formatted_subtotal' => 'Rp ' . number_format($mat->nsubtotal, 0, ',', '.'),
+                ],
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Bahan baku berhasil diperbarui.');
     }
@@ -3436,6 +3555,10 @@ class InventoryController extends Controller
 
             // 1. Catat mutasi MASUK untuk setiap produk hasil produksi & tambah stok fisik
             foreach ($production->products as $prod) {
+                $prodItemType = ($prod->product && !empty($prod->product->cproduct_type))
+                    ? MposStockMutation::normalizeItemType($prod->product->cproduct_type)
+                    : MposStockMutation::ITEM_PRODUK;
+
                 MposStockMutation::create([
                     'cno_ref' => $production->cno_production,
                     'dmutation' => $dmutation,
@@ -3443,7 +3566,7 @@ class InventoryController extends Controller
                     'nid_outlet' => $production->nid_outlet,
                     'nid_target_outlet' => null,
                     'nid_user' => Auth::id() ?? $production->nid_user,
-                    'citem_type' => MposStockMutation::ITEM_PRODUK,
+                    'citem_type' => $prodItemType,
                     'nid_product' => $prod->nid_product,
                     'nid_ingredient' => null,
                     'nqty' => $prod->nqty,
@@ -3476,7 +3599,7 @@ class InventoryController extends Controller
                     'nid_outlet' => $production->nid_outlet,
                     'nid_target_outlet' => null,
                     'nid_user' => Auth::id() ?? $production->nid_user,
-                    'citem_type' => $mat->citem_type ?: MposStockMutation::ITEM_PRODUK,
+                    'citem_type' => $mat->getItemTypeNormalized(),
                     'nid_product' => $mat->nid_product,
                     'nid_ingredient' => $mat->nid_ingredient,
                     'nqty' => $mat->nqty,

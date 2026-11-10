@@ -9,6 +9,11 @@ class MposProductionMaterial extends Model
 {
     use HasFactory;
 
+    public const TYPE_PRODUK = 'PRODUK';
+    public const TYPE_SETENGAH_JADI = 'SETENGAH_JADI';
+    public const TYPE_BAHAN_BAKU = 'BAHAN_BAKU';
+    public const TYPE_INGREDIENT = 'INGREDIENT';
+
     protected $table = 'mpos_production_material';
 
     protected $primaryKey = 'nid';
@@ -58,6 +63,20 @@ class MposProductionMaterial extends Model
     public function ingredient()
     {
         return $this->belongsTo(MposIngredients::class, 'nid_ingredient', 'nid');
+    }
+
+    public function isIngredient(): bool
+    {
+        return !empty($this->nid_ingredient) && empty($this->nid_product);
+    }
+
+    public function getItemTypeNormalized(): string
+    {
+        if ($this->isIngredient()) {
+            return MposStockMutation::ITEM_BAHAN_BAKU;
+        }
+
+        return MposStockMutation::normalizeItemType($this->citem_type);
     }
 
     public function getItemNameAttribute(): string
