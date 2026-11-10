@@ -276,6 +276,12 @@
             </div>
 
             <div class="d-flex align-items-center gap-2">
+                {{-- Tombol Kembali ke Daftar --}}
+                <a href="{{ route('inventory.index', ['tab' => 'produksi_stok']) }}" class="btn btn-sm btn-outline-secondary px-3 d-flex align-items-center gap-1 shadow-xs">
+                    <i class="bi bi-arrow-left"></i>
+                    <span>Kembali</span>
+                </a>
+
                 {{-- Tombol Cetak Langsung PDF --}}
                 <a href="{{ route('inventory.production.print', $production->nid) }}" target="_blank" class="btn btn-sm btn-outline-secondary px-3 d-flex align-items-center gap-1">
                     <i class="bi bi-printer"></i>
@@ -295,22 +301,16 @@
 
                 @if($production->isDraft())
                 {{-- Tombol Batalkan --}}
-                <form action="{{ route('inventory.production.cancel', $production->nid) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan dokumen produksi ini?')">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-outline-danger px-3 d-flex align-items-center gap-1">
-                        <i class="bi bi-x-circle"></i>
-                        <span>Batalkan</span>
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-outline-danger px-3 d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalCancelConfirm">
+                    <i class="bi bi-x-circle"></i>
+                    <span>Batalkan</span>
+                </button>
 
                 {{-- Tombol Posting Sekarang --}}
-                <form action="{{ route('inventory.production.post', $production->nid) }}" method="POST" onsubmit="return confirm('Apakah data produksi sudah benar? Stok bahan akan dipotong dan stok produk jadi akan ditambah.')">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-success px-3 fw-semibold shadow-sm d-flex align-items-center gap-1">
-                        <i class="bi bi-check2-circle"></i>
-                        <span>Posting Sekarang</span>
-                    </button>
-                </form>
+                <button type="button" class="btn btn-sm btn-success px-3 fw-semibold shadow-sm d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalPostingConfirm">
+                    <i class="bi bi-check2-circle"></i>
+                    <span>Posting Sekarang</span>
+                </button>
                 @endif
             </div>
         </div>
@@ -347,60 +347,26 @@
         </div>
     </div>
 
-    {{-- Form Tambah Produk Jadi (Hanya Muncul Jika DRAFT) --}}
-    @if($production->isDraft())
-    <div class="card prod-panel-card mb-3 p-3">
-        <h6 class="fw-bold text-dark mb-3">Tambah Produk</h6>
-        <form action="{{ route('inventory.production.products.store', $production->nid) }}" method="POST" id="formAddProduct">
-            @csrf
-            <div class="row g-2 align-items-center">
-                <div class="col-md-7">
-                    <select name="nid_product" id="productSelect" class="form-select" required>
-                        <option value="">-- Cari atau pilih produk --</option>
-                        @foreach($availableProducts as $prod)
-                        <option value="{{ $prod->nid }}"
-                            data-cname="{{ $prod->cname }}"
-                            data-stock="{{ (float)($prod->nqty ?? 0) }}"
-                            data-unit="{{ $prod->csatuan ?: 'PCS' }}"
-                            data-price="{{ (float)($prod->nprice_buy ?? 0) }}">
-                            {{ $prod->cname }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <div class="qty-stepper w-100">
-                        <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustProductQty(-1)">-</button>
-                        <input type="number" name="nqty" id="productQtyInput" class="qty-stepper-input" value="1" min="0.01" step="any" required>
-                        <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustProductQty(1)">+</button>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100" style="height: 38px;">
-                        <i class="bi bi-plus-lg fs-5"></i>
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
-    @endif
-
     {{-- Tabel Hasil Produksi & Bahan Baku --}}
     <div class="card prod-panel-card mb-3">
-        <div class="card-header bg-white border-bottom py-3">
+        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
             <h6 class="fw-bold text-dark mb-0">Detail Stok Produksi</h6>
+            @if($production->isDraft())
+            <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm d-inline-flex align-items-center gap-1" onclick="showInlineProductRow()">
+                <i class="bi bi-plus-lg"></i>
+                <span>Tambah Produk</span>
+            </button>
+            @endif
         </div>
         <div class="table-responsive">
             <table class="table table-prod-bordered align-middle mb-0">
                 <thead class="table-light">
                     <tr class="text-secondary small fw-semibold">
-                        <th class="px-3 py-3" style="width: 35%;">Nama Produk</th>
-                        <th class="px-3 py-3 text-center" style="width: 14%;">Kadaluarsa</th>
-                        <th class="px-3 py-3 text-center" style="width: 12%;">Rack</th>
-                        <th class="px-3 py-3 text-center" style="width: 12%;">Qty</th>
-                        <th class="px-3 py-3 text-center" style="width: 10%;">Satuan</th>
-                        <th class="px-3 py-3 text-center" style="width: 12%;">Bahan</th>
-                        <th class="px-3 py-3 text-center" style="width: 5%;">-</th>
+                        <th class="px-3 py-3" style="width: 48%;">Nama Produk</th>
+                        <th class="px-3 py-3 text-center" style="width: 18%;">Qty</th>
+                        <th class="px-3 py-3 text-center" style="width: 14%;">Satuan</th>
+                        <th class="px-3 py-3 text-center" style="width: 14%;">Bahan</th>
+                        <th class="px-3 py-3 text-center" style="width: 6%;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="small">
@@ -414,15 +380,8 @@
                                 </div>
                                 <div>
                                     <span class="fw-bold text-dark">{{ $pItem->product?->cname ?: 'Produk #' . $pItem->nid_product }}</span>
-                                    <div class="text-muted" style="font-size: 0.75rem;">Biaya/HPP: Rp {{ number_format($pItem->ncost_unit, 0, ',', '.') }}</div>
                                 </div>
                             </div>
-                        </td>
-                        <td class="px-3 py-3 text-center text-muted">
-                            {{ $pItem->dexpired ? \Carbon\Carbon::parse($pItem->dexpired)->format('d-M-Y') : '-' }}
-                        </td>
-                        <td class="px-3 py-3 text-center text-muted">
-                            {{ $pItem->crack ?: '-' }}
                         </td>
                         <td class="px-2 py-2 text-center align-middle" style="min-width: 130px;">
                             @if($production->isDraft())
@@ -454,11 +413,11 @@
                             $linkedMaterials = $production->materials->where('nid_production_product', $pItem->nid);
                             $isMatOpen = $linkedMaterials->isNotEmpty();
                             @endphp
-                            <button type="button" 
-                                    class="btn btn-sm btn-primary py-1 px-3 rounded-pill fw-semibold shadow-sm d-inline-flex align-items-center gap-1 btn-materials-toggle {{ $isMatOpen ? '' : 'collapsed' }}" 
-                                    data-bs-toggle="collapse" 
-                                    data-bs-target="#materialsCollapse{{ $pItem->nid }}"
-                                    aria-expanded="{{ $isMatOpen ? 'true' : 'false' }}">
+                            <button type="button"
+                                class="btn btn-sm btn-primary py-1 px-3 rounded-pill fw-semibold shadow-sm d-inline-flex align-items-center gap-1 btn-materials-toggle {{ $isMatOpen ? '' : 'collapsed' }}"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#materialsCollapse{{ $pItem->nid }}"
+                                aria-expanded="{{ $isMatOpen ? 'true' : 'false' }}">
                                 <span>Bahan ({{ $linkedMaterials->count() }})</span>
                                 <i class="bi bi-chevron-down ms-1 materials-toggle-arrow"></i>
                             </button>
@@ -476,101 +435,247 @@
                         </td>
                     </tr>
 
-                    {{-- Accordion Daftar Bahan Baku untuk Produk ini --}}
+                    {{-- Accordion Daftar Bahan Baku untuk Produk ini (Desain Seamless Ringkas) --}}
                     <tr class="collapse {{ $linkedMaterials->isNotEmpty() ? 'show' : '' }}" id="materialsCollapse{{ $pItem->nid }}">
-                        <td colspan="7" class="p-3 bg-light-subtle border-bottom">
-                            <div class="p-3 rounded-2 bg-white border">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <div class="fw-semibold text-secondary small">
-                                        <i class="bi bi-layers me-1 text-primary"></i> Bahan Baku yang Digunakan untuk <strong>{{ $pItem->product?->cname }}</strong>:
+                        <td colspan="5" class="p-0 border-bottom" style="background-color: #f8fafc;">
+                            <div class="px-4 py-3" style="border-left: 4px solid #0ea5e9;">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div class="fw-semibold text-secondary d-flex align-items-center gap-2" style="font-size: 0.82rem;">
+                                        <i class="bi bi-arrow-return-right text-primary fs-6"></i>
+                                        <span>Bahan Baku yang Digunakan:</span>
                                     </div>
                                     @if($production->isDraft())
-                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded" style="font-size: 0.78rem;" onclick="openAddMaterialModal({{ $pItem->nid }}, '{{ addslashes($pItem->product?->cname ?? '') }}', {{ (float)$pItem->nqty }})">
-                                        <i class="bi bi-plus-circle me-1"></i>Tambah Bahan Manual
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3 rounded shadow-sm d-inline-flex align-items-center gap-1" style="font-size: 0.78rem;" onclick="showInlineMaterialRow({{ $pItem->nid }})">
+                                        <i class="bi bi-plus-circle"></i>
+                                        <span>Tambah Bahan</span>
                                     </button>
                                     @endif
                                 </div>
 
-                                @if($linkedMaterials->isEmpty())
-                                <div class="text-center py-3 text-muted small">
-                                    <i class="bi bi-info-circle me-1"></i> Belum ada bahan baku untuk produk ini.
-                                    @if($production->isDraft())
-                                    <a href="javascript:void(0)" class="text-primary text-decoration-none ms-1" onclick="openAddMaterialModal({{ $pItem->nid }}, '{{ addslashes($pItem->product?->cname ?? '') }}', {{ (float)$pItem->nqty }})">Tambah Bahan Sekarang</a>
-                                    @endif
-                                </div>
-                                @else
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.8rem;">
-                                        <thead class="table-light">
-                                            <tr class="text-secondary">
-                                                <th class="px-2 py-2" style="width: 32%;">Nama Bahan Baku</th>
-                                                <th class="px-2 py-2 text-center" style="width: 12%;">Tipe</th>
-                                                <th class="px-2 py-2 text-center" style="width: 14%;">Takaran / Unit</th>
-                                                <th class="px-2 py-2 text-center" style="width: 16%;">Total Qty Dipotong</th>
-                                                <th class="px-2 py-2 text-center" style="width: 10%;">Satuan</th>
-                                                <th class="px-2 py-2 text-end" style="width: 11%;">Subtotal Biaya</th>
-                                                @if($production->isDraft())
-                                                <th class="px-2 py-2 text-center" style="width: 5%;">Aksi</th>
-                                                @endif
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach($linkedMaterials as $mat)
-                                            @php
-                                            $unitQtyVal = ((float)$pItem->nqty > 0) ? ((float)$mat->nqty / (float)$pItem->nqty) : (float)$mat->nqty;
-                                            @endphp
-                                            <tr>
-                                                <td class="px-2 py-2 fw-medium text-dark">
-                                                    {{ $mat->item_name }}
-                                                    @if($mat->cnote)
-                                                    <span class="text-muted ms-1 small">({{ $mat->cnote }})</span>
+                                <div id="matTableWrap_{{ $pItem->nid }}" class="{{ $linkedMaterials->isEmpty() ? 'd-none' : '' }}">
+                                    <div class="table-responsive rounded border bg-white shadow-xs">
+                                        <table class="table align-middle mb-0" style="font-size: 0.84rem;">
+                                            <thead>
+                                                <tr class="text-secondary bg-light border-bottom" style="font-size: 0.76rem; font-weight: 600; letter-spacing: 0.3px;">
+                                                    <th class="px-3 py-2.5" style="width: 30%;">NAMA BAHAN BAKU</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 12%;">TIPE</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 15%;">TAKARAN / UNIT</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 17%;">TOTAL QTY DIPOTONG</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 10%;">SATUAN</th>
+                                                    <th class="px-3 py-2.5 text-end" style="width: 11%;">SUBTOTAL BIAYA</th>
+                                                    @if($production->isDraft())
+                                                    <th class="px-3 py-2.5 text-center" style="width: 5%;">AKSI</th>
                                                     @endif
-                                                </td>
-                                                <td class="px-2 py-2 text-center">
-                                                    <span class="badge bg-secondary-subtle text-secondary border px-1" style="font-size: 0.68rem;">
-                                                        {{ $mat->citem_type ?: 'PRODUK' }}
-                                                    </span>
-                                                </td>
-                                                <td class="px-2 py-2 text-center text-secondary fw-medium" id="mat_unit_qty_{{ $mat->nid }}">
-                                                    {{ number_format($unitQtyVal, 2, ',', '.') }}
-                                                </td>
-                                                <td class="px-2 py-2 text-center fw-semibold text-danger" id="mat_qty_{{ $mat->nid }}">
-                                                    -{{ number_format($mat->nqty, 2, ',', '.') }}
-                                                </td>
-                                                <td class="px-2 py-2 text-center text-muted">
-                                                    {{ $mat->item_unit }}
-                                                </td>
-                                                <td class="px-2 py-2 text-end text-secondary" id="mat_subtotal_{{ $mat->nid }}">
-                                                    Rp {{ number_format($mat->nsubtotal, 0, ',', '.') }}
-                                                </td>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="matTableBody_{{ $pItem->nid }}">
+                                                @foreach($linkedMaterials as $mat)
+                                                @php
+                                                $unitQtyVal = ((float)$pItem->nqty > 0) ? ((float)$mat->nqty / (float)$pItem->nqty) : (float)$mat->nqty;
+                                                @endphp
+                                                <tr class="border-bottom border-light-subtle" id="matRow_{{ $mat->nid }}">
+                                                    <td class="px-3 py-2.5 fw-medium text-dark">
+                                                        {{ $mat->item_name }}
+                                                        @if($mat->cnote)
+                                                        <span class="text-muted ms-1 small">({{ $mat->cnote }})</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center">
+                                                        <span class="badge bg-secondary-subtle text-secondary border px-1.5 py-1" style="font-size: 0.68rem;">
+                                                            {{ $mat->citem_type ?: 'PRODUK' }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
+                                                        @if($production->isDraft())
+                                                        <div class="qty-stepper mx-auto">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="updateMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, -1)" title="Kurangi 1">
+                                                                <i class="bi bi-dash-lg"></i>
+                                                            </button>
+                                                            <input type="number"
+                                                                step="any"
+                                                                min="0.001"
+                                                                class="qty-stepper-input no-spinners"
+                                                                id="mat_unit_input_{{ $mat->nid }}"
+                                                                value="{{ (float)$unitQtyVal }}"
+                                                                onchange="saveMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, this.value)"
+                                                                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); }">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="updateMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, 1)" title="Tambah 1">
+                                                                <i class="bi bi-plus-lg"></i>
+                                                            </button>
+                                                        </div>
+                                                        @else
+                                                        <span class="text-secondary fw-medium" id="mat_unit_qty_{{ $mat->nid }}">{{ number_format($unitQtyVal, 2, ',', '.') }}</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center fw-semibold text-danger" id="mat_qty_{{ $mat->nid }}">
+                                                        -{{ number_format($mat->nqty, 2, ',', '.') }}
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center text-muted">
+                                                        {{ $mat->item_unit }}
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-end text-secondary" id="mat_subtotal_{{ $mat->nid }}">
+                                                        Rp {{ number_format($mat->nsubtotal, 0, ',', '.') }}
+                                                    </td>
+                                                    @if($production->isDraft())
+                                                    <td class="px-3 py-2.5 text-center">
+                                                        <form action="{{ route('inventory.production.materials.destroy', [$production->nid, $mat->nid]) }}" method="POST" onsubmit="return confirm('Hapus bahan ini?')">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="btn btn-link text-danger p-0 border-0" title="Hapus Bahan">
+                                                                <i class="bi bi-trash fs-6"></i>
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                    @endif
+                                                </tr>
+                                                @endforeach
+
                                                 @if($production->isDraft())
-                                                <td class="px-2 py-2 text-center">
-                                                    <form action="{{ route('inventory.production.materials.destroy', [$production->nid, $mat->nid]) }}" method="POST" onsubmit="return confirm('Hapus bahan ini?')">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="btn btn-link text-danger p-0 border-0">
-                                                            <i class="bi bi-trash"></i>
-                                                        </button>
-                                                    </form>
-                                                </td>
+                                                {{-- Baris Tambah Bahan Inline (Muncul saat user klik + Tambah Bahan) --}}
+                                                <tr id="inlineAddMatRow_{{ $pItem->nid }}" class="d-none bg-primary-subtle border-bottom border-primary-subtle">
+                                                    <td class="px-3 py-2.5">
+                                                        <select class="form-select form-select-sm" id="inlineMatSelect_{{ $pItem->nid }}">
+                                                            <option value="">-- Cari atau pilih bahan baku --</option>
+                                                            @foreach($availableProducts as $prod)
+                                                            <option value="{{ $prod->nid }}"
+                                                                data-cname="{{ $prod->cname }}"
+                                                                data-stock="{{ (float)($prod->nqty ?? 0) }}"
+                                                                data-unit="{{ $prod->csatuan ?: 'PCS' }}">
+                                                                {{ $prod->cname }}
+                                                            </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center">
+                                                        <span class="badge bg-secondary-subtle text-secondary border px-1.5 py-1" style="font-size: 0.68rem;">
+                                                            BAHAN
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
+                                                        <div class="qty-stepper mx-auto">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustInlineMatQty({{ $pItem->nid }}, -1)">
+                                                                <i class="bi bi-dash-lg"></i>
+                                                            </button>
+                                                            <input type="number"
+                                                                step="any"
+                                                                min="0.001"
+                                                                class="qty-stepper-input no-spinners"
+                                                                id="inlineMatUnitInput_{{ $pItem->nid }}"
+                                                                value="1"
+                                                                oninput="calcInlineMatTotal({{ $pItem->nid }})">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustInlineMatQty({{ $pItem->nid }}, 1)">
+                                                                <i class="bi bi-plus-lg"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center fw-semibold text-danger" id="inlineMatTotalQty_{{ $pItem->nid }}">
+                                                        -{{ number_format((float)$pItem->nqty, 2, ',', '.') }}
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center text-muted" id="inlineMatUnit_{{ $pItem->nid }}">
+                                                        PCS
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-end text-secondary">
+                                                        -
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-center">
+                                                        <div class="d-inline-flex gap-1">
+                                                            <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" onclick="submitInlineMaterial({{ $pItem->nid }})" title="Simpan Bahan">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" onclick="closeInlineMaterialRow({{ $pItem->nid }})" title="Batal">
+                                                                <i class="bi bi-x-lg"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
                                                 @endif
-                                            </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                @if($linkedMaterials->isEmpty())
+                                <div class="text-center py-4 text-muted small bg-white rounded border my-2" style="font-size: 0.82rem;" id="emptyMatNotice_{{ $pItem->nid }}">
+                                    <i class="bi bi-info-circle me-1 text-primary"></i> Belum ada bahan baku untuk produk ini.
+                                    @if($production->isDraft())
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded shadow-xs" onclick="showInlineMaterialRow({{ $pItem->nid }})">
+                                            <i class="bi bi-plus-circle me-1"></i> Tambah Bahan Sekarang
+                                        </button>
+                                    </div>
+                                    @endif
                                 </div>
                                 @endif
                             </div>
                         </td>
                     </tr>
                     @empty
-                    <tr>
-                        <td colspan="7" class="text-center py-5 text-muted">
+                    <tr id="emptyProductNoticeRow">
+                        <td colspan="5" class="text-center py-5 text-muted">
                             <i class="bi bi-box fs-2 d-block mb-2 text-secondary opacity-50"></i>
-                            Belum ada produk hasil produksi yang ditambahkan.
+                            <div>Belum ada produk hasil produksi yang ditambahkan.</div>
+                            @if($production->isDraft())
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm" onclick="showInlineProductRow()">
+                                    <i class="bi bi-plus-lg me-1"></i> Tambah Produk Sekarang
+                                </button>
+                            </div>
+                            @endif
                         </td>
                     </tr>
                     @endforelse
+
+                    @if($production->isDraft())
+                    {{-- Baris Tambah Produk Jadi Inline --}}
+                    <tr id="inlineAddProductRow" class="d-none bg-primary-subtle border-bottom border-primary-subtle">
+                        <td class="px-3 py-2.5">
+                            <select class="form-select form-select-sm" id="inlineProductSelect">
+                                <option value="">-- Cari atau pilih produk jadi --</option>
+                                @foreach($availableProducts as $prod)
+                                <option value="{{ $prod->nid }}"
+                                    data-cname="{{ $prod->cname }}"
+                                    data-stock="{{ (float)($prod->nqty ?? 0) }}"
+                                    data-unit="{{ $prod->csatuan ?: 'PCS' }}"
+                                    data-price="{{ (float)($prod->nprice_buy ?? 0) }}">
+                                    {{ $prod->cname }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </td>
+                        <td class="px-2 py-2.5 text-center align-middle" style="min-width: 130px;">
+                            <div class="qty-stepper mx-auto">
+                                <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustInlineProductQty(-1)" title="Kurangi 1">
+                                    <i class="bi bi-dash-lg"></i>
+                                </button>
+                                <input type="number"
+                                    step="any"
+                                    min="0.01"
+                                    class="qty-stepper-input no-spinners"
+                                    id="inlineProductQtyInput"
+                                    value="1">
+                                <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustInlineProductQty(1)" title="Tambah 1">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-3 py-2 text-center text-muted" id="inlineProductUnitBadge">
+                            PCS
+                        </td>
+                        <td class="px-3 py-2 text-center text-muted">
+                            -
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            <div class="d-inline-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" onclick="submitInlineProduct()" title="Simpan Produk">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" onclick="closeInlineProductRow()" title="Batal">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    @endif
                 </tbody>
             </table>
         </div>
@@ -580,48 +685,6 @@
             <span class="fw-semibold text-secondary">Jumlah Produk:</span>
             <span class="fw-bold fs-6 text-primary" id="totalProductQtyDisplay">{{ number_format($production->ntotal_product_qty, 2, ',', '.') }}</span>
         </div>
-    </div>
-
-    {{-- Section Biaya Produksi (Additional Cost) --}}
-    <div class="card prod-panel-card mb-4 p-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-dark mb-0">Biaya Produksi Tambahan</h6>
-            @if($production->isDraft())
-            <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3 rounded" style="font-size: 0.82rem;" data-bs-toggle="modal" data-bs-target="#modalBiayaProduksi">
-                <i class="bi bi-plus-lg me-1"></i> Tambah / Ubah Biaya
-            </button>
-            @endif
-        </div>
-
-        <div class="p-3 bg-light rounded-2 border">
-            @if((float)$production->nadditional_cost > 0)
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <span class="fw-medium text-dark">Biaya Operasional / Tenaga Kerja</span>
-                    <div class="text-muted small">Biaya overhead tambahan di luar bahan baku</div>
-                </div>
-                <div class="fw-bold text-success fs-6">
-                    Rp {{ number_format($production->nadditional_cost, 0, ',', '.') }}
-                </div>
-            </div>
-            @else
-            <div class="text-muted small">
-                Belum ada biaya produksi tambahan
-            </div>
-            @endif
-        </div>
-
-        <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
-            <span class="fw-bold text-dark">Total Biaya Produksi (Bahan + Biaya Tambahan):</span>
-            <span class="fw-bold fs-6 text-dark" id="totalProductionCostDisplay">Rp {{ number_format($production->ntotal_production_cost, 0, ',', '.') }}</span>
-        </div>
-    </div>
-
-    {{-- Tombol Navigasi Bawah --}}
-    <div class="d-flex justify-content-end mb-4">
-        <a href="{{ route('inventory.index', ['tab' => 'produksi_stok']) }}" class="btn btn-outline-secondary px-4">
-            <i class="bi bi-arrow-left me-1"></i> Kembali
-        </a>
     </div>
 
 </div>
@@ -656,6 +719,7 @@
         </div>
     </div>
 </div>
+@endif
 
 {{-- Modal Tambah Bahan Baku Manual --}}
 <div class="modal fade" id="modalAddMaterial" tabindex="-1" aria-hidden="true">
@@ -691,14 +755,12 @@
                         </select>
                     </div>
 
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Kebutuhan per 1 Unit Produk <span class="text-danger">*</span></label>
-                            <input type="number" name="nqty" id="matQtyPerUnitInput" class="form-control form-control-sm" min="0.001" step="any" required placeholder="Contoh: 10" oninput="calculateMatTotalPreview()">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Biaya/HPP Satuan</label>
-                            <input type="number" name="ncost" id="matCostInput" class="form-control form-control-sm" min="0" step="any" placeholder="Otomatis dari harga beli">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Takaran per 1 Unit Produk <span class="text-danger">*</span></label>
+                        <div class="qty-stepper w-100" style="max-width: 100% !important;">
+                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustMatModalUnitQty(-1)">-</button>
+                            <input type="number" name="nqty" id="matQtyPerUnitInput" class="qty-stepper-input" value="1" min="0.001" step="any" required oninput="calculateMatTotalPreview()">
+                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustMatModalUnitQty(1)">+</button>
                         </div>
                     </div>
 
@@ -724,35 +786,27 @@
     </div>
 </div>
 
-{{-- Modal Tambah / Ubah Biaya Produksi --}}
-<div class="modal fade" id="modalBiayaProduksi" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <form action="{{ route('inventory.production.additional-cost', $production->nid) }}" method="POST">
-                @csrf
-                <div class="modal-header border-bottom py-3">
-                    <h6 class="modal-title fw-bold text-dark">
-                        <i class="bi bi-cash-stack text-success me-2"></i>Biaya Produksi Tambahan
-                    </h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Nominal Biaya Tambahan (Rp) <span class="text-danger">*</span></label>
-                        <input type="number" name="nadditional_cost" class="form-control" value="{{ (float)$production->nadditional_cost }}" min="0" step="any" required placeholder="0">
-                        <div class="form-text small">Masukkan biaya di luar bahan baku, misalnya biaya tenaga kerja, listrik, atau kemasan.</div>
-                    </div>
-                </div>
-                <div class="modal-footer border-top py-2 bg-light">
-                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-sm btn-success px-3">Simpan Biaya</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+@if($production->isDraft())
+{{-- Hidden Form Submit Produk Inline --}}
+<form id="hiddenAddProductForm" action="{{ route('inventory.production.products.store', $production->nid) }}" method="POST" style="display: none;">
+    @csrf
+    <input type="hidden" name="nid_product" id="hiddenProdNid">
+    <input type="hidden" name="nqty" id="hiddenProdQty">
+    <input type="hidden" name="dexpired" id="hiddenProdExpired">
+    <input type="hidden" name="crack" id="hiddenProdRack">
+</form>
+@endif
+
+{{-- Hidden Form Submit Bahan Inline --}}
+<form id="hiddenAddMaterialForm" action="{{ route('inventory.production.materials.store', $production->nid) }}" method="POST" style="display: none;">
+    @csrf
+    <input type="hidden" name="nid_production_product" id="hiddenMatProdId">
+    <input type="hidden" name="nid_product" id="hiddenMatProductId">
+    <input type="hidden" name="nqty" id="hiddenMatUnitQty">
+</form>
 
 {{-- Modal Ubah Qty & Informasi Produk Hasil Produksi --}}
+@if($production->isDraft())
 <div class="modal fade" id="modalEditProduct" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -779,17 +833,6 @@
                         </div>
                         <div class="form-text small text-muted">Kebutuhan bahan baku dari resep akan disesuaikan otomatis dengan jumlah produksi baru.</div>
                     </div>
-
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Tanggal Kadaluarsa (Opsional)</label>
-                            <input type="date" name="dexpired" id="editProdExpiredInput" class="form-control form-control-sm">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold text-secondary">Posisi Rak (Opsional)</label>
-                            <input type="text" name="crack" id="editProdRackInput" class="form-control form-control-sm" placeholder="Contoh: Rak A-1">
-                        </div>
-                    </div>
                 </div>
                 <div class="modal-footer border-top py-2 bg-light">
                     <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Batal</button>
@@ -799,255 +842,622 @@
                 </div>
             </form>
         </div>
-        {{-- Form Cepat Ubah Qty Baris Produk --}}
-        <form id="quickQtyForm" method="POST" action="" style="display: none;">
-            @csrf
-            @method('PUT')
-            <input type="hidden" name="nqty" id="quickQtyInput">
-        </form>
-        @endif
+    </div>
+</div>
 
-        <script>
-            let matTsInstance = null;
-            let prodTsInstance = null;
+{{-- Form Cepat Ubah Qty Baris Produk --}}
+<form id="quickQtyForm" method="POST" action="" style="display: none;">
+    @csrf
+    @method('PUT')
+    <input type="hidden" name="nqty" id="quickQtyInput">
+</form>
 
-            document.addEventListener('DOMContentLoaded', function() {
-                // TomSelect pada form Tambah Produk (Persis seperti modal Stok Masuk & Stok Keluar)
-                const prodSelectEl = document.getElementById('productSelect');
-                if (prodSelectEl && window.TomSelect) {
-                    prodTsInstance = new TomSelect(prodSelectEl, {
-                        create: false,
-                        maxItems: 1,
-                        placeholder: '-- Cari atau pilih produk --',
-                        allowEmptyOption: true,
-                        searchField: ['text', 'cname'],
-                        sortField: {
-                            field: 'text',
-                            direction: 'asc'
-                        },
-                        render: {
-                            item: function(data, escape) {
-                                const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
-                                return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
-                            },
-                            option: function(data, escape) {
-                                if (!data.value) {
-                                    return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
-                                }
-                                const stockVal = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : 0;
-                                const unitVal = data.unit || 'PCS';
-                                const stockNum = parseFloat(stockVal) || 0;
-                                const stockLabel = `${stockNum.toLocaleString('id-ID')} ${unitVal}`;
-                                const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
-                                return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
-                                    '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
-                                    '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
-                                    '</div>';
-                            }
+{{-- ==================== MODAL KONFIRMASI POSTING ==================== --}}
+<div class="modal fade" id="modalPostingConfirm" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form action="{{ route('inventory.production.post', $production->nid) }}" method="POST">
+                @csrf
+                <div class="modal-header bg-success text-white py-3">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-check2-circle me-2"></i> Konfirmasi Posting Produksi Stok
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="mb-3 text-dark">
+                        Anda akan memposting dokumen produksi <strong>{{ $production->cno_production }}</strong>.
+                    </p>
+                    <div class="alert alert-warning border-0 small mb-3">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        <strong>Penting:</strong> Setelah diposting:
+                        <ul class="mb-0 mt-1 ps-3">
+                            <li>Stok fisik bahan baku di <strong>{{ $production->outlet?->cname ?: 'Outlet Produksi' }}</strong> akan otomatis terpotong / berkurang.</li>
+                            <li>Stok produk jadi hasil produksi akan langsung bertambah ke sistem.</li>
+                            <li>Seluruh mutasi tercatat resmi pada <strong>Pergerakan Stok</strong>.</li>
+                            <li>Dokumen produksi terkunci dan tidak dapat diubah kembali.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-light p-3 rounded-3 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Total Hasil Jadi:</span>
+                            <span class="fw-bold text-primary" id="modalConfirmTotalProdQty">{{ number_format($production->ntotal_product_qty, 2, ',', '.') }} unit</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Jumlah Item Bahan:</span>
+                            <span class="fw-bold text-danger">{{ $production->materials->count() }} item bahan</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light-subtle py-2 px-4 border-top">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Kembali Cek</button>
+                    <button type="submit" class="btn btn-success btn-sm px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-check2-circle me-1"></i> Ya, Posting Sekarang
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ==================== MODAL KONFIRMASI BATALKAN ==================== --}}
+<div class="modal fade" id="modalCancelConfirm" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form action="{{ route('inventory.production.cancel', $production->nid) }}" method="POST">
+                @csrf
+                <div class="modal-header bg-danger text-white py-3">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-exclamation-triangle me-2"></i> Batalkan Dokumen Produksi
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-dark mb-2">
+                        Apakah Anda yakin ingin membatalkan dokumen produksi <strong>{{ $production->cno_production }}</strong>?
+                    </p>
+                    <div class="alert alert-danger-subtle text-danger border-0 small mb-0">
+                        <i class="bi bi-info-circle me-1"></i> Dokumen yang telah dibatalkan tidak dapat diaktifkan atau diposting kembali.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light-subtle py-2 px-4 border-top">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger btn-sm px-4 fw-semibold shadow-sm">
+                        <i class="bi bi-x-circle me-1"></i> Ya, Batalkan Dokumen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+<script>
+    let matTsInstance = null;
+    let inlineProdTsInstance = null;
+    const inlineMatTsInstances = {};
+    let qtyDebounceTimers = {};
+    let matDebounceTimers = {};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // TomSelect pada modal Tambah Bahan Baku (Fallback)
+        const matSelectEl = document.getElementById('matSelect');
+        if (matSelectEl && window.TomSelect) {
+            matTsInstance = new TomSelect(matSelectEl, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih bahan baku --',
+                allowEmptyOption: true,
+                dropdownParent: 'body',
+                searchField: ['text', 'cname'],
+                sortField: {
+                    field: 'text',
+                    direction: 'asc'
+                },
+                render: {
+                    item: function(data, escape) {
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                    },
+                    option: function(data, escape) {
+                        if (!data.value) {
+                            return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
                         }
-                    });
+                        const stockVal = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : 0;
+                        const unitVal = data.unit || 'PCS';
+                        const stockNum = parseFloat(stockVal) || 0;
+                        const stockLabel = `${stockNum.toLocaleString('id-ID')} ${unitVal}`;
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                            '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
+                            '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
+                            '</div>';
+                    }
                 }
+            });
+        }
+    });
 
-                // TomSelect pada modal Tambah Bahan Baku (Persis seperti modal Stok Masuk & Stok Keluar)
-                const matSelectEl = document.getElementById('matSelect');
-                if (matSelectEl && window.TomSelect) {
-                    matTsInstance = new TomSelect(matSelectEl, {
-                        create: false,
-                        maxItems: 1,
-                        placeholder: '-- Cari atau pilih bahan baku --',
-                        allowEmptyOption: true,
-                        dropdownParent: 'body',
-                        searchField: ['text', 'cname'],
-                        sortField: {
-                            field: 'text',
-                            direction: 'asc'
-                        },
-                        render: {
-                            item: function(data, escape) {
-                                const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
-                                return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
-                            },
-                            option: function(data, escape) {
-                                if (!data.value) {
-                                    return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
-                                }
-                                const stockVal = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : 0;
-                                const unitVal = data.unit || 'PCS';
-                                const stockNum = parseFloat(stockVal) || 0;
-                                const stockLabel = `${stockNum.toLocaleString('id-ID')} ${unitVal}`;
-                                const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
-                                return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
-                                    '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
-                                    '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
-                                    '</div>';
-                            }
-                        }
-                    });
+    // ==================== INLINE TAMBAH PRODUK JADI ====================
+    function showInlineProductRow() {
+        const row = document.getElementById('inlineAddProductRow');
+        const emptyRow = document.getElementById('emptyProductNoticeRow');
+        if (emptyRow) emptyRow.classList.add('d-none');
+        if (row) {
+            row.classList.remove('d-none');
+            initInlineProductSelect();
+            row.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
+    }
 
-                    matTsInstance.on('change', function(val) {
-                        const opt = matTsInstance.options[val];
-                        const matCostInput = document.getElementById('matCostInput');
-                        if (opt && matCostInput) {
-                            const costVal = opt.cost !== undefined ? opt.cost : (opt.price !== undefined ? opt.price : 0);
-                            matCostInput.value = Math.round(parseFloat(costVal) || 0);
-                        }
-                    });
+    function closeInlineProductRow() {
+        const row = document.getElementById('inlineAddProductRow');
+        if (row) row.classList.add('d-none');
+
+        const tbody = document.querySelector('.table-prod-bordered tbody');
+        const existingProdRows = tbody ? tbody.querySelectorAll('tr:not(#inlineAddProductRow):not(#emptyProductNoticeRow):not([id^="materialsCollapse"])') : [];
+        if (existingProdRows.length === 0) {
+            const emptyRow = document.getElementById('emptyProductNoticeRow');
+            if (emptyRow) emptyRow.classList.remove('d-none');
+        }
+    }
+
+    function initInlineProductSelect() {
+        const selectEl = document.getElementById('inlineProductSelect');
+        if (!selectEl || inlineProdTsInstance) return;
+
+        if (window.TomSelect) {
+            inlineProdTsInstance = new TomSelect(selectEl, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih produk jadi --',
+                allowEmptyOption: true,
+                dropdownParent: 'body',
+                searchField: ['text', 'cname'],
+                sortField: {
+                    field: 'text',
+                    direction: 'asc'
+                },
+                render: {
+                    item: function(data, escape) {
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                    },
+                    option: function(data, escape) {
+                        if (!data.value) return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                        const stockVal = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : 0;
+                        const unitVal = data.unit || 'PCS';
+                        const stockNum = parseFloat(stockVal) || 0;
+                        const stockLabel = `${stockNum.toLocaleString('id-ID')} ${unitVal}`;
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                            '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
+                            '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
+                            '</div>';
+                    }
                 }
             });
 
-            let qtyDebounceTimers = {};
-
-            function updateRowQty(productId, delta) {
-                const inp = document.getElementById('prod_qty_' + productId);
-                if (!inp) return;
-                let current = parseFloat(inp.value) || 0;
-                let nextVal = Math.max(0.01, parseFloat((current + delta).toFixed(2)));
-                inp.value = nextVal;
-                queueSaveRowQty(productId, nextVal);
-            }
-
-            function saveRowQty(productId, val) {
-                let nextVal = Math.max(0.01, parseFloat(val) || 0);
-                const inp = document.getElementById('prod_qty_' + productId);
-                if (inp) inp.value = nextVal;
-                queueSaveRowQty(productId, nextVal);
-            }
-
-            function queueSaveRowQty(productId, qty) {
-                if (qtyDebounceTimers[productId]) {
-                    clearTimeout(qtyDebounceTimers[productId]);
+            inlineProdTsInstance.on('change', function(val) {
+                const opt = inlineProdTsInstance.options[val];
+                const unitBadge = document.getElementById('inlineProductUnitBadge');
+                if (opt && unitBadge) {
+                    unitBadge.textContent = opt.unit || 'PCS';
                 }
-                const inp = document.getElementById('prod_qty_' + productId);
-                if (inp) {
-                    inp.style.transition = 'opacity 0.2s';
-                    inp.style.opacity = '0.5';
+            });
+        }
+    }
+
+    function adjustInlineProductQty(delta) {
+        const inp = document.getElementById('inlineProductQtyInput');
+        if (inp) {
+            let val = parseFloat(inp.value) || 0;
+            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
+            inp.value = val;
+        }
+    }
+
+    function submitInlineProduct() {
+        const selectVal = inlineProdTsInstance ? inlineProdTsInstance.getValue() : document.getElementById('inlineProductSelect')?.value;
+        if (!selectVal) {
+            alert('Silakan pilih produk jadi terlebih dahulu.');
+            return;
+        }
+        const qty = parseFloat(document.getElementById('inlineProductQtyInput')?.value) || 1;
+        if (qty <= 0) {
+            alert('Qty produksi harus lebih dari 0.');
+            return;
+        }
+        document.getElementById('hiddenProdNid').value = selectVal;
+        document.getElementById('hiddenProdQty').value = qty;
+        document.getElementById('hiddenProdExpired').value = '';
+        document.getElementById('hiddenProdRack').value = '';
+        document.getElementById('hiddenAddProductForm').submit();
+    }
+
+    // ==================== UPDATE QTY PRODUK JADI ====================
+    function updateRowQty(productId, delta) {
+        const inp = document.getElementById('prod_qty_' + productId);
+        if (!inp) return;
+        let current = parseFloat(inp.value) || 0;
+        let nextVal = Math.max(0.01, parseFloat((current + delta).toFixed(2)));
+        inp.value = nextVal;
+        queueSaveRowQty(productId, nextVal);
+    }
+
+    function saveRowQty(productId, val) {
+        let nextVal = Math.max(0.01, parseFloat(val) || 0);
+        const inp = document.getElementById('prod_qty_' + productId);
+        if (inp) inp.value = nextVal;
+        queueSaveRowQty(productId, nextVal);
+    }
+
+    function queueSaveRowQty(productId, qty) {
+        if (qtyDebounceTimers[productId]) {
+            clearTimeout(qtyDebounceTimers[productId]);
+        }
+        const inp = document.getElementById('prod_qty_' + productId);
+        if (inp) {
+            inp.style.transition = 'opacity 0.2s';
+            inp.style.opacity = '0.5';
+        }
+
+        qtyDebounceTimers[productId] = setTimeout(() => {
+            fetchSaveRowQty(productId, qty);
+        }, 350);
+    }
+
+    async function fetchSaveRowQty(productId, qty) {
+        const inp = document.getElementById('prod_qty_' + productId);
+        const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
+        const url = updateUrlPattern.replace(':productId', productId);
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "{{ csrf_token() }}";
+
+        try {
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    nqty: qty
+                })
+            });
+
+            if (inp) inp.style.opacity = '1';
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'success') {
+                // Update total produk qty display
+                const totalProdQtyEl = document.getElementById('totalProductQtyDisplay');
+                if (totalProdQtyEl && data.formatted_total_product_qty) {
+                    totalProdQtyEl.textContent = data.formatted_total_product_qty;
+                }
+                const modalConfirmProdQtyEl = document.getElementById('modalConfirmTotalProdQty');
+                if (modalConfirmProdQtyEl && data.formatted_total_product_qty) {
+                    modalConfirmProdQtyEl.textContent = data.formatted_total_product_qty + ' unit';
                 }
 
-                qtyDebounceTimers[productId] = setTimeout(() => {
-                    fetchSaveRowQty(productId, qty);
-                }, 350);
-            }
-
-            async function fetchSaveRowQty(productId, qty) {
-                const inp = document.getElementById('prod_qty_' + productId);
-                const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
-                const url = updateUrlPattern.replace(':productId', productId);
-                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "{{ csrf_token() }}";
-
-                try {
-                    const response = await fetch(url, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': token,
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify({
-                            nqty: qty
-                        })
+                // Update bahan baku live
+                if (Array.isArray(data.materials)) {
+                    data.materials.forEach(mat => {
+                        const matUnitInput = document.getElementById('mat_unit_input_' + mat.nid);
+                        if (matUnitInput && mat.unit_qty !== undefined) {
+                            matUnitInput.value = parseFloat(mat.unit_qty);
+                        }
+                        const matUnitQtyEl = document.getElementById('mat_unit_qty_' + mat.nid);
+                        if (matUnitQtyEl && mat.formatted_unit_qty) {
+                            matUnitQtyEl.textContent = mat.formatted_unit_qty;
+                        }
+                        const matQtyEl = document.getElementById('mat_qty_' + mat.nid);
+                        if (matQtyEl && mat.formatted_qty) {
+                            matQtyEl.textContent = mat.formatted_qty;
+                        }
+                        const matSubtotalEl = document.getElementById('mat_subtotal_' + mat.nid);
+                        if (matSubtotalEl && mat.formatted_subtotal) {
+                            matSubtotalEl.textContent = mat.formatted_subtotal;
+                        }
                     });
+                }
+            } else {
+                alert(data.message || 'Gagal memperbarui Qty');
+            }
+        } catch (err) {
+            if (inp) inp.style.opacity = '1';
+            console.error('Error updating qty:', err);
+        }
+    }
 
-                    if (inp) inp.style.opacity = '1';
+    // ==================== STEPPER & AJAX UPDATE BAHAN BAKU EXISTING ====================
+    function updateMatUnitQty(matId, prodId, delta) {
+        const inp = document.getElementById('mat_unit_input_' + matId);
+        if (!inp) return;
+        let current = parseFloat(inp.value) || 0;
+        let nextVal = Math.max(0.001, parseFloat((current + delta).toFixed(2)));
+        inp.value = nextVal;
+        recalcAndQueueSaveMat(matId, prodId, nextVal);
+    }
 
-                    const data = await response.json();
+    function saveMatUnitQty(matId, prodId, val) {
+        let nextVal = Math.max(0.001, parseFloat(val) || 0);
+        const inp = document.getElementById('mat_unit_input_' + matId);
+        if (inp) inp.value = nextVal;
+        recalcAndQueueSaveMat(matId, prodId, nextVal);
+    }
 
-                    if (response.ok && data.status === 'success') {
-                        // Update total produk qty display
-                        const totalProdQtyEl = document.getElementById('totalProductQtyDisplay');
-                        if (totalProdQtyEl && data.formatted_total_product_qty) {
-                            totalProdQtyEl.textContent = data.formatted_total_product_qty;
-                        }
+    function recalcAndQueueSaveMat(matId, prodId, unitVal) {
+        const prodQtyInp = document.getElementById('prod_qty_' + prodId);
+        const productQty = prodQtyInp ? (parseFloat(prodQtyInp.value) || 1) : 1;
+        const totalMatQty = unitVal * productQty;
 
-                        // Update total biaya produksi display
-                        const totalCostEl = document.getElementById('totalProductionCostDisplay');
-                        if (totalCostEl && data.formatted_total_production_cost) {
-                            totalCostEl.textContent = data.formatted_total_production_cost;
-                        }
+        // Live preview Total Qty Dipotong
+        const matQtyEl = document.getElementById('mat_qty_' + matId);
+        if (matQtyEl) {
+            matQtyEl.textContent = '-' + totalMatQty.toLocaleString('id-ID', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
 
-                        // Update bahan baku live
-                        if (Array.isArray(data.materials)) {
-                            data.materials.forEach(mat => {
-                                const matUnitQtyEl = document.getElementById('mat_unit_qty_' + mat.nid);
-                                if (matUnitQtyEl && mat.formatted_unit_qty) {
-                                    matUnitQtyEl.textContent = mat.formatted_unit_qty;
-                                }
-                                const matQtyEl = document.getElementById('mat_qty_' + mat.nid);
-                                if (matQtyEl && mat.formatted_qty) {
-                                    matQtyEl.textContent = mat.formatted_qty;
-                                }
-                                const matSubtotalEl = document.getElementById('mat_subtotal_' + mat.nid);
-                                if (matSubtotalEl && mat.formatted_subtotal) {
-                                    matSubtotalEl.textContent = mat.formatted_subtotal;
-                                }
-                            });
-                        }
-                    } else {
-                        alert(data.message || 'Gagal memperbarui Qty');
+        if (matDebounceTimers[matId]) {
+            clearTimeout(matDebounceTimers[matId]);
+        }
+
+        const inp = document.getElementById('mat_unit_input_' + matId);
+        if (inp) {
+            inp.style.transition = 'opacity 0.2s';
+            inp.style.opacity = '0.5';
+        }
+
+        matDebounceTimers[matId] = setTimeout(() => {
+            fetchSaveMatQty(matId, totalMatQty);
+        }, 400);
+    }
+
+    async function fetchSaveMatQty(matId, totalQty) {
+        const inp = document.getElementById('mat_unit_input_' + matId);
+        const updateUrlPattern = "{{ route('inventory.production.materials.update', [$production->nid, ':materialId']) }}";
+        const url = updateUrlPattern.replace(':materialId', matId);
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "{{ csrf_token() }}";
+
+        try {
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    nqty: totalQty
+                })
+            });
+
+            if (inp) inp.style.opacity = '1';
+
+            const data = await response.json();
+            if (response.ok && data.status === 'success') {
+                const matQtyEl = document.getElementById('mat_qty_' + matId);
+                if (matQtyEl && data.material && data.material.formatted_qty) {
+                    matQtyEl.textContent = data.material.formatted_qty;
+                }
+                const matSubtotalEl = document.getElementById('mat_subtotal_' + matId);
+                if (matSubtotalEl && data.material && data.material.formatted_subtotal) {
+                    matSubtotalEl.textContent = data.material.formatted_subtotal;
+                }
+            } else {
+                alert(data.message || 'Gagal memperbarui takaran bahan.');
+            }
+        } catch (err) {
+            if (inp) inp.style.opacity = '1';
+            console.error('Error updating material qty:', err);
+        }
+    }
+
+    // ==================== INLINE TAMBAH BAHAN BAKU (SEPERTI DI MODAL) ====================
+    function showInlineMaterialRow(prodId) {
+        const wrap = document.getElementById('matTableWrap_' + prodId);
+        if (wrap) wrap.classList.remove('d-none');
+        const notice = document.getElementById('emptyMatNotice_' + prodId);
+        if (notice) notice.classList.add('d-none');
+
+        const row = document.getElementById('inlineAddMatRow_' + prodId);
+        if (row) {
+            row.classList.remove('d-none');
+            initInlineMatSelect(prodId);
+            calcInlineMatTotal(prodId);
+        }
+    }
+
+    function closeInlineMaterialRow(prodId) {
+        const row = document.getElementById('inlineAddMatRow_' + prodId);
+        if (row) row.classList.add('d-none');
+
+        // Jika belum ada bahan baku terdaftar sama sekali, tampilkan kembali notice kosong
+        const tbody = document.getElementById('matTableBody_' + prodId);
+        const existingRows = tbody ? tbody.querySelectorAll('tr:not(#inlineAddMatRow_' + prodId + ')') : [];
+        if (existingRows.length === 0) {
+            const wrap = document.getElementById('matTableWrap_' + prodId);
+            if (wrap) wrap.classList.add('d-none');
+            const notice = document.getElementById('emptyMatNotice_' + prodId);
+            if (notice) notice.classList.remove('d-none');
+        }
+    }
+
+    function initInlineMatSelect(prodId) {
+        const selectEl = document.getElementById('inlineMatSelect_' + prodId);
+        if (!selectEl || inlineMatTsInstances[prodId]) return;
+
+        if (window.TomSelect) {
+            inlineMatTsInstances[prodId] = new TomSelect(selectEl, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih bahan baku --',
+                allowEmptyOption: true,
+                dropdownParent: 'body',
+                searchField: ['text', 'cname'],
+                sortField: {
+                    field: 'text',
+                    direction: 'asc'
+                },
+                render: {
+                    item: function(data, escape) {
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="text-truncate fw-medium">' + escape(cleanName) + '</div>';
+                    },
+                    option: function(data, escape) {
+                        if (!data.value) return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                        const stockVal = (data.stock !== undefined && data.stock !== null && data.stock !== '') ? data.stock : 0;
+                        const unitVal = data.unit || 'PCS';
+                        const stockNum = parseFloat(stockVal) || 0;
+                        const stockLabel = `${stockNum.toLocaleString('id-ID')} ${unitVal}`;
+                        const cleanName = data.cname || (data.text ? data.text.replace(/\s*\(Stok:.*?\)$/, '') : '');
+                        return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                            '<span class="fw-medium text-dark text-truncate me-2">' + escape(cleanName) + '</span>' +
+                            '<span class="badge bg-light text-secondary border px-2 py-0.5 small flex-shrink-0">Stok: ' + escape(stockLabel) + '</span>' +
+                            '</div>';
                     }
-                } catch (err) {
-                    if (inp) inp.style.opacity = '1';
-                    console.error('Error updating qty:', err);
                 }
-            }
+            });
 
-            function adjustProductQty(delta) {
-                const inp = document.getElementById('productQtyInput');
-                if (inp) {
-                    let val = parseFloat(inp.value) || 0;
-                    val = Math.max(1, val + delta);
-                    inp.value = val;
+            inlineMatTsInstances[prodId].on('change', function(val) {
+                const opt = inlineMatTsInstances[prodId].options[val];
+                const unitEl = document.getElementById('inlineMatUnit_' + prodId);
+                if (opt && unitEl) {
+                    unitEl.textContent = opt.unit || 'PCS';
                 }
-            }
+                calcInlineMatTotal(prodId);
+            });
+        }
+    }
 
-            let modalTargetProductQty = 1;
+    function adjustInlineMatQty(prodId, delta) {
+        const inp = document.getElementById('inlineMatUnitInput_' + prodId);
+        if (inp) {
+            let val = parseFloat(inp.value) || 0;
+            val = Math.max(0.001, parseFloat((val + delta).toFixed(2)));
+            inp.value = val;
+            calcInlineMatTotal(prodId);
+        }
+    }
 
-            function openAddMaterialModal(productId, productName, fallbackProductQty) {
-                const liveQtyInp = document.getElementById('prod_qty_' + productId);
-                modalTargetProductQty = liveQtyInp ? (parseFloat(liveQtyInp.value) || 1) : (parseFloat(fallbackProductQty) || 1);
-                document.getElementById('matProdId').value = productId;
-                document.getElementById('matProdInfo').innerHTML = 'Untuk Produk: <strong>' + productName + '</strong> (Jumlah Produksi: <strong>' + modalTargetProductQty + '</strong>)';
-                if (matTsInstance) {
-                    matTsInstance.clear();
-                }
-                const unitInp = document.getElementById('matQtyPerUnitInput');
-                if (unitInp) unitInp.value = '';
-                calculateMatTotalPreview();
+    function calcInlineMatTotal(prodId) {
+        const unitInp = document.getElementById('inlineMatUnitInput_' + prodId);
+        const previewEl = document.getElementById('inlineMatTotalQty_' + prodId);
+        const prodQtyInp = document.getElementById('prod_qty_' + prodId);
+        if (!unitInp || !previewEl) return;
 
-                const modal = new bootstrap.Modal(document.getElementById('modalAddMaterial'));
-                modal.show();
-            }
+        const unitVal = parseFloat(unitInp.value) || 0;
+        const prodQty = prodQtyInp ? (parseFloat(prodQtyInp.value) || 1) : 1;
+        const total = unitVal * prodQty;
+        previewEl.textContent = '-' + total.toLocaleString('id-ID', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
 
-            function calculateMatTotalPreview() {
-                const unitInp = document.getElementById('matQtyPerUnitInput');
-                const previewEl = document.getElementById('matTotalPreviewText');
-                if (!unitInp || !previewEl) return;
-                const unitVal = parseFloat(unitInp.value) || 0;
-                const total = unitVal * modalTargetProductQty;
-                previewEl.textContent = total.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' (' + unitVal + ' × ' + modalTargetProductQty + ' produk)';
-            }
+    function submitInlineMaterial(prodId) {
+        const select = document.getElementById('inlineMatSelect_' + prodId);
+        const unitInp = document.getElementById('inlineMatUnitInput_' + prodId);
+        const prodSelectVal = inlineMatTsInstances[prodId] ? inlineMatTsInstances[prodId].getValue() : (select ? select.value : '');
 
-            function openEditProductModal(productId, productName, currentQty, currentExpired, currentRack) {
-                const form = document.getElementById('formEditProduct');
-                const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
-                form.action = updateUrlPattern.replace(':productId', productId);
+        if (!prodSelectVal) {
+            alert('Silakan pilih bahan baku terlebih dahulu.');
+            return;
+        }
 
-                document.getElementById('editProdNameInfo').innerHTML = 'Produk: <strong>' + productName + '</strong>';
-                document.getElementById('editProdQtyInput').value = currentQty;
-                document.getElementById('editProdExpiredInput').value = currentExpired || '';
-                document.getElementById('editProdRackInput').value = currentRack || '';
+        const unitVal = parseFloat(unitInp ? unitInp.value : 1) || 1;
+        if (unitVal <= 0) {
+            alert('Takaran bahan baku harus lebih dari 0.');
+            return;
+        }
 
-                const modal = new bootstrap.Modal(document.getElementById('modalEditProduct'));
-                modal.show();
-            }
+        document.getElementById('hiddenMatProdId').value = prodId;
+        document.getElementById('hiddenMatProductId').value = prodSelectVal;
+        document.getElementById('hiddenMatUnitQty').value = unitVal;
 
-            function adjustEditProductQty(delta) {
-                const inp = document.getElementById('editProdQtyInput');
-                if (inp) {
-                    let val = parseFloat(inp.value) || 0;
-                    val = Math.max(0.01, val + delta);
-                    inp.value = val;
-                }
-            }
-        </script>
-        @endsection
+        document.getElementById('hiddenAddMaterialForm').submit();
+    }
+
+    // ==================== HELPER MODAL ====================
+    function adjustModalAddProdQty(delta) {
+        const inp = document.getElementById('modalAddProdQtyInput');
+        if (inp) {
+            let val = parseFloat(inp.value) || 0;
+            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
+            inp.value = val;
+        }
+    }
+
+    function adjustMatModalUnitQty(delta) {
+        const inp = document.getElementById('matQtyPerUnitInput');
+        if (inp) {
+            let val = parseFloat(inp.value) || 0;
+            val = Math.max(0.001, parseFloat((val + delta).toFixed(2)));
+            inp.value = val;
+            calculateMatTotalPreview();
+        }
+    }
+
+    let modalTargetProductQty = 1;
+
+    function openAddMaterialModal(productId, productName, fallbackProductQty) {
+        const liveQtyInp = document.getElementById('prod_qty_' + productId);
+        modalTargetProductQty = liveQtyInp ? (parseFloat(liveQtyInp.value) || 1) : (parseFloat(fallbackProductQty) || 1);
+        document.getElementById('matProdId').value = productId;
+        document.getElementById('matProdInfo').innerHTML = 'Untuk Produk: <strong>' + productName + '</strong> (Jumlah Produksi: <strong>' + modalTargetProductQty + '</strong>)';
+        if (matTsInstance) {
+            matTsInstance.clear();
+        }
+        const unitInp = document.getElementById('matQtyPerUnitInput');
+        if (unitInp) unitInp.value = 1;
+        calculateMatTotalPreview();
+
+        const modal = new bootstrap.Modal(document.getElementById('modalAddMaterial'));
+        modal.show();
+    }
+
+    function calculateMatTotalPreview() {
+        const unitInp = document.getElementById('matQtyPerUnitInput');
+        const previewEl = document.getElementById('matTotalPreviewText');
+        if (!unitInp || !previewEl) return;
+        const unitVal = parseFloat(unitInp.value) || 0;
+        const total = unitVal * modalTargetProductQty;
+        previewEl.textContent = total.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        }) + ' (' + unitVal + ' × ' + modalTargetProductQty + ' produk)';
+    }
+
+    function openEditProductModal(productId, productName, currentQty, currentExpired, currentRack) {
+        const form = document.getElementById('formEditProduct');
+        const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
+        form.action = updateUrlPattern.replace(':productId', productId);
+
+        document.getElementById('editProdNameInfo').innerHTML = 'Produk: <strong>' + productName + '</strong>';
+        document.getElementById('editProdQtyInput').value = currentQty;
+        document.getElementById('editProdExpiredInput').value = currentExpired || '';
+        document.getElementById('editProdRackInput').value = currentRack || '';
+
+        const modal = new bootstrap.Modal(document.getElementById('modalEditProduct'));
+        modal.show();
+    }
+
+    function adjustEditProductQty(delta) {
+        const inp = document.getElementById('editProdQtyInput');
+        if (inp) {
+            let val = parseFloat(inp.value) || 0;
+            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
+            inp.value = val;
+        }
+    }
+</script>
+@endsection

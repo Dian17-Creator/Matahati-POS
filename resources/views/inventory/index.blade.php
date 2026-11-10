@@ -187,20 +187,26 @@
     }
 
     #stockInItemsTable .qty-stepper,
-    #stockOutItemsTable .qty-stepper {
+    #stockOutItemsTable .qty-stepper,
+    #tableProductionProducts .qty-stepper,
+    #tableProductionMaterials .qty-stepper {
         height: 31px !important;
         max-width: 105px !important;
     }
 
     #stockInItemsTable .qty-stepper-btn,
-    #stockOutItemsTable .qty-stepper-btn {
+    #stockOutItemsTable .qty-stepper-btn,
+    #tableProductionProducts .qty-stepper-btn,
+    #tableProductionMaterials .qty-stepper-btn {
         width: 27px !important;
         min-width: 27px !important;
         font-size: 0.75rem !important;
     }
 
     #stockInItemsTable .qty-stepper-input,
-    #stockOutItemsTable .qty-stepper-input {
+    #stockOutItemsTable .qty-stepper-input,
+    #tableProductionProducts .qty-stepper-input,
+    #tableProductionMaterials .qty-stepper-input {
         font-size: 0.82rem !important;
         min-width: 36px !important;
     }
