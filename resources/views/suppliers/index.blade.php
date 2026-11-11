@@ -30,7 +30,7 @@
 @endpush
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center gap-2">
             <h5 class="mb-0 me-3">Daftar Supplier</h5>
@@ -60,10 +60,10 @@
         </div>
     </div>
 
-    <div class="card-body p-0">
+    <div class="card-body p-3">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="bg-light text-secondary small" style="border-bottom: 2px solid #f1f5f9;">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light text-secondary small">
                     <tr>
                         <th class="py-3 ps-4" style="width: 50px;">LOGO</th>
                         <th class="py-3">NAMA SUPPLIER</th>
@@ -78,7 +78,7 @@
                 </thead>
                 <tbody class="small">
                     @forelse($suppliers as $supplier)
-                    <tr style="border-bottom: 1px solid #f8f9fa;">
+                    <tr>
                         <td class="ps-4">
                             @if($supplier->logo_url)
                             <img src="{{ $supplier->logo_url }}" alt="{{ $supplier->cname }}" class="supplier-logo-thumb">
@@ -296,7 +296,7 @@
         </div>
 
         @if($suppliers->hasPages())
-        <div class="d-flex justify-content-center mt-3 p-3">
+        <div class="d-flex justify-content-center mt-3">
             {{ $suppliers->links('pagination::bootstrap-5') }}
         </div>
         @endif

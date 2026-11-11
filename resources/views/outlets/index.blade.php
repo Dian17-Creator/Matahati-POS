@@ -3,17 +3,17 @@
 @section('title', 'Outlet')
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0">Daftar Outlet</h5>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-3">
         <div class="table-responsive">
-            <table class="table table-hover table-borderless align-middle mb-0">
-                <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light text-secondary">
                     <tr>
                         <th class="py-3 ps-4">Nama Outlet</th>
                         <th class="py-3">Departemen</th>
@@ -22,7 +22,7 @@
                 </thead>
                 <tbody>
                     @forelse ($outlets as $outlet)
-                    <tr style="border-bottom: 1px solid #f8f9fa;">
+                    <tr>
                         <td>
                             <div class=" ps-4 d-flex align-items-center py-1">
                                 <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
@@ -122,9 +122,11 @@
                 </tbody>
             </table>
         </div>
-        <div class="d-flex justify-content-end mt-3 me-4">
+        @if($outlets->hasPages())
+        <div class="d-flex justify-content-end mt-3">
             {{ $outlets->links('pagination::bootstrap-5') }}
         </div>
+        @endif
     </div>
 </div>
 

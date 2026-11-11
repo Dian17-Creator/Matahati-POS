@@ -1,6 +1,6 @@
 <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
-        <thead class="bg-light text-secondary small" style="border-bottom: 2px solid #f1f5f9;">
+    <table class="table table-bordered table-hover align-middle mb-0">
+        <thead class="table-light text-secondary small">
             <tr>
                 <th class="py-3 ps-3">NO. PEMBELIAN</th>
                 <th class="py-3">TANGGAL BELI</th>
@@ -15,7 +15,7 @@
         </thead>
         <tbody class="small">
             @forelse($purchases as $item)
-            <tr style="border-bottom: 1px solid #f8f9fa;">
+            <tr>
                 <td class="ps-3">
                     <a href="{{ route('purchases.show', $item->nid) }}" class="fw-bold text-decoration-none text-primary">
                         {{ $item->cno_purchase }}
@@ -71,7 +71,7 @@
 </div>
 
 @if($purchases->hasPages())
-<div class="d-flex justify-content-center p-3">
+<div class="d-flex justify-content-center mt-3">
     {{ $purchases->links('pagination::bootstrap-5') }}
 </div>
 @endif

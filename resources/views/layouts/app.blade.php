@@ -652,6 +652,24 @@
             color: #94a3b8;
             line-height: 1.2;
         }
+
+        /* Olsera Panel Card & Table Outline Global Style */
+        .olsera-panel-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+        }
+
+        .olsera-panel-card > .card-header {
+            border-bottom: 1px solid #eef2f6;
+        }
+
+        .olsera-panel-card .table-bordered,
+        .olsera-panel-card .table-bordered th,
+        .olsera-panel-card .table-bordered td {
+            border-color: #e2e8f0 !important;
+        }
     </style>
     @stack('styles')
 </head>

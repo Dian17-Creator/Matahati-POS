@@ -3,27 +3,27 @@
 @section('title', 'Produk Kombo')
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0">Daftar Produk Kombo</h5>
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-3">
         <div class="table-responsive">
-            <table class="table table-hover table-borderless align-middle mb-0">
-                <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light text-secondary">
                     <tr>
-                        <th width="35%" class="py-3 ps-4">Produk Kombo Utama</th>
-                        <th>Daftar Isi & Kuantitas</th>
+                        <th width="35%" class="text-center py-3 ps-4">Produk Kombo Utama</th>
+                        <th class="text-center py-3 ps-4">Daftar Isi & Kuantitas</th>
                         <th width="15%" class="text-center py-3 pe-4">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($combos as $nid_combo_product => $comboGroup)
                     @php $mainProduct = $comboGroup->first()->comboProduct; @endphp
-                    <tr style="border-bottom: 1px solid #f8f9fa;">
+                    <tr>
                         <td class="ps-4 py-3">
                             <span class="fw-bold text-dark">{{ $mainProduct->cname ?? 'ID: ' . $nid_combo_product }}</span>
                         </td>
@@ -31,7 +31,7 @@
                             <ul class="list-unstyled mb-0">
                                 @foreach($comboGroup as $item)
                                 <li class="mb-2 d-flex align-items-center">
-                                    <i class="bi bi-check2 text-success me-2 fw-bold"></i> 
+                                    <i class="bi bi-check2 text-success me-2 fw-bold"></i>
                                     {{ $item->product->cname ?? 'ID: ' . $item->nid_product }}
                                     <span class="badge bg-light text-dark border ms-2">&times; {{ $item->nqty }}</span>
                                 </li>
@@ -62,9 +62,11 @@
                 </tbody>
             </table>
         </div>
-        <div class="d-flex justify-content-end mt-3 me-4">
+        @if($paginatedComboProducts->hasPages())
+        <div class="d-flex justify-content-end mt-3">
             {{ $paginatedComboProducts->links('pagination::bootstrap-5') }}
         </div>
+        @endif
     </div>
 </div>
 
@@ -88,7 +90,7 @@
                         <label class="form-label text-muted small fw-bold text-uppercase">Produk Kombo Utama</label>
                         <div class="form-control bg-light border-0 fw-bold">{{ $mainProduct->cname ?? 'ID: ' . $nid_combo_product }}</div>
                     </div>
-                    
+
                     <label class="form-label text-muted small fw-bold text-uppercase">Daftar Isi Produk</label>
                     <div id="edit-items-container-{{ $nid_combo_product }}">
                         @foreach($comboGroup as $item)
@@ -97,9 +99,9 @@
                                 <select class="form-select" name="nid_product[]" required>
                                     <option value="">Pilih Isi Produk</option>
                                     @foreach($regularProducts as $rp)
-                                        <option value="{{ $rp->nid }}" {{ $item->nid_product == $rp->nid ? 'selected' : '' }}>
-                                            {{ $rp->cname }}
-                                        </option>
+                                    <option value="{{ $rp->nid }}" {{ $item->nid_product == $rp->nid ? 'selected' : '' }}>
+                                        {{ $rp->cname }}
+                                    </option>
                                     @endforeach
                                 </select>
                             </div>
@@ -114,7 +116,7 @@
                         </div>
                         @endforeach
                     </div>
-                    
+
                     <button type="button" class="btn btn-sm btn-outline-primary mt-3" onclick="addComboItem('edit-items-container-{{ $nid_combo_product }}')">
                         <i class="bi bi-plus-lg"></i> Tambah Produk Isi
                     </button>
@@ -172,11 +174,11 @@
                         <select class="form-select" name="nid_combo_product" required>
                             <option value="">Pilih Produk Kombo</option>
                             @foreach($comboProducts as $cp)
-                                <option value="{{ $cp->nid }}">{{ $cp->cname }}</option>
+                            <option value="{{ $cp->nid }}">{{ $cp->cname }}</option>
                             @endforeach
                         </select>
                     </div>
-                    
+
                     <label class="form-label text-muted small fw-bold text-uppercase">Daftar Isi Produk</label>
                     <div id="create-items-container">
                         <div class="row mb-2 combo-item-row align-items-center">
@@ -184,7 +186,7 @@
                                 <select class="form-select" name="nid_product[]" required>
                                     <option value="">Pilih Isi Produk</option>
                                     @foreach($regularProducts as $rp)
-                                        <option value="{{ $rp->nid }}">{{ $rp->cname }}</option>
+                                    <option value="{{ $rp->nid }}">{{ $rp->cname }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -198,7 +200,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <button type="button" class="btn btn-sm btn-outline-primary mt-3" onclick="addComboItem('create-items-container')">
                         <i class="bi bi-plus-lg"></i> Tambah Produk Isi
                     </button>
@@ -247,14 +249,14 @@
     document.addEventListener("DOMContentLoaded", function() {
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
         var modalId = "{{ old('modal_id') }}";
-        
+
         if (hasErrors && modalId) {
             if (modalId === 'create') {
                 var myModal = new bootstrap.Modal(document.getElementById('createModal'));
                 myModal.show();
             } else {
                 var editModal = document.getElementById('editModal' + modalId);
-                if(editModal) {
+                if (editModal) {
                     var myModal = new bootstrap.Modal(editModal);
                     myModal.show();
                 }

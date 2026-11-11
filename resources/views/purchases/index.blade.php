@@ -273,7 +273,7 @@
 @endpush
 
 @section('content')
-<div class="card shadow-sm border-0 mb-4">
+<div class="card olsera-panel-card mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0 fw-bold">Daftar Pembelian</h5>
         <div class="d-flex gap-2">
@@ -426,7 +426,7 @@
             </div>
         </div>
 
-        <div id="tableContent">
+        <div id="tableContent" class="p-3">
             @include('purchases.partials.table', ['purchases' => $purchases])
         </div>
     </div>

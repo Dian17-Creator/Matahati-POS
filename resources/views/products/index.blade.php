@@ -6,29 +6,6 @@
 @include('products.partials.catalog_tabs', ['activeTab' => 'products'])
 @endsection
 
-@push('styles')
-<style>
-    .olsera-panel-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
-        overflow: hidden;
-    }
-
-    .olsera-panel-card > .card-header {
-        border-bottom: 1px solid #eef2f6;
-    }
-
-    /* Border Pemisah Kolom & Baris Tabel Olsera Style */
-    .olsera-panel-card .table-bordered,
-    .olsera-panel-card .table-bordered th,
-    .olsera-panel-card .table-bordered td {
-        border-color: #e2e8f0 !important;
-    }
-</style>
-@endpush
-
 @section('content')
 @if(session('import_results'))
     @php $res = session('import_results'); @endphp
