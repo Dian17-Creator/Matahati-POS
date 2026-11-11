@@ -177,6 +177,98 @@
         justify-content: center;
         align-items: center;
     }
+
+    /* Qty Stepper Widget */
+    .qty-stepper {
+        display: inline-flex;
+        align-items: stretch;
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid #cbd5e1;
+        background-color: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: all 0.2s ease;
+        position: relative;
+        max-width: 105px;
+        height: 31px;
+    }
+
+    .qty-stepper:hover,
+    .qty-stepper:focus-within {
+        border-color: #0284c7;
+        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+    }
+
+    .qty-stepper-btn {
+        border: none;
+        outline: none;
+        width: 27px;
+        min-width: 27px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #ffffff;
+        color: #64748b;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.18s ease;
+        padding: 0;
+        font-size: 0.75rem;
+    }
+
+    .qty-stepper-minus {
+        border-right: 1px solid #e2e8f0;
+    }
+
+    .qty-stepper-plus {
+        border-left: 1px solid #e2e8f0;
+    }
+
+    .qty-stepper-btn:hover {
+        background-color: #0ea5e9;
+        color: #ffffff;
+    }
+
+    .qty-stepper-btn:active {
+        background-color: #0284c7;
+        color: #ffffff;
+        transform: scale(0.92);
+    }
+
+    .qty-stepper-input {
+        border: none !important;
+        outline: none !important;
+        width: 100%;
+        min-width: 36px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.82rem;
+        color: #0f172a;
+        background-color: #ffffff;
+        padding: 0 4px;
+        margin: 0;
+        box-shadow: none !important;
+    }
+
+    .qty-stepper-input:focus {
+        background-color: #ffffff;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    .qty-stepper-input::-webkit-outer-spin-button,
+    .qty-stepper-input::-webkit-inner-spin-button,
+    .no-spinners::-webkit-outer-spin-button,
+    .no-spinners::-webkit-inner-spin-button {
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+    }
+
+    .qty-stepper-input,
+    .no-spinners {
+        -moz-appearance: textfield !important;
+        appearance: textfield !important;
+    }
 </style>
 @endpush
 
@@ -419,7 +511,7 @@
 
 <!-- Modal Pembelian Baru (Fit & Clean Layout) -->
 <div class="modal fade" id="createPurchaseModal" tabindex="-1" aria-labelledby="createPurchaseModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 960px;">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1040px;">
         <div class="modal-content border-0 shadow">
             <form action="{{ route('purchases.store') }}" method="POST" id="createPurchaseForm">
                 @csrf
@@ -496,7 +588,7 @@
                                     <th style="width: 135px;" class="py-2 text-center text-nowrap">TIPE ITEM</th>
                                     <th class="py-2 text-center text-nowrap">PRODUK / BAHAN BAKU</th>
                                     <th style="width: 115px;" class="text-center py-2 text-nowrap">STOK SAAT INI</th>
-                                    <th style="width: 80px;" class="text-center py-2 text-nowrap">QTY</th>
+                                    <th style="width: 115px;" class="text-center py-2 text-nowrap">QTY</th>
                                     <th style="width: 155px;" class="text-center py-1 text-nowrap">HARGA BELI</th>
                                     <th style="width: 125px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
                                     <th style="width: 35px;" class="text-center py-2"></th>
@@ -653,8 +745,16 @@
             <td class="text-center align-middle py-2">
                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 item-stock-badge fw-medium" id="stock-badge-${currentIdx}">-</span>
             </td>
-            <td class="py-2">
-                <input type="number" name="items[${currentIdx}][nqty]" class="form-control form-control-sm text-center fw-semibold item-qty-input" value="${qty}" min="1" step="1" data-row="${currentIdx}">
+            <td class="py-2 text-center align-middle">
+                <div class="qty-stepper mx-auto">
+                    <button type="button" class="qty-stepper-btn qty-stepper-minus btn-qty-minus" title="Kurangi 1">
+                        <i class="bi bi-dash-lg"></i>
+                    </button>
+                    <input type="number" name="items[${currentIdx}][nqty]" class="qty-stepper-input item-qty-input no-spinners" value="${qty}" min="1" step="1" data-row="${currentIdx}" placeholder="1" required>
+                    <button type="button" class="qty-stepper-btn qty-stepper-plus btn-qty-plus" title="Tambah 1">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
             </td>
             <td class="py-2">
                 <div class="input-group input-group-sm">
@@ -677,6 +777,8 @@
         const typeSelectEl = tr.querySelector('.item-type-select');
         const selectEl = tr.querySelector('.item-product-select');
         const qtyInput = tr.querySelector('.item-qty-input');
+        const btnMinus = tr.querySelector('.btn-qty-minus');
+        const btnPlus = tr.querySelector('.btn-qty-plus');
         const costInput = tr.querySelector('.item-cost-input');
         const removeBtn = tr.querySelector('.btn-remove-row');
 
@@ -786,6 +888,22 @@
             const curName = curOption ? (curOption.cname || curOption.text || '') : '';
             populateOptionsForRow(currentType, newOutletId, curName);
         };
+
+        if (btnMinus) {
+            btnMinus.addEventListener('click', function() {
+                const currentVal = parseInt(qtyInput.value, 10) || 1;
+                qtyInput.value = Math.max(1, currentVal - 1);
+                recalculateSubtotal(currentIdx);
+            });
+        }
+
+        if (btnPlus) {
+            btnPlus.addEventListener('click', function() {
+                const currentVal = parseInt(qtyInput.value, 10) || 0;
+                qtyInput.value = currentVal + 1;
+                recalculateSubtotal(currentIdx);
+            });
+        }
 
         qtyInput.addEventListener('input', () => recalculateSubtotal(currentIdx));
         costInput.addEventListener('input', () => recalculateSubtotal(currentIdx));
