@@ -3268,8 +3268,6 @@ class InventoryController extends Controller
         $qty = (float) $validated['nqty'];
         $cost = isset($validated['ncost_unit']) ? (float) $validated['ncost_unit'] : (float) $prodItem->ncost_unit;
 
-        $oldProductQty = (float) $prodItem->nqty > 0 ? (float) $prodItem->nqty : 1;
-
         $prodItem->update([
             'nqty' => $qty,
             'ncost_unit' => $cost,
@@ -3278,37 +3276,6 @@ class InventoryController extends Controller
             'crack' => $validated['crack'] ?? $prodItem->crack,
             'dupdated' => Carbon::now(),
         ]);
-
-        // Otomatis sesuaikan Qty semua bahan baku yang digunakan untuk produk ini (baik resep resmi maupun manual)
-        $updatedMaterials = [];
-        $linkedMaterials = MposProductionMaterial::where('nid_production', $production->nid)
-            ->where('nid_production_product', $prodItem->nid)
-            ->get();
-
-        foreach ($linkedMaterials as $mat) {
-            $recipeItem = MposRecipe::where('nid_product', $prodItem->nid_product)
-                ->where('nid_ingredient', $mat->nid_product)
-                ->first();
-
-            $unitQty = $recipeItem ? (float) $recipeItem->nqty : ((float) $mat->nqty / $oldProductQty);
-            $newMatQty = $unitQty * $qty;
-
-            $mat->update([
-                'nqty' => $newMatQty,
-                'nsubtotal' => $newMatQty * (float) $mat->ncost,
-                'dupdated' => Carbon::now(),
-            ]);
-
-            $updatedMaterials[] = [
-                'nid' => $mat->nid,
-                'nqty' => $newMatQty,
-                'unit_qty' => $unitQty,
-                'formatted_unit_qty' => number_format($unitQty, 2, ',', '.'),
-                'formatted_qty' => '-' . number_format($newMatQty, 2, ',', '.'),
-                'nsubtotal' => (float) $mat->nsubtotal,
-                'formatted_subtotal' => 'Rp ' . number_format($mat->nsubtotal, 0, ',', '.'),
-            ];
-        }
 
         $production->recalculateTotals();
 
@@ -3323,7 +3290,6 @@ class InventoryController extends Controller
                     'nsubtotal' => (float) $prodItem->nsubtotal,
                     'formatted_subtotal' => 'Rp ' . number_format($prodItem->nsubtotal, 0, ',', '.'),
                 ],
-                'materials' => $updatedMaterials,
                 'total_product_qty' => (float) $production->ntotal_product_qty,
                 'formatted_total_product_qty' => number_format($production->ntotal_product_qty, 2, ',', '.'),
                 'total_production_cost' => (float) $production->ntotal_production_cost,
@@ -3399,17 +3365,7 @@ class InventoryController extends Controller
             $cost = (float) ($p->nprice_buy ?? 0);
         }
 
-        $prodItem = null;
-        if (!empty($validated['nid_production_product'])) {
-            $prodItem = MposProductionProduct::where('nid_production', $production->nid)
-                ->where('nid', $validated['nid_production_product'])
-                ->first();
-        }
-
-        $unitQty = (float) $validated['nqty'];
-        // Jika bahan ini ditambahkan untuk produk tertentu, kalikan dengan Qty produk jadi tersebut
-        $productQty = ($prodItem && (float)$prodItem->nqty > 0) ? (float)$prodItem->nqty : 1;
-        $totalQty = $unitQty * $productQty;
+        $totalQty = (float) $validated['nqty'];
         $subtotal = $totalQty * $cost;
 
         MposProductionMaterial::create([

@@ -176,18 +176,13 @@
         <thead>
             <tr>
                 <th style="width: 5%; text-align: center;">#</th>
-                <th style="width: 47%; text-align: left;">Nama Bahan Baku</th>
-                <th style="width: 16%; text-align: right;">Takaran / Unit</th>
-                <th style="width: 18%; text-align: right;">Total Dipotong</th>
-                <th style="width: 14%; text-align: center;">Satuan</th>
+                <th style="width: 58%; text-align: left;">Nama Bahan Baku</th>
+                <th style="width: 22%; text-align: right;">Qty Dipotong</th>
+                <th style="width: 15%; text-align: center;">Satuan</th>
             </tr>
         </thead>
         <tbody>
             @forelse($production->materials as $idx => $mat)
-            @php
-            $parentProductQty = ($mat->productionProduct && (float)$mat->productionProduct->nqty > 0) ? (float)$mat->productionProduct->nqty : 1;
-            $unitTakaran = (float)$mat->nqty / $parentProductQty;
-            @endphp
             <tr>
                 <td style="text-align: center;">{{ $idx + 1 }}</td>
                 <td style="text-align: left;">
@@ -199,7 +194,6 @@
                     <span style="color: #64748b; font-size: 10px;">({{ $mat->cnote }})</span>
                     @endif
                 </td>
-                <td style="text-align: right; color: #475569;">{{ number_format($unitTakaran, 2, ',', '.') }}</td>
                 <td style="text-align: right; color: #b91c1c; font-weight: bold;">-{{ number_format($mat->nqty, 2, ',', '.') }}</td>
                 <td style="text-align: center;">{{ $mat->item_unit }}</td>
             </tr>
