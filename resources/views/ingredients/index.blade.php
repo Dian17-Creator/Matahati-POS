@@ -3,7 +3,7 @@
 @section('title', 'Bahan Baku')
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
         <div class="d-flex flex-wrap align-items-center gap-2">
             <h5 class="mb-0 me-2">Daftar Bahan Baku</h5>
@@ -23,9 +23,9 @@
         </div>
     </div>
 
-    <div class="card-body p-0" id="ingredient-table-container">
+    <div class="card-body p-3" id="ingredient-table-container">
         <div class="table-responsive">
-            <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
+            <table class="table table-bordered table-hover align-middle mb-0" style="white-space: nowrap;">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4">Nama Bahan Baku</th>
@@ -273,7 +273,7 @@
             </table>
         </div>
         @if($ingredients->hasPages())
-        <div class="d-flex justify-content-end p-3">
+        <div class="d-flex justify-content-end mt-3">
             {{ $ingredients->links('pagination::bootstrap-5') }}
         </div>
         @endif

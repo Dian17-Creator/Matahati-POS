@@ -319,7 +319,7 @@
 
     <!-- Card Kanan: Card Laporannya -->
     <div class="col-12 col-lg-9 col-xl-9">
-        <div class="card shadow-sm border-0" style="border-radius: 12px; border: 1px solid #e2e8f0 !important;">
+        <div class="card olsera-panel-card shadow-sm" style="border-radius: 12px; border: 1px solid #e2e8f0 !important;">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
                 <div class="d-flex align-items-center">
                     <h5 class="mb-0 me-3 fw-bold text-dark" style="font-size: 1.1rem;">Laporan Pelanggan</h5>
@@ -522,7 +522,7 @@
                 </div>
 
                 <!-- Table -->
-                <div class="table-responsive order-3 order-print-2">
+                <div class="table-responsive p-3 order-3 order-print-2">
                     @php
                     $sortUrl = function($col, $defaultDir) use ($sortCol, $sortDir) {
                     $nextDir = $defaultDir;
@@ -544,8 +544,8 @@
                     return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-25" style="font-size: 0.7rem;"></i>';
                     };
                     @endphp
-                    <table class="table table-hover table-borderless align-middle mb-0 text-nowrap">
-                        <thead class="bg-light text-secondary" style="border-bottom: 2px solid #f1f5f9;">
+                    <table class="table table-bordered table-hover align-middle mb-0 text-nowrap">
+                        <thead class="table-light text-secondary">
                             <tr>
                                 <th class="py-3 text-center">
                                     <a href="{{ $sortUrl('customer_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">Pelanggan {!! $sortIcon('customer_name') !!}</a>
@@ -584,7 +584,7 @@
                             $modal = 0; // Default as we don't have modal field
                             $laba = $row->total_penjualan - $row->diskon - $modal;
                             @endphp
-                            <tr style="border-bottom: 1px solid #f8f9fa;">
+                            <tr class="align-middle">
                                 <td class="text-center">{{ $row->customer_name ?? 'Unknown' }}</td>
                                 @if(!$isSummary)
                                 <td class="text-center">{{ $row->category_name ?? '-' }}</td>
@@ -639,8 +639,8 @@
                     </div>
                 </div>
 
-                @if(!request()->has('print') && method_exists($reports, 'hasPages'))
-                <div class="d-flex justify-content-center mt-3 order-4">
+                @if(!request()->has('print') && method_exists($reports, 'hasPages') && $reports->hasPages())
+                <div class="d-flex justify-content-center pb-3 order-4">
                     {{ $reports->links('pagination::bootstrap-5') }}
                 </div>
                 @endif

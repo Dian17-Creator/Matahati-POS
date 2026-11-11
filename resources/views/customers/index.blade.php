@@ -8,13 +8,13 @@
         position: sticky;
         right: 0;
         z-index: 1;
-        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+        box-shadow: inset 1px 0 0 #e2e8f0, -2px 0 5px rgba(0, 0, 0, 0.05);
     }
 </style>
 @endpush
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Pelanggan</h5>
@@ -44,10 +44,10 @@
             </button>
         </div>
     </div>
-    <div class="card-body p-0" id="table-container">
+    <div class="card-body p-3" id="table-container">
         <div class="table-responsive">
-            <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
-                <thead class="bg-light text-secondary text-center" style="border-bottom: 2px solid #f1f5f9;">
+            <table class="table table-bordered table-hover align-middle mb-0" style="white-space: nowrap;">
+                <thead class="table-light text-secondary text-center">
                     <tr>
                         <!-- <th class="py-3 ps-4">ID</th> -->
                         <th class="py-3">Nama Pelanggan</th>
@@ -72,7 +72,7 @@
                 </thead>
                 <tbody>
                     @forelse ($customers as $customer)
-                    <tr style="border-bottom: 1px solid #f8f9fa;">
+                    <tr>
                         <!-- <td class="ps-4 fw-bold text-muted">#{{ $customer->nid }}</td> -->
                         <td class="ps-4">
                             <div class="d-flex align-items-center py-1">
@@ -337,9 +337,11 @@
                 </tbody>
             </table>
         </div>
+        @if($customers->hasPages())
         <div class="d-flex justify-content-end mt-3">
             {{ $customers->links('pagination::bootstrap-5') }}
         </div>
+        @endif
     </div>
 </div>
 

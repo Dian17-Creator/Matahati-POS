@@ -3,7 +3,7 @@
 @section('title', 'Kategori Pelanggan')
 
 @section('content')
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0">Daftar Kategori Pelanggan</h5>
@@ -12,7 +12,7 @@
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
     </div>
-    <div class="card-body">
+    <div class="card-body p-3">
 
         @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -22,13 +22,13 @@
         @endif
 
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-bordered table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <!-- <th width="10%">ID</th> -->
-                        <th>Nama Kategori</th>
-                        <th>Outlet</th>
-                        <th width="20%" class="text-center">Aksi</th>
+                        <th class="py-3 ps-4">Nama Kategori</th>
+                        <th class="py-3 ps-4">Outlet</th>
+                        <th width="20%" class="text-center py-3 ps-4">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -160,9 +160,11 @@
                 </tbody>
             </table>
         </div>
+        @if($customerTypes->hasPages())
         <div class="d-flex justify-content-end mt-3">
             {{ $customerTypes->links('pagination::bootstrap-5') }}
         </div>
+        @endif
     </div>
 </div>
 
