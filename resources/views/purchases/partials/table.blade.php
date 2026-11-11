@@ -2,11 +2,11 @@
     <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light text-secondary small">
             <tr>
-                <th class="py-3 ps-3">NO. PEMBELIAN</th>
-                <th class="py-3">TANGGAL BELI</th>
-                <th class="py-3">SUPPLIER</th>
-                <th class="py-3">OUTLET</th>
-                <th class="py-3 text-end">JUMLAH</th>
+                <th class="py-3 text-center">NO. PEMBELIAN</th>
+                <th class="py-3 text-center">TANGGAL BELI</th>
+                <th class="py-3 text-center">SUPPLIER</th>
+                <th class="py-3 text-center">OUTLET</th>
+                <th class="py-3 text-center">JUMLAH</th>
                 <th class="py-3 text-center">TELAH BAYAR</th>
                 <th class="py-3 text-center">TANGGAL PEMBAYARAN</th>
                 <th class="py-3 text-center">STATUS</th>

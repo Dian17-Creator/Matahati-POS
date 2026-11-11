@@ -3,6 +3,19 @@
 @section('title', 'Detail Pembelian - ' . $purchase->cno_purchase)
 @section('custom_alerts', '1')
 
+@section('sub_header')
+@php
+    if ($purchase->cstatus === 'CANCELLED') {
+        $purchaseDetailTab = 'cancelled';
+    } elseif ($purchase->cstatus === 'RECEIVED' && $purchase->cpayment_status === 'PAID') {
+        $purchaseDetailTab = 'received';
+    } else {
+        $purchaseDetailTab = 'pending';
+    }
+@endphp
+@include('purchases.partials.purchase_tabs', ['activeTab' => $purchaseDetailTab])
+@endsection
+
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <style>
