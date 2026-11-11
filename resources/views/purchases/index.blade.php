@@ -397,7 +397,7 @@
             <div class="input-group input-group-sm" style="width: 700px;">
                 <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="filterSearchInput" class="form-control border-start-0 ps-0" placeholder="Cari No. PO, Supplier, No. SJ..." value="{{ $search }}">
-                <button class="btn btn-white border border-start-0 text-muted" type="button" id="clearSearchBtn" style="{{ $search ? '' : 'display: none;' }}" title="Hapus Pencarian">
+                <button class="btn btn-white border border-start-0 text-muted" type="button" id="clearSearchBtn" @style(['display: none' => !$search]) title="Hapus Pencarian">
                     <i class="bi bi-x-circle"></i>
                 </button>
             </div>

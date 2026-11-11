@@ -43,7 +43,7 @@
                         <td>
                             <div class="progress" style="height: 6px; width: 80px;" title="{{ $voucher->nredeem }} / {{ $voucher->nqty }} Terpakai">
                                 @php $pct = $voucher->nqty > 0 ? ($voucher->nredeem / $voucher->nqty) * 100 : 0; @endphp
-                                <div class="progress-bar {{ $pct >= 100 ? 'bg-danger' : 'bg-success' }}" role="progressbar" style="{{ 'width: ' . $pct . '%' }}"></div>
+                                <div class="progress-bar {{ $pct >= 100 ? 'bg-danger' : 'bg-success' }}" role="progressbar" @style(['width: ' . $pct . '%'])></div>
                             </div>
                             <small class="text-muted">{{ $voucher->nredeem }} / {{ $voucher->nqty }}</small>
                         </td>

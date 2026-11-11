@@ -386,7 +386,7 @@
                         <td class="px-2 py-2 text-center align-middle" style="min-width: 130px;">
                             @if($production->isDraft())
                             <div class="qty-stepper mx-auto">
-                                <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="updateRowQty({{ $pItem->nid }}, -1)" title="Kurangi 1">
+                                <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="update-prod-qty" data-prod-id="{{ $pItem->nid }}" data-delta="-1" title="Kurangi 1">
                                     <i class="bi bi-dash-lg"></i>
                                 </button>
                                 <input type="number"
@@ -395,9 +395,9 @@
                                     class="qty-stepper-input no-spinners"
                                     id="prod_qty_{{ $pItem->nid }}"
                                     value="{{ (float)$pItem->nqty }}"
-                                    onchange="saveRowQty({{ $pItem->nid }}, this.value)"
-                                    onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); }">
-                                <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="updateRowQty({{ $pItem->nid }}, 1)" title="Tambah 1">
+                                    data-action="save-prod-qty"
+                                    data-prod-id="{{ $pItem->nid }}">
+                                <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="update-prod-qty" data-prod-id="{{ $pItem->nid }}" data-delta="1" title="Tambah 1">
                                     <i class="bi bi-plus-lg"></i>
                                 </button>
                             </div>
@@ -445,7 +445,7 @@
                                         <span>Bahan Baku yang Digunakan:</span>
                                     </div>
                                     @if($production->isDraft())
-                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3 rounded shadow-sm d-inline-flex align-items-center gap-1" style="font-size: 0.78rem;" onclick="showInlineMaterialRow({{ $pItem->nid }})">
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3 rounded shadow-sm d-inline-flex align-items-center gap-1" style="font-size: 0.78rem;" data-action="show-inline-mat" data-prod-id="{{ $pItem->nid }}">
                                         <i class="bi bi-plus-circle"></i>
                                         <span>Tambah Bahan</span>
                                     </button>
@@ -488,7 +488,7 @@
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
                                                         @if($production->isDraft())
                                                         <div class="qty-stepper mx-auto">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="updateMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, -1)" title="Kurangi 1">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="update-mat-qty" data-mat-id="{{ $mat->nid }}" data-prod-id="{{ $pItem->nid }}" data-delta="-1" title="Kurangi 1">
                                                                 <i class="bi bi-dash-lg"></i>
                                                             </button>
                                                             <input type="number"
@@ -497,9 +497,10 @@
                                                                 class="qty-stepper-input no-spinners"
                                                                 id="mat_unit_input_{{ $mat->nid }}"
                                                                 value="{{ (float)$unitQtyVal }}"
-                                                                onchange="saveMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, this.value)"
-                                                                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); }">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="updateMatUnitQty({{ $mat->nid }}, {{ $pItem->nid }}, 1)" title="Tambah 1">
+                                                                data-action="save-mat-qty"
+                                                                data-mat-id="{{ $mat->nid }}"
+                                                                data-prod-id="{{ $pItem->nid }}">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="update-mat-qty" data-mat-id="{{ $mat->nid }}" data-prod-id="{{ $pItem->nid }}" data-delta="1" title="Tambah 1">
                                                                 <i class="bi bi-plus-lg"></i>
                                                             </button>
                                                         </div>
@@ -553,7 +554,7 @@
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
                                                         <div class="qty-stepper mx-auto">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustInlineMatQty({{ $pItem->nid }}, -1)">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="adjust-inline-mat-qty" data-prod-id="{{ $pItem->nid }}" data-delta="-1">
                                                                 <i class="bi bi-dash-lg"></i>
                                                             </button>
                                                             <input type="number"
@@ -562,8 +563,9 @@
                                                                 class="qty-stepper-input no-spinners"
                                                                 id="inlineMatUnitInput_{{ $pItem->nid }}"
                                                                 value="1"
-                                                                oninput="calcInlineMatTotal({{ $pItem->nid }})">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustInlineMatQty({{ $pItem->nid }}, 1)">
+                                                                data-action="calc-inline-mat"
+                                                                data-prod-id="{{ $pItem->nid }}">
+                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="adjust-inline-mat-qty" data-prod-id="{{ $pItem->nid }}" data-delta="1">
                                                                 <i class="bi bi-plus-lg"></i>
                                                             </button>
                                                         </div>
@@ -579,10 +581,10 @@
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center">
                                                         <div class="d-inline-flex gap-1">
-                                                            <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" onclick="submitInlineMaterial({{ $pItem->nid }})" title="Simpan Bahan">
+                                                            <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" data-action="submit-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Simpan Bahan">
                                                                 <i class="bi bi-check-lg"></i>
                                                             </button>
-                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" onclick="closeInlineMaterialRow({{ $pItem->nid }})" title="Batal">
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" data-action="close-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Batal">
                                                                 <i class="bi bi-x-lg"></i>
                                                             </button>
                                                         </div>
@@ -599,7 +601,7 @@
                                     <i class="bi bi-info-circle me-1 text-primary"></i> Belum ada bahan baku untuk produk ini.
                                     @if($production->isDraft())
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded shadow-xs" onclick="showInlineMaterialRow({{ $pItem->nid }})">
+                                        <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded shadow-xs" data-action="show-inline-mat" data-prod-id="{{ $pItem->nid }}">
                                             <i class="bi bi-plus-circle me-1"></i> Tambah Bahan Sekarang
                                         </button>
                                     </div>
@@ -976,6 +978,56 @@
                 }
             });
         }
+
+        // Event delegation untuk aksi qty & bahan baku inline tanpa inline Blade-JS
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            const prodId = btn.dataset.prodId;
+            const matId = btn.dataset.matId;
+            const delta = parseFloat(btn.dataset.delta || '0');
+
+            if (action === 'update-prod-qty') {
+                updateRowQty(prodId, delta);
+            } else if (action === 'show-inline-mat') {
+                showInlineMaterialRow(prodId);
+            } else if (action === 'update-mat-qty') {
+                updateMatUnitQty(matId, prodId, delta);
+            } else if (action === 'adjust-inline-mat-qty') {
+                adjustInlineMatQty(prodId, delta);
+            } else if (action === 'submit-inline-mat') {
+                submitInlineMaterial(prodId);
+            } else if (action === 'close-inline-mat') {
+                closeInlineMaterialRow(prodId);
+            }
+        });
+
+        document.addEventListener('change', function(e) {
+            const el = e.target.closest('[data-action]');
+            if (!el) return;
+
+            if (el.dataset.action === 'save-prod-qty') {
+                saveRowQty(el.dataset.prodId, el.value);
+            } else if (el.dataset.action === 'save-mat-qty') {
+                saveMatUnitQty(el.dataset.matId, el.dataset.prodId, el.value);
+            }
+        });
+
+        document.addEventListener('input', function(e) {
+            const el = e.target.closest('[data-action="calc-inline-mat"]');
+            if (!el) return;
+            calcInlineMatTotal(el.dataset.prodId);
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            const el = e.target.closest('[data-action="save-prod-qty"], [data-action="save-mat-qty"]');
+            if (!el) return;
+            e.preventDefault();
+            el.blur();
+        });
     });
 
     // ==================== INLINE TAMBAH PRODUK JADI ====================
