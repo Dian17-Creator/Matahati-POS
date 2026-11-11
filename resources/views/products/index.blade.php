@@ -6,6 +6,29 @@
 @include('products.partials.catalog_tabs', ['activeTab' => 'products'])
 @endsection
 
+@push('styles')
+<style>
+    .olsera-panel-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+        overflow: hidden;
+    }
+
+    .olsera-panel-card > .card-header {
+        border-bottom: 1px solid #eef2f6;
+    }
+
+    /* Border Pemisah Kolom & Baris Tabel Olsera Style */
+    .olsera-panel-card .table-bordered,
+    .olsera-panel-card .table-bordered th,
+    .olsera-panel-card .table-bordered td {
+        border-color: #e2e8f0 !important;
+    }
+</style>
+@endpush
+
 @section('content')
 @if(session('import_results'))
     @php $res = session('import_results'); @endphp
@@ -33,7 +56,7 @@
     </div>
 @endif
 
-<div class="card shadow-sm border-0">
+<div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Daftar Produk</h5>
@@ -63,7 +86,7 @@
             </button>
         </div>
     </div>
-    <div class="card-body p-0" id="table-container">
+    <div class="card-body p-3" id="table-container">
         <div class="table-responsive">
             @php
                 $hasAnyCombo = false;
@@ -71,7 +94,7 @@
                     if ($p->fcombo) $hasAnyCombo = true;
                 }
             @endphp
-            <table class="table table-hover table-borderless align-middle mb-0" style="white-space: nowrap;">
+            <table class="table table-bordered table-hover align-middle mb-0" style="white-space: nowrap;">
                 <thead class="table-light">
                     <tr>
                         <th width="8%">Foto</th>
@@ -356,9 +379,11 @@
                 </tbody>
             </table>
         </div>
+        @if($products->hasPages())
         <div class="d-flex justify-content-end mt-3">
             {{ $products->links('pagination::bootstrap-5') }}
         </div>
+        @endif
     </div>
 </div>
 
