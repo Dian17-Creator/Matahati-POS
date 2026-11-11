@@ -214,6 +214,65 @@
         background-color: #f0f9ff !important;
         color: #0284c7 !important;
     }
+
+    /* Input Qty & Tombol Aksi Olsera Style (Batal X / Simpan Centang) */
+    .qty-edit-input {
+        max-width: 110px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 4px 8px;
+        background-color: #ffffff;
+        color: #0f172a;
+    }
+
+    .qty-edit-input:focus {
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.15);
+    }
+
+    .btn-olsera-circle {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        color: #ffffff;
+        cursor: pointer;
+        transition: transform 0.12s ease, opacity 0.15s ease;
+    }
+
+    .btn-olsera-circle:hover {
+        transform: scale(1.06);
+        opacity: 0.92;
+    }
+
+    .btn-olsera-circle-cancel {
+        background-color: #ef4444;
+    }
+
+    .btn-olsera-circle-save {
+        background-color: #0ea5e9;
+    }
+
+    .btn-olsera-icon-action {
+        border: none;
+        background: transparent;
+        padding: 2px 4px;
+        line-height: 1;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+    }
+
+    .btn-olsera-icon-action:hover {
+        opacity: 0.75;
+    }
 </style>
 @endsection
 
@@ -362,11 +421,11 @@
             <table class="table table-prod-bordered align-middle mb-0">
                 <thead class="table-light">
                     <tr class="text-secondary small fw-semibold">
-                        <th class="px-3 py-3" style="width: 48%;">Nama Produk</th>
-                        <th class="px-3 py-3 text-center" style="width: 18%;">Qty</th>
+                        <th class="px-3 py-3" style="width: 46%;">Nama Produk</th>
+                        <th class="px-3 py-3 text-center" style="width: 16%;">Qty</th>
                         <th class="px-3 py-3 text-center" style="width: 14%;">Satuan</th>
                         <th class="px-3 py-3 text-center" style="width: 14%;">Bahan</th>
-                        <th class="px-3 py-3 text-center" style="width: 6%;">Aksi</th>
+                        <th class="px-3 py-3 text-center text-nowrap" style="width: 10%;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="small">
@@ -385,21 +444,20 @@
                         </td>
                         <td class="px-2 py-2 text-center align-middle" style="min-width: 130px;">
                             @if($production->isDraft())
-                            <div class="qty-stepper mx-auto">
-                                <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="update-prod-qty" data-prod-id="{{ $pItem->nid }}" data-delta="-1" title="Kurangi 1">
-                                    <i class="bi bi-dash-lg"></i>
-                                </button>
+                            <div id="prodQtyDisplay_{{ $pItem->nid }}">
+                                <span class="fw-bold text-dark fs-6">{{ number_format($pItem->nqty, 2, ',', '.') }}</span>
+                            </div>
+                            <div id="prodQtyEdit_{{ $pItem->nid }}" class="d-none">
                                 <input type="number"
                                     step="any"
                                     min="0.01"
-                                    class="qty-stepper-input no-spinners"
-                                    id="prod_qty_{{ $pItem->nid }}"
+                                    name="nqty"
+                                    form="editProdForm_{{ $pItem->nid }}"
+                                    class="form-control form-control-sm qty-edit-input mx-auto"
+                                    id="prod_qty_edit_input_{{ $pItem->nid }}"
                                     value="{{ (float)$pItem->nqty }}"
-                                    data-action="save-prod-qty"
-                                    data-prod-id="{{ $pItem->nid }}">
-                                <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="update-prod-qty" data-prod-id="{{ $pItem->nid }}" data-delta="1" title="Tambah 1">
-                                    <i class="bi bi-plus-lg"></i>
-                                </button>
+                                    data-original="{{ (float)$pItem->nqty }}"
+                                    required>
                             </div>
                             @else
                             <span class="fw-bold text-dark fs-6">{{ number_format($pItem->nqty, 2, ',', '.') }}</span>
@@ -422,15 +480,28 @@
                                 <i class="bi bi-chevron-down ms-1 materials-toggle-arrow"></i>
                             </button>
                         </td>
-                        <td class="px-3 py-3 text-center">
+                        <td class="px-3 py-3 text-center text-nowrap">
                             @if($production->isDraft())
-                            <form action="{{ route('inventory.production.products.destroy', [$production->nid, $pItem->nid]) }}" method="POST" onsubmit="return confirm('Hapus produk ini beserta bahan yang terkait?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-link text-danger p-0 border-0" title="Hapus Produk">
-                                    <i class="bi bi-x-lg fs-6"></i>
+                            <div id="prodAksiDisplay_{{ $pItem->nid }}" class="d-inline-flex align-items-center gap-2">
+                                <form action="{{ route('inventory.production.products.destroy', [$production->nid, $pItem->nid]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus produk ini beserta bahan yang terkait?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn-olsera-icon-action text-danger" title="Hapus Produk">
+                                        <i class="bi bi-x-lg fs-6"></i>
+                                    </button>
+                                </form>
+                                <button type="button" class="btn-olsera-icon-action text-primary" data-action="start-edit-prod" data-prod-id="{{ $pItem->nid }}" title="Ubah Qty">
+                                    <i class="bi bi-pencil fs-6"></i>
                                 </button>
-                            </form>
+                            </div>
+                            <div id="prodAksiEdit_{{ $pItem->nid }}" class="d-none d-inline-flex align-items-center gap-2">
+                                <button type="button" class="btn-olsera-circle btn-olsera-circle-cancel" data-action="cancel-edit-prod" data-prod-id="{{ $pItem->nid }}" title="Batal">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                                <button type="submit" form="editProdForm_{{ $pItem->nid }}" class="btn-olsera-circle btn-olsera-circle-save" title="Simpan Qty">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </div>
                             @endif
                         </td>
                     </tr>
@@ -457,22 +528,18 @@
                                         <table class="table align-middle mb-0" style="font-size: 0.84rem;">
                                             <thead>
                                                 <tr class="text-secondary bg-light border-bottom" style="font-size: 0.76rem; font-weight: 600; letter-spacing: 0.3px;">
-                                                    <th class="px-3 py-2.5" style="width: 30%;">NAMA BAHAN BAKU</th>
+                                                    <th class="px-3 py-2.5" style="width: 34%;">NAMA BAHAN BAKU</th>
                                                     <th class="px-3 py-2.5 text-center" style="width: 12%;">TIPE</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 15%;">TAKARAN / UNIT</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 17%;">TOTAL QTY DIPOTONG</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 10%;">SATUAN</th>
-                                                    <th class="px-3 py-2.5 text-end" style="width: 11%;">SUBTOTAL BIAYA</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 18%;">QTY DIPOTONG</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 11%;">SATUAN</th>
+                                                    <th class="px-3 py-2.5 text-end" style="width: 15%;">SUBTOTAL BIAYA</th>
                                                     @if($production->isDraft())
-                                                    <th class="px-3 py-2.5 text-center" style="width: 5%;">AKSI</th>
+                                                    <th class="px-3 py-2.5 text-center text-nowrap" style="width: 10%;">AKSI</th>
                                                     @endif
                                                 </tr>
                                             </thead>
                                             <tbody id="matTableBody_{{ $pItem->nid }}">
                                                 @foreach($linkedMaterials as $mat)
-                                                @php
-                                                $unitQtyVal = ((float)$pItem->nqty > 0) ? ((float)$mat->nqty / (float)$pItem->nqty) : (float)$mat->nqty;
-                                                @endphp
                                                 <tr class="border-bottom border-light-subtle" id="matRow_{{ $mat->nid }}">
                                                     <td class="px-3 py-2.5 fw-medium text-dark">
                                                         {{ $mat->item_name }}
@@ -487,29 +554,24 @@
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
                                                         @if($production->isDraft())
-                                                        <div class="qty-stepper mx-auto">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="update-mat-qty" data-mat-id="{{ $mat->nid }}" data-prod-id="{{ $pItem->nid }}" data-delta="-1" title="Kurangi 1">
-                                                                <i class="bi bi-dash-lg"></i>
-                                                            </button>
+                                                        <div id="matQtyDisplay_{{ $mat->nid }}">
+                                                            <span class="fw-semibold text-danger">-{{ number_format($mat->nqty, 2, ',', '.') }}</span>
+                                                        </div>
+                                                        <div id="matQtyEdit_{{ $mat->nid }}" class="d-none">
                                                             <input type="number"
                                                                 step="any"
                                                                 min="0.001"
-                                                                class="qty-stepper-input no-spinners"
-                                                                id="mat_unit_input_{{ $mat->nid }}"
-                                                                value="{{ (float)$unitQtyVal }}"
-                                                                data-action="save-mat-qty"
-                                                                data-mat-id="{{ $mat->nid }}"
-                                                                data-prod-id="{{ $pItem->nid }}">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="update-mat-qty" data-mat-id="{{ $mat->nid }}" data-prod-id="{{ $pItem->nid }}" data-delta="1" title="Tambah 1">
-                                                                <i class="bi bi-plus-lg"></i>
-                                                            </button>
+                                                                name="nqty"
+                                                                form="editMatForm_{{ $mat->nid }}"
+                                                                class="form-control form-control-sm qty-edit-input mx-auto"
+                                                                id="mat_qty_edit_input_{{ $mat->nid }}"
+                                                                value="{{ (float)$mat->nqty }}"
+                                                                data-original="{{ (float)$mat->nqty }}"
+                                                                required>
                                                         </div>
                                                         @else
-                                                        <span class="text-secondary fw-medium" id="mat_unit_qty_{{ $mat->nid }}">{{ number_format($unitQtyVal, 2, ',', '.') }}</span>
+                                                        <span class="fw-semibold text-danger">-{{ number_format($mat->nqty, 2, ',', '.') }}</span>
                                                         @endif
-                                                    </td>
-                                                    <td class="px-3 py-2.5 text-center fw-semibold text-danger" id="mat_qty_{{ $mat->nid }}">
-                                                        -{{ number_format($mat->nqty, 2, ',', '.') }}
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center text-muted">
                                                         {{ $mat->item_unit }}
@@ -518,21 +580,34 @@
                                                         Rp {{ number_format($mat->nsubtotal, 0, ',', '.') }}
                                                     </td>
                                                     @if($production->isDraft())
-                                                    <td class="px-3 py-2.5 text-center">
-                                                        <form action="{{ route('inventory.production.materials.destroy', [$production->nid, $mat->nid]) }}" method="POST" onsubmit="return confirm('Hapus bahan ini?')">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="submit" class="btn btn-link text-danger p-0 border-0" title="Hapus Bahan">
-                                                                <i class="bi bi-trash fs-6"></i>
+                                                    <td class="px-3 py-2.5 text-center text-nowrap">
+                                                        <div id="matAksiDisplay_{{ $mat->nid }}" class="d-inline-flex align-items-center gap-2">
+                                                            <form action="{{ route('inventory.production.materials.destroy', [$production->nid, $mat->nid]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus bahan ini?')">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="btn-olsera-icon-action text-danger" title="Hapus Bahan">
+                                                                    <i class="bi bi-x-lg"></i>
+                                                                </button>
+                                                            </form>
+                                                            <button type="button" class="btn-olsera-icon-action text-primary" data-action="start-edit-mat" data-mat-id="{{ $mat->nid }}" title="Ubah Qty Bahan">
+                                                                <i class="bi bi-pencil"></i>
                                                             </button>
-                                                        </form>
+                                                        </div>
+                                                        <div id="matAksiEdit_{{ $mat->nid }}" class="d-none d-inline-flex align-items-center gap-2">
+                                                            <button type="button" class="btn-olsera-circle btn-olsera-circle-cancel" data-action="cancel-edit-mat" data-mat-id="{{ $mat->nid }}" title="Batal">
+                                                                <i class="bi bi-x-lg"></i>
+                                                            </button>
+                                                            <button type="submit" form="editMatForm_{{ $mat->nid }}" class="btn-olsera-circle btn-olsera-circle-save" title="Simpan Qty Bahan">
+                                                                <i class="bi bi-check-lg"></i>
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                     @endif
                                                 </tr>
                                                 @endforeach
 
                                                 @if($production->isDraft())
-                                                {{-- Baris Tambah Bahan Inline (Muncul saat user klik + Tambah Bahan) --}}
+                                                {{-- Baris Tambah Bahan Inline (Pola Final dengan Tombol Batal X & Simpan Centang) --}}
                                                 <tr id="inlineAddMatRow_{{ $pItem->nid }}" class="d-none bg-primary-subtle border-bottom border-primary-subtle">
                                                     <td class="px-3 py-2.5">
                                                         <select class="form-select form-select-sm" id="inlineMatSelect_{{ $pItem->nid }}">
@@ -553,25 +628,12 @@
                                                         </span>
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
-                                                        <div class="qty-stepper mx-auto">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-minus" data-action="adjust-inline-mat-qty" data-prod-id="{{ $pItem->nid }}" data-delta="-1">
-                                                                <i class="bi bi-dash-lg"></i>
-                                                            </button>
-                                                            <input type="number"
-                                                                step="any"
-                                                                min="0.001"
-                                                                class="qty-stepper-input no-spinners"
-                                                                id="inlineMatUnitInput_{{ $pItem->nid }}"
-                                                                value="1"
-                                                                data-action="calc-inline-mat"
-                                                                data-prod-id="{{ $pItem->nid }}">
-                                                            <button type="button" class="qty-stepper-btn qty-stepper-plus" data-action="adjust-inline-mat-qty" data-prod-id="{{ $pItem->nid }}" data-delta="1">
-                                                                <i class="bi bi-plus-lg"></i>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-3 py-2.5 text-center fw-semibold text-danger" id="inlineMatTotalQty_{{ $pItem->nid }}">
-                                                        -{{ number_format((float)$pItem->nqty, 2, ',', '.') }}
+                                                        <input type="number"
+                                                            step="any"
+                                                            min="0.001"
+                                                            class="form-control form-control-sm qty-edit-input mx-auto"
+                                                            id="inlineMatQtyInput_{{ $pItem->nid }}"
+                                                            value="1">
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center text-muted" id="inlineMatUnit_{{ $pItem->nid }}">
                                                         PCS
@@ -579,13 +641,13 @@
                                                     <td class="px-3 py-2.5 text-end text-secondary">
                                                         -
                                                     </td>
-                                                    <td class="px-3 py-2.5 text-center">
-                                                        <div class="d-inline-flex gap-1">
-                                                            <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" data-action="submit-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Simpan Bahan">
-                                                                <i class="bi bi-check-lg"></i>
-                                                            </button>
-                                                            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" data-action="close-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Batal">
+                                                    <td class="px-3 py-2.5 text-center text-nowrap">
+                                                        <div class="d-inline-flex align-items-center gap-2">
+                                                            <button type="button" class="btn-olsera-circle btn-olsera-circle-cancel" data-action="close-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Batal">
                                                                 <i class="bi bi-x-lg"></i>
+                                                            </button>
+                                                            <button type="button" class="btn-olsera-circle btn-olsera-circle-save" data-action="submit-inline-mat" data-prod-id="{{ $pItem->nid }}" title="Simpan Bahan">
+                                                                <i class="bi bi-check-lg"></i>
                                                             </button>
                                                         </div>
                                                     </td>
@@ -645,20 +707,12 @@
                             </select>
                         </td>
                         <td class="px-2 py-2.5 text-center align-middle" style="min-width: 130px;">
-                            <div class="qty-stepper mx-auto">
-                                <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustInlineProductQty(-1)" title="Kurangi 1">
-                                    <i class="bi bi-dash-lg"></i>
-                                </button>
-                                <input type="number"
-                                    step="any"
-                                    min="0.01"
-                                    class="qty-stepper-input no-spinners"
-                                    id="inlineProductQtyInput"
-                                    value="1">
-                                <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustInlineProductQty(1)" title="Tambah 1">
-                                    <i class="bi bi-plus-lg"></i>
-                                </button>
-                            </div>
+                            <input type="number"
+                                step="any"
+                                min="0.01"
+                                class="form-control form-control-sm qty-edit-input mx-auto"
+                                id="inlineProductQtyInput"
+                                value="1">
                         </td>
                         <td class="px-3 py-2 text-center text-muted" id="inlineProductUnitBadge">
                             PCS
@@ -666,13 +720,13 @@
                         <td class="px-3 py-2 text-center text-muted">
                             -
                         </td>
-                        <td class="px-3 py-2 text-center">
-                            <div class="d-inline-flex gap-1">
-                                <button type="button" class="btn btn-sm btn-success py-1 px-2 rounded" onclick="submitInlineProduct()" title="Simpan Produk">
-                                    <i class="bi bi-check-lg"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 rounded" onclick="closeInlineProductRow()" title="Batal">
+                        <td class="px-3 py-2 text-center text-nowrap">
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <button type="button" class="btn-olsera-circle btn-olsera-circle-cancel" onclick="closeInlineProductRow()" title="Batal">
                                     <i class="bi bi-x-lg"></i>
+                                </button>
+                                <button type="button" class="btn-olsera-circle btn-olsera-circle-save" onclick="submitInlineProduct()" title="Simpan Produk">
+                                    <i class="bi bi-check-lg"></i>
                                 </button>
                             </div>
                         </td>
@@ -758,20 +812,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-secondary">Takaran per 1 Unit Produk <span class="text-danger">*</span></label>
-                        <div class="qty-stepper w-100" style="max-width: 100% !important;">
-                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustMatModalUnitQty(-1)">-</button>
-                            <input type="number" name="nqty" id="matQtyPerUnitInput" class="qty-stepper-input" value="1" min="0.001" step="any" required oninput="calculateMatTotalPreview()">
-                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustMatModalUnitQty(1)">+</button>
-                        </div>
-                    </div>
-
-                    {{-- Live Preview Total Bahan yang akan Dipotong --}}
-                    <div class="p-2 mb-3 bg-primary-subtle rounded border border-primary-subtle d-flex justify-content-between align-items-center" id="matPreviewBox" style="font-size: 0.82rem;">
-                        <span class="text-primary fw-semibold">
-                            <i class="bi bi-calculator me-1"></i> Total Bahan Baku Dipotong:
-                        </span>
-                        <span class="fw-bold text-primary" id="matTotalPreviewText">0 PCS</span>
+                        <label class="form-label small fw-semibold text-secondary">Qty Bahan Baku (Total Dipotong) <span class="text-danger">*</span></label>
+                        <input type="number" name="nqty" id="matQtyFinalInput" class="form-control form-control-sm" value="1" min="0.001" step="any" required>
                     </div>
 
                     <div class="mb-2">
@@ -804,8 +846,24 @@
     @csrf
     <input type="hidden" name="nid_production_product" id="hiddenMatProdId">
     <input type="hidden" name="nid_product" id="hiddenMatProductId">
-    <input type="hidden" name="nqty" id="hiddenMatUnitQty">
+    <input type="hidden" name="nqty" id="hiddenMatFinalQty">
 </form>
+
+@if($production->isDraft())
+{{-- Form Native Update Qty Produk & Bahan (Submit saat klik tombol Centang) --}}
+@foreach($production->products as $pItem)
+<form id="editProdForm_{{ $pItem->nid }}" action="{{ route('inventory.production.products.update', [$production->nid, $pItem->nid]) }}" method="POST" class="d-none">
+    @csrf
+    @method('PUT')
+</form>
+@endforeach
+@foreach($production->materials as $mat)
+<form id="editMatForm_{{ $mat->nid }}" action="{{ route('inventory.production.materials.update', [$production->nid, $mat->nid]) }}" method="POST" class="d-none">
+    @csrf
+    @method('PUT')
+</form>
+@endforeach
+@endif
 
 {{-- Modal Ubah Qty & Informasi Produk Hasil Produksi --}}
 @if($production->isDraft())
@@ -828,12 +886,7 @@
 
                     <div class="mb-3">
                         <label class="form-label small fw-semibold text-secondary">Qty Produksi (Jumlah yang dibuat) <span class="text-danger">*</span></label>
-                        <div class="qty-stepper w-100" style="max-width: 100% !important;">
-                            <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="adjustEditProductQty(-1)">-</button>
-                            <input type="number" name="nqty" id="editProdQtyInput" class="qty-stepper-input" value="1" min="0.01" step="any" required>
-                            <button type="button" class="qty-stepper-btn qty-stepper-plus" onclick="adjustEditProductQty(1)">+</button>
-                        </div>
-                        <div class="form-text small text-muted">Kebutuhan bahan baku dari resep akan disesuaikan otomatis dengan jumlah produksi baru.</div>
+                        <input type="number" name="nqty" id="editProdQtyInput" class="form-control form-control-sm" value="1" min="0.01" step="any" required>
                     </div>
                 </div>
                 <div class="modal-footer border-top py-2 bg-light">
@@ -938,8 +991,6 @@
     let matTsInstance = null;
     let inlineProdTsInstance = null;
     const inlineMatTsInstances = {};
-    let qtyDebounceTimers = {};
-    let matDebounceTimers = {};
 
     document.addEventListener('DOMContentLoaded', function() {
         // TomSelect pada modal Tambah Bahan Baku (Fallback)
@@ -979,7 +1030,7 @@
             });
         }
 
-        // Event delegation untuk aksi qty & bahan baku inline tanpa inline Blade-JS
+        // Event delegation untuk tombol edit/batal qty dan tambah bahan baku inline
         document.addEventListener('click', function(e) {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
@@ -987,48 +1038,69 @@
             const action = btn.dataset.action;
             const prodId = btn.dataset.prodId;
             const matId = btn.dataset.matId;
-            const delta = parseFloat(btn.dataset.delta || '0');
 
-            if (action === 'update-prod-qty') {
-                updateRowQty(prodId, delta);
+            if (action === 'start-edit-prod') {
+                toggleProdEditMode(prodId, true);
+            } else if (action === 'cancel-edit-prod') {
+                toggleProdEditMode(prodId, false);
+            } else if (action === 'start-edit-mat') {
+                toggleMatEditMode(matId, true);
+            } else if (action === 'cancel-edit-mat') {
+                toggleMatEditMode(matId, false);
             } else if (action === 'show-inline-mat') {
                 showInlineMaterialRow(prodId);
-            } else if (action === 'update-mat-qty') {
-                updateMatUnitQty(matId, prodId, delta);
-            } else if (action === 'adjust-inline-mat-qty') {
-                adjustInlineMatQty(prodId, delta);
             } else if (action === 'submit-inline-mat') {
                 submitInlineMaterial(prodId);
             } else if (action === 'close-inline-mat') {
                 closeInlineMaterialRow(prodId);
             }
         });
-
-        document.addEventListener('change', function(e) {
-            const el = e.target.closest('[data-action]');
-            if (!el) return;
-
-            if (el.dataset.action === 'save-prod-qty') {
-                saveRowQty(el.dataset.prodId, el.value);
-            } else if (el.dataset.action === 'save-mat-qty') {
-                saveMatUnitQty(el.dataset.matId, el.dataset.prodId, el.value);
-            }
-        });
-
-        document.addEventListener('input', function(e) {
-            const el = e.target.closest('[data-action="calc-inline-mat"]');
-            if (!el) return;
-            calcInlineMatTotal(el.dataset.prodId);
-        });
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key !== 'Enter') return;
-            const el = e.target.closest('[data-action="save-prod-qty"], [data-action="save-mat-qty"]');
-            if (!el) return;
-            e.preventDefault();
-            el.blur();
-        });
     });
+
+    // ==================== TOGGLE EDIT MODE QTY PRODUK & BAHAN (X / CENTANG) ====================
+    function toggleProdEditMode(prodId, isEditing) {
+        const displayQty = document.getElementById('prodQtyDisplay_' + prodId);
+        const editQty = document.getElementById('prodQtyEdit_' + prodId);
+        const displayAksi = document.getElementById('prodAksiDisplay_' + prodId);
+        const editAksi = document.getElementById('prodAksiEdit_' + prodId);
+        const input = document.getElementById('prod_qty_edit_input_' + prodId);
+
+        if (displayQty) displayQty.classList.toggle('d-none', isEditing);
+        if (editQty) editQty.classList.toggle('d-none', !isEditing);
+        if (displayAksi) displayAksi.classList.toggle('d-none', isEditing);
+        if (editAksi) editAksi.classList.toggle('d-none', !isEditing);
+
+        if (input) {
+            if (isEditing) {
+                input.focus();
+                input.select();
+            } else if (input.dataset.original !== undefined) {
+                input.value = input.dataset.original;
+            }
+        }
+    }
+
+    function toggleMatEditMode(matId, isEditing) {
+        const displayQty = document.getElementById('matQtyDisplay_' + matId);
+        const editQty = document.getElementById('matQtyEdit_' + matId);
+        const displayAksi = document.getElementById('matAksiDisplay_' + matId);
+        const editAksi = document.getElementById('matAksiEdit_' + matId);
+        const input = document.getElementById('mat_qty_edit_input_' + matId);
+
+        if (displayQty) displayQty.classList.toggle('d-none', isEditing);
+        if (editQty) editQty.classList.toggle('d-none', !isEditing);
+        if (displayAksi) displayAksi.classList.toggle('d-none', isEditing);
+        if (editAksi) editAksi.classList.toggle('d-none', !isEditing);
+
+        if (input) {
+            if (isEditing) {
+                input.focus();
+                input.select();
+            } else if (input.dataset.original !== undefined) {
+                input.value = input.dataset.original;
+            }
+        }
+    }
 
     // ==================== INLINE TAMBAH PRODUK JADI ====================
     function showInlineProductRow() {
@@ -1103,22 +1175,13 @@
         }
     }
 
-    function adjustInlineProductQty(delta) {
-        const inp = document.getElementById('inlineProductQtyInput');
-        if (inp) {
-            let val = parseFloat(inp.value) || 0;
-            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
-            inp.value = val;
-        }
-    }
-
     function submitInlineProduct() {
         const selectVal = inlineProdTsInstance ? inlineProdTsInstance.getValue() : document.getElementById('inlineProductSelect')?.value;
         if (!selectVal) {
             alert('Silakan pilih produk jadi terlebih dahulu.');
             return;
         }
-        const qty = parseFloat(document.getElementById('inlineProductQtyInput')?.value) || 1;
+        const qty = parseFloat(document.getElementById('inlineProductQtyInput')?.value) || 0;
         if (qty <= 0) {
             alert('Qty produksi harus lebih dari 0.');
             return;
@@ -1130,191 +1193,7 @@
         document.getElementById('hiddenAddProductForm').submit();
     }
 
-    // ==================== UPDATE QTY PRODUK JADI ====================
-    function updateRowQty(productId, delta) {
-        const inp = document.getElementById('prod_qty_' + productId);
-        if (!inp) return;
-        let current = parseFloat(inp.value) || 0;
-        let nextVal = Math.max(0.01, parseFloat((current + delta).toFixed(2)));
-        inp.value = nextVal;
-        queueSaveRowQty(productId, nextVal);
-    }
-
-    function saveRowQty(productId, val) {
-        let nextVal = Math.max(0.01, parseFloat(val) || 0);
-        const inp = document.getElementById('prod_qty_' + productId);
-        if (inp) inp.value = nextVal;
-        queueSaveRowQty(productId, nextVal);
-    }
-
-    function queueSaveRowQty(productId, qty) {
-        if (qtyDebounceTimers[productId]) {
-            clearTimeout(qtyDebounceTimers[productId]);
-        }
-        const inp = document.getElementById('prod_qty_' + productId);
-        if (inp) {
-            inp.style.transition = 'opacity 0.2s';
-            inp.style.opacity = '0.5';
-        }
-
-        qtyDebounceTimers[productId] = setTimeout(() => {
-            fetchSaveRowQty(productId, qty);
-        }, 350);
-    }
-
-    async function fetchSaveRowQty(productId, qty) {
-        const inp = document.getElementById('prod_qty_' + productId);
-        const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
-        const url = updateUrlPattern.replace(':productId', productId);
-        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "{{ csrf_token() }}";
-
-        try {
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    nqty: qty
-                })
-            });
-
-            if (inp) inp.style.opacity = '1';
-
-            const data = await response.json();
-
-            if (response.ok && data.status === 'success') {
-                // Update total produk qty display
-                const totalProdQtyEl = document.getElementById('totalProductQtyDisplay');
-                if (totalProdQtyEl && data.formatted_total_product_qty) {
-                    totalProdQtyEl.textContent = data.formatted_total_product_qty;
-                }
-                const modalConfirmProdQtyEl = document.getElementById('modalConfirmTotalProdQty');
-                if (modalConfirmProdQtyEl && data.formatted_total_product_qty) {
-                    modalConfirmProdQtyEl.textContent = data.formatted_total_product_qty + ' unit';
-                }
-
-                // Update bahan baku live
-                if (Array.isArray(data.materials)) {
-                    data.materials.forEach(mat => {
-                        const matUnitInput = document.getElementById('mat_unit_input_' + mat.nid);
-                        if (matUnitInput && mat.unit_qty !== undefined) {
-                            matUnitInput.value = parseFloat(mat.unit_qty);
-                        }
-                        const matUnitQtyEl = document.getElementById('mat_unit_qty_' + mat.nid);
-                        if (matUnitQtyEl && mat.formatted_unit_qty) {
-                            matUnitQtyEl.textContent = mat.formatted_unit_qty;
-                        }
-                        const matQtyEl = document.getElementById('mat_qty_' + mat.nid);
-                        if (matQtyEl && mat.formatted_qty) {
-                            matQtyEl.textContent = mat.formatted_qty;
-                        }
-                        const matSubtotalEl = document.getElementById('mat_subtotal_' + mat.nid);
-                        if (matSubtotalEl && mat.formatted_subtotal) {
-                            matSubtotalEl.textContent = mat.formatted_subtotal;
-                        }
-                    });
-                }
-            } else {
-                alert(data.message || 'Gagal memperbarui Qty');
-            }
-        } catch (err) {
-            if (inp) inp.style.opacity = '1';
-            console.error('Error updating qty:', err);
-        }
-    }
-
-    // ==================== STEPPER & AJAX UPDATE BAHAN BAKU EXISTING ====================
-    function updateMatUnitQty(matId, prodId, delta) {
-        const inp = document.getElementById('mat_unit_input_' + matId);
-        if (!inp) return;
-        let current = parseFloat(inp.value) || 0;
-        let nextVal = Math.max(0.001, parseFloat((current + delta).toFixed(2)));
-        inp.value = nextVal;
-        recalcAndQueueSaveMat(matId, prodId, nextVal);
-    }
-
-    function saveMatUnitQty(matId, prodId, val) {
-        let nextVal = Math.max(0.001, parseFloat(val) || 0);
-        const inp = document.getElementById('mat_unit_input_' + matId);
-        if (inp) inp.value = nextVal;
-        recalcAndQueueSaveMat(matId, prodId, nextVal);
-    }
-
-    function recalcAndQueueSaveMat(matId, prodId, unitVal) {
-        const prodQtyInp = document.getElementById('prod_qty_' + prodId);
-        const productQty = prodQtyInp ? (parseFloat(prodQtyInp.value) || 1) : 1;
-        const totalMatQty = unitVal * productQty;
-
-        // Live preview Total Qty Dipotong
-        const matQtyEl = document.getElementById('mat_qty_' + matId);
-        if (matQtyEl) {
-            matQtyEl.textContent = '-' + totalMatQty.toLocaleString('id-ID', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
-
-        if (matDebounceTimers[matId]) {
-            clearTimeout(matDebounceTimers[matId]);
-        }
-
-        const inp = document.getElementById('mat_unit_input_' + matId);
-        if (inp) {
-            inp.style.transition = 'opacity 0.2s';
-            inp.style.opacity = '0.5';
-        }
-
-        matDebounceTimers[matId] = setTimeout(() => {
-            fetchSaveMatQty(matId, totalMatQty);
-        }, 400);
-    }
-
-    async function fetchSaveMatQty(matId, totalQty) {
-        const inp = document.getElementById('mat_unit_input_' + matId);
-        const updateUrlPattern = "{{ route('inventory.production.materials.update', [$production->nid, ':materialId']) }}";
-        const url = updateUrlPattern.replace(':materialId', matId);
-        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "{{ csrf_token() }}";
-
-        try {
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token,
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    nqty: totalQty
-                })
-            });
-
-            if (inp) inp.style.opacity = '1';
-
-            const data = await response.json();
-            if (response.ok && data.status === 'success') {
-                const matQtyEl = document.getElementById('mat_qty_' + matId);
-                if (matQtyEl && data.material && data.material.formatted_qty) {
-                    matQtyEl.textContent = data.material.formatted_qty;
-                }
-                const matSubtotalEl = document.getElementById('mat_subtotal_' + matId);
-                if (matSubtotalEl && data.material && data.material.formatted_subtotal) {
-                    matSubtotalEl.textContent = data.material.formatted_subtotal;
-                }
-            } else {
-                alert(data.message || 'Gagal memperbarui takaran bahan.');
-            }
-        } catch (err) {
-            if (inp) inp.style.opacity = '1';
-            console.error('Error updating material qty:', err);
-        }
-    }
-
-    // ==================== INLINE TAMBAH BAHAN BAKU (SEPERTI DI MODAL) ====================
+    // ==================== INLINE TAMBAH BAHAN BAKU (POLA FINAL) ====================
     function showInlineMaterialRow(prodId) {
         const wrap = document.getElementById('matTableWrap_' + prodId);
         if (wrap) wrap.classList.remove('d-none');
@@ -1325,7 +1204,6 @@
         if (row) {
             row.classList.remove('d-none');
             initInlineMatSelect(prodId);
-            calcInlineMatTotal(prodId);
         }
     }
 
@@ -1386,39 +1264,13 @@
                 if (opt && unitEl) {
                     unitEl.textContent = opt.unit || 'PCS';
                 }
-                calcInlineMatTotal(prodId);
             });
         }
     }
 
-    function adjustInlineMatQty(prodId, delta) {
-        const inp = document.getElementById('inlineMatUnitInput_' + prodId);
-        if (inp) {
-            let val = parseFloat(inp.value) || 0;
-            val = Math.max(0.001, parseFloat((val + delta).toFixed(2)));
-            inp.value = val;
-            calcInlineMatTotal(prodId);
-        }
-    }
-
-    function calcInlineMatTotal(prodId) {
-        const unitInp = document.getElementById('inlineMatUnitInput_' + prodId);
-        const previewEl = document.getElementById('inlineMatTotalQty_' + prodId);
-        const prodQtyInp = document.getElementById('prod_qty_' + prodId);
-        if (!unitInp || !previewEl) return;
-
-        const unitVal = parseFloat(unitInp.value) || 0;
-        const prodQty = prodQtyInp ? (parseFloat(prodQtyInp.value) || 1) : 1;
-        const total = unitVal * prodQty;
-        previewEl.textContent = '-' + total.toLocaleString('id-ID', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-    }
-
     function submitInlineMaterial(prodId) {
         const select = document.getElementById('inlineMatSelect_' + prodId);
-        const unitInp = document.getElementById('inlineMatUnitInput_' + prodId);
+        const qtyInp = document.getElementById('inlineMatQtyInput_' + prodId);
         const prodSelectVal = inlineMatTsInstances[prodId] ? inlineMatTsInstances[prodId].getValue() : (select ? select.value : '');
 
         if (!prodSelectVal) {
@@ -1426,90 +1278,43 @@
             return;
         }
 
-        const unitVal = parseFloat(unitInp ? unitInp.value : 1) || 1;
-        if (unitVal <= 0) {
-            alert('Takaran bahan baku harus lebih dari 0.');
+        const qtyVal = parseFloat(qtyInp ? qtyInp.value : 0) || 0;
+        if (qtyVal <= 0) {
+            alert('Qty bahan baku harus lebih dari 0.');
             return;
         }
 
         document.getElementById('hiddenMatProdId').value = prodId;
         document.getElementById('hiddenMatProductId').value = prodSelectVal;
-        document.getElementById('hiddenMatUnitQty').value = unitVal;
+        document.getElementById('hiddenMatFinalQty').value = qtyVal;
 
         document.getElementById('hiddenAddMaterialForm').submit();
     }
 
     // ==================== HELPER MODAL ====================
-    function adjustModalAddProdQty(delta) {
-        const inp = document.getElementById('modalAddProdQtyInput');
-        if (inp) {
-            let val = parseFloat(inp.value) || 0;
-            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
-            inp.value = val;
-        }
-    }
-
-    function adjustMatModalUnitQty(delta) {
-        const inp = document.getElementById('matQtyPerUnitInput');
-        if (inp) {
-            let val = parseFloat(inp.value) || 0;
-            val = Math.max(0.001, parseFloat((val + delta).toFixed(2)));
-            inp.value = val;
-            calculateMatTotalPreview();
-        }
-    }
-
-    let modalTargetProductQty = 1;
-
-    function openAddMaterialModal(productId, productName, fallbackProductQty) {
-        const liveQtyInp = document.getElementById('prod_qty_' + productId);
-        modalTargetProductQty = liveQtyInp ? (parseFloat(liveQtyInp.value) || 1) : (parseFloat(fallbackProductQty) || 1);
+    function openAddMaterialModal(productId, productName) {
         document.getElementById('matProdId').value = productId;
-        document.getElementById('matProdInfo').innerHTML = 'Untuk Produk: <strong>' + productName + '</strong> (Jumlah Produksi: <strong>' + modalTargetProductQty + '</strong>)';
+        document.getElementById('matProdInfo').innerHTML = 'Untuk Produk: <strong>' + productName + '</strong>';
         if (matTsInstance) {
             matTsInstance.clear();
         }
-        const unitInp = document.getElementById('matQtyPerUnitInput');
-        if (unitInp) unitInp.value = 1;
-        calculateMatTotalPreview();
+        const qtyInp = document.getElementById('matQtyFinalInput');
+        if (qtyInp) qtyInp.value = 1;
 
         const modal = new bootstrap.Modal(document.getElementById('modalAddMaterial'));
         modal.show();
     }
 
-    function calculateMatTotalPreview() {
-        const unitInp = document.getElementById('matQtyPerUnitInput');
-        const previewEl = document.getElementById('matTotalPreviewText');
-        if (!unitInp || !previewEl) return;
-        const unitVal = parseFloat(unitInp.value) || 0;
-        const total = unitVal * modalTargetProductQty;
-        previewEl.textContent = total.toLocaleString('id-ID', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2
-        }) + ' (' + unitVal + ' × ' + modalTargetProductQty + ' produk)';
-    }
-
-    function openEditProductModal(productId, productName, currentQty, currentExpired, currentRack) {
+    function openEditProductModal(productId, productName, currentQty) {
         const form = document.getElementById('formEditProduct');
         const updateUrlPattern = "{{ route('inventory.production.products.update', [$production->nid, ':productId']) }}";
         form.action = updateUrlPattern.replace(':productId', productId);
 
         document.getElementById('editProdNameInfo').innerHTML = 'Produk: <strong>' + productName + '</strong>';
         document.getElementById('editProdQtyInput').value = currentQty;
-        document.getElementById('editProdExpiredInput').value = currentExpired || '';
-        document.getElementById('editProdRackInput').value = currentRack || '';
 
         const modal = new bootstrap.Modal(document.getElementById('modalEditProduct'));
         modal.show();
-    }
-
-    function adjustEditProductQty(delta) {
-        const inp = document.getElementById('editProdQtyInput');
-        if (inp) {
-            let val = parseFloat(inp.value) || 0;
-            val = Math.max(0.01, parseFloat((val + delta).toFixed(2)));
-            inp.value = val;
-        }
     }
 </script>
 @endsection

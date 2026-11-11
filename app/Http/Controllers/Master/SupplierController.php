@@ -7,6 +7,7 @@ use App\Models\MposSupplier;
 use App\Models\MposOutlet;
 use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -80,8 +81,23 @@ class SupplierController extends Controller
         // Prefetch all outlet assignments for suppliers on this page
         $allSupplierOutlets = MposSupplier::with('outlet')
             ->whereIn('cname', $suppliers->pluck('cname'))
-            ->get(['nid', 'cname', 'nid_outlet'])
+            ->get(['nid', 'cname', 'nid_outlet', 'clogo'])
             ->groupBy('cname');
+
+        // Fallback in-memory logo from sibling outlet rows when an older row has empty clogo
+        foreach ($suppliers as $supplierItem) {
+            if (empty($supplierItem->clogo)) {
+                $siblingLogo = $allSupplierOutlets->get($supplierItem->cname, collect())
+                    ->pluck('clogo')
+                    ->first(function (?string $path): bool {
+                        return !empty($path);
+                    });
+
+                if (!empty($siblingLogo)) {
+                    $supplierItem->clogo = $siblingLogo;
+                }
+            }
+        }
 
         return view('suppliers.index', compact(
             'suppliers',
@@ -128,14 +144,12 @@ class SupplierController extends Controller
         $data['dcreated'] = now();
 
         if ($request->hasFile('clogo')) {
-            $file = $request->file('clogo');
-            $filename = 'supplier_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $targetDir = public_path('uploads/supplier');
-            if (!file_exists($targetDir)) {
-                @mkdir($targetDir, 0775, true);
+            $data['clogo'] = $this->storeLogoFile($request->file('clogo'));
+        } else {
+            $existingLogo = $this->resolveExistingLogoPath($request->cname);
+            if (!empty($existingLogo)) {
+                $data['clogo'] = $existingLogo;
             }
-            $file->move($targetDir, $filename);
-            $data['clogo'] = 'uploads/supplier/' . $filename;
         }
 
         DB::beginTransaction();
@@ -166,6 +180,13 @@ class SupplierController extends Controller
         $supplier = MposSupplier::with(['outlet', 'purchases' => function ($q) {
             $q->orderBy('dpurchase', 'desc');
         }])->findOrFail($id);
+
+        if (empty($supplier->clogo)) {
+            $fallbackLogo = $this->resolveExistingLogoPath($supplier->cname);
+            if (!empty($fallbackLogo)) {
+                $supplier->clogo = $fallbackLogo;
+            }
+        }
 
         $outlets = $this->getAvailableOutlets();
         $isOutletLocked = $this->isOutletLocked();
@@ -223,47 +244,52 @@ class SupplierController extends Controller
         $data['factive'] = $request->has('factive') ? 1 : 0;
 
         if ($request->hasFile('clogo')) {
-            if ($supplier->clogo) {
-                if (file_exists(public_path($supplier->clogo))) {
-                    @unlink(public_path($supplier->clogo));
-                } elseif (Storage::disk('public')->exists($supplier->clogo)) {
-                    Storage::disk('public')->delete($supplier->clogo);
-                }
+            $oldLogoPaths = MposSupplier::where('cname', $originalCname)
+                ->whereNotNull('clogo')
+                ->where('clogo', '!=', '')
+                ->pluck('clogo')
+                ->unique();
+
+            foreach ($oldLogoPaths as $oldLogoPath) {
+                $this->deleteLogoFile($oldLogoPath);
             }
 
-            $file = $request->file('clogo');
-            $filename = 'supplier_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $targetDir = public_path('uploads/supplier');
-            if (!file_exists($targetDir)) {
-                @mkdir($targetDir, 0775, true);
+            $data['clogo'] = $this->storeLogoFile($request->file('clogo'));
+        } else {
+            $existingLogo = $this->resolveExistingLogoPath($originalCname, $supplier->clogo);
+            if (!empty($existingLogo)) {
+                $data['clogo'] = $existingLogo;
             }
-            $file->move($targetDir, $filename);
-            $data['clogo'] = 'uploads/supplier/' . $filename;
         }
 
         DB::beginTransaction();
         try {
-            $targetOutletIds = array_map('intval', $request->outlet_ids);
-            $firstOutletId = $targetOutletIds[0];
+            $targetOutletIds = array_values(array_unique(array_map('intval', $request->outlet_ids)));
+            $primaryOutletId = in_array((int) $supplier->nid_outlet, $targetOutletIds, true)
+                ? (int) $supplier->nid_outlet
+                : $targetOutletIds[0];
 
-            // 1. Update this primary instance with the first selected outlet
-            $data['nid_outlet'] = $firstOutletId;
+            // 1. Update this primary instance keeping its outlet if still selected
+            $data['nid_outlet'] = $primaryOutletId;
             $supplier->update($data);
 
-            // Clean up any extra duplicate instances for firstOutletId
-            $duplicatesFirst = MposSupplier::where('cname', $originalCname)
-                ->where('nid_outlet', $firstOutletId)
+            // Clean up any extra duplicate instances for primaryOutletId
+            $duplicatesPrimary = MposSupplier::where('cname', $originalCname)
+                ->where('nid_outlet', $primaryOutletId)
                 ->where('nid', '!=', $supplier->nid)
                 ->get();
-            foreach ($duplicatesFirst as $dup) {
+            foreach ($duplicatesPrimary as $dup) {
                 if (!$dup->purchases()->exists()) {
                     $dup->delete();
                 }
             }
 
-            // 2. For remaining selected outlets, create or update matching records
-            for ($i = 1; $i < count($targetOutletIds); $i++) {
-                $outId = $targetOutletIds[$i];
+            // 2. For remaining selected outlets, create or update matching records (including clogo)
+            foreach ($targetOutletIds as $outId) {
+                if ($outId === $primaryOutletId) {
+                    continue;
+                }
+
                 $existing = MposSupplier::where('cname', $originalCname)
                     ->where('nid_outlet', $outId)
                     ->where('nid', '!=', $supplier->nid)
@@ -320,12 +346,14 @@ class SupplierController extends Controller
                 ->with('error', 'Supplier tidak dapat dihapus karena sudah memiliki riwayat transaksi pembelian.');
         }
 
-        if ($supplier->clogo) {
-            if (file_exists(public_path($supplier->clogo))) {
-                @unlink(public_path($supplier->clogo));
-            } elseif (Storage::disk('public')->exists($supplier->clogo)) {
-                Storage::disk('public')->delete($supplier->clogo);
-            }
+        $logoPaths = MposSupplier::where('cname', $originalCname)
+            ->whereNotNull('clogo')
+            ->where('clogo', '!=', '')
+            ->pluck('clogo')
+            ->unique();
+
+        foreach ($logoPaths as $logoPath) {
+            $this->deleteLogoFile($logoPath);
         }
 
         // Delete all instances with this cname
@@ -333,5 +361,51 @@ class SupplierController extends Controller
 
         return redirect()->route('suppliers.index')
             ->with('success', 'Supplier berhasil dihapus.');
+    }
+
+    /**
+     * Store uploaded supplier logo file into public uploads directory.
+     */
+    private function storeLogoFile(UploadedFile $file): string
+    {
+        $filename = 'supplier_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $targetDir = public_path('uploads/supplier');
+        if (!file_exists($targetDir)) {
+            @mkdir($targetDir, 0775, true);
+        }
+        $file->move($targetDir, $filename);
+
+        return 'uploads/supplier/' . $filename;
+    }
+
+    /**
+     * Remove a supplier logo file from public directory or public storage disk.
+     */
+    private function deleteLogoFile(?string $logoPath): void
+    {
+        if (empty($logoPath)) {
+            return;
+        }
+
+        if (file_exists(public_path($logoPath))) {
+            @unlink(public_path($logoPath));
+        } elseif (Storage::disk('public')->exists($logoPath)) {
+            Storage::disk('public')->delete($logoPath);
+        }
+    }
+
+    /**
+     * Resolve an existing logo path from the supplier or its sibling outlet rows.
+     */
+    private function resolveExistingLogoPath(string $cname, ?string $preferredLogo = null): ?string
+    {
+        if (!empty($preferredLogo)) {
+            return $preferredLogo;
+        }
+
+        return MposSupplier::where('cname', $cname)
+            ->whereNotNull('clogo')
+            ->where('clogo', '!=', '')
+            ->value('clogo');
     }
 }

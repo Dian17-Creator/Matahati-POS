@@ -291,8 +291,7 @@
                                     <th style="width: 35px;" class="text-center py-2 text-nowrap">NO</th>
                                     <th class="py-2 text-center text-nowrap" style="min-width: 240px;">NAMA BAHAN BAKU</th>
                                     <th style="width: 175px;" class="text-center py-2 text-nowrap">UNTUK PRODUK</th>
-                                    <th style="width: 130px;" class="text-center py-2 text-nowrap">TAKARAN / UNIT</th>
-                                    <th style="width: 135px;" class="text-center py-2 text-nowrap">TOTAL DIPOTONG</th>
+                                    <th style="width: 150px;" class="text-center py-2 text-nowrap">QTY DIPOTONG</th>
                                     <th style="width: 90px;" class="text-center py-2 text-nowrap">SATUAN</th>
                                     <th style="width: 40px;" class="text-center py-2"></th>
                                 </tr>
@@ -486,7 +485,6 @@
             let v = parseFloat(qtyInput.value) || 0;
             v = Math.max(1, v - 1);
             qtyInput.value = v;
-            scaleMaterialsForProduct(tempId, v);
             calculateProductionModalTotals();
         });
 
@@ -494,13 +492,10 @@
             let v = parseFloat(qtyInput.value) || 0;
             v = v + 1;
             qtyInput.value = v;
-            scaleMaterialsForProduct(tempId, v);
             calculateProductionModalTotals();
         });
 
         qtyInput.addEventListener('input', function() {
-            let v = Math.max(0.01, parseFloat(qtyInput.value) || 0);
-            scaleMaterialsForProduct(tempId, v);
             calculateProductionModalTotals();
         });
 
@@ -563,7 +558,7 @@
 
     // ==================== BAGIAN BAHAN BAKU ====================
 
-    function addProductionMaterialRow(parentTempId = '', defaultMatId = '', defaultUnitQty = 1, isFromRecipe = false) {
+    function addProductionMaterialRow(parentTempId = '', defaultMatId = '', defaultFinalQty = 1, isFromRecipe = false) {
         matRowCounter++;
         const curIdx = matRowCounter;
         const tbody = document.getElementById('productionMaterialsTableBody');
@@ -585,18 +580,7 @@
                 </select>
             </td>
             <td class="py-2 text-center align-middle">
-                <div class="qty-stepper mx-auto">
-                    <button type="button" class="qty-stepper-btn qty-stepper-minus mat-btn-minus" title="Kurangi 1">
-                        <i class="bi bi-dash-lg"></i>
-                    </button>
-                    <input type="number" step="any" min="0.001" name="materials[${curIdx}][unit_qty]" class="qty-stepper-input mat-unit-qty-input no-spinners" value="${defaultUnitQty}" placeholder="1" required>
-                    <button type="button" class="qty-stepper-btn qty-stepper-plus mat-btn-plus" title="Tambah 1">
-                        <i class="bi bi-plus-lg"></i>
-                    </button>
-                </div>
-            </td>
-            <td class="py-2 text-center align-middle">
-                <input type="number" step="any" min="0.001" name="materials[${curIdx}][nqty]" class="form-control form-control-sm mat-total-qty-input text-center fw-bold text-danger bg-light" value="${defaultUnitQty}" readonly>
+                <input type="number" step="any" min="0.001" name="materials[${curIdx}][nqty]" class="form-control form-control-sm mat-total-qty-input text-center fw-bold text-danger mx-auto" style="max-width: 120px;" value="${defaultFinalQty}" placeholder="1" required>
             </td>
             <td class="text-center py-2 align-middle text-muted mat-satuan-cell" id="mat_satuan_${curIdx}">
                 PCS
@@ -612,8 +596,6 @@
 
         const selectEl = tr.querySelector('.mat-item-select');
         const parentSelect = tr.querySelector('.mat-parent-select');
-        const unitQtyInput = tr.querySelector('.mat-unit-qty-input');
-        const totalQtyInput = tr.querySelector('.mat-total-qty-input');
 
         // Populate parent dropdown
         populateMaterialParentSelect(parentSelect, parentTempId);
@@ -653,33 +635,6 @@
             }
         });
 
-        const btnMatMinus = tr.querySelector('.mat-btn-minus');
-        const btnMatPlus = tr.querySelector('.mat-btn-plus');
-
-        btnMatMinus.addEventListener('click', function() {
-            let v = parseFloat(unitQtyInput.value) || 0;
-            v = Math.max(0.001, parseFloat((v - 1).toFixed(3)));
-            unitQtyInput.value = v;
-            recalculateSingleMaterialTotal(tr);
-        });
-
-        btnMatPlus.addEventListener('click', function() {
-            let v = parseFloat(unitQtyInput.value) || 0;
-            v = parseFloat((v + 1).toFixed(3));
-            unitQtyInput.value = v;
-            recalculateSingleMaterialTotal(tr);
-        });
-
-        // Event perubahan takaran per unit
-        unitQtyInput.addEventListener('input', function() {
-            recalculateSingleMaterialTotal(tr);
-        });
-
-        parentSelect.addEventListener('change', function() {
-            recalculateSingleMaterialTotal(tr);
-        });
-
-        recalculateSingleMaterialTotal(tr);
         renumberProductionMaterialRows();
         checkEmptyMaterialsNotice();
         calculateProductionModalTotals();
@@ -780,47 +735,10 @@
             });
 
             recipes.forEach(rc => {
-                const unitQty = parseFloat(rc.nqty) || 1;
-                addProductionMaterialRow(tempId, rc.nid_ingredient, unitQty, true);
+                const finalQty = parseFloat(((parseFloat(rc.nqty) || 1) * (parentQty || 1)).toFixed(4));
+                addProductionMaterialRow(tempId, rc.nid_ingredient, finalQty, true);
             });
         }
-    }
-
-    // Skala bahan saat Qty produk diubah
-    function scaleMaterialsForProduct(tempId, parentQty) {
-        const matRows = document.querySelectorAll('#productionMaterialsTableBody tr');
-        matRows.forEach(mr => {
-            const pSelect = mr.querySelector('.mat-parent-select');
-            if (pSelect && pSelect.value === tempId) {
-                const unitInput = mr.querySelector('.mat-unit-qty-input');
-                const totalInput = mr.querySelector('.mat-total-qty-input');
-                if (unitInput && totalInput) {
-                    const unitVal = parseFloat(unitInput.value) || 0;
-                    totalInput.value = parseFloat((unitVal * parentQty).toFixed(4));
-                }
-            }
-        });
-    }
-
-    function recalculateSingleMaterialTotal(tr) {
-        const parentSelect = tr.querySelector('.mat-parent-select');
-        const unitInput = tr.querySelector('.mat-unit-qty-input');
-        const totalInput = tr.querySelector('.mat-total-qty-input');
-        if (!parentSelect || !unitInput || !totalInput) return;
-
-        const parentTempId = parentSelect.value;
-        let parentQty = 1;
-
-        if (parentTempId) {
-            const parentRow = document.querySelector(`[data-temp-id="${parentTempId}"]`);
-            if (parentRow) {
-                const pQtyInput = parentRow.querySelector('.prod-qty-input');
-                if (pQtyInput) parentQty = parseFloat(pQtyInput.value) || 1;
-            }
-        }
-
-        const unitVal = parseFloat(unitInput.value) || 0;
-        totalInput.value = parseFloat((unitVal * parentQty).toFixed(4));
     }
 
     function calculateProductionModalTotals() {
