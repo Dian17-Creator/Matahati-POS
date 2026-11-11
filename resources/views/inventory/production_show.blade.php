@@ -528,11 +528,12 @@
                                         <table class="table align-middle mb-0" style="font-size: 0.84rem;">
                                             <thead>
                                                 <tr class="text-secondary bg-light border-bottom" style="font-size: 0.76rem; font-weight: 600; letter-spacing: 0.3px;">
-                                                    <th class="px-3 py-2.5" style="width: 34%;">NAMA BAHAN BAKU</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 12%;">TIPE</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 18%;">QTY DIPOTONG</th>
-                                                    <th class="px-3 py-2.5 text-center" style="width: 11%;">SATUAN</th>
-                                                    <th class="px-3 py-2.5 text-end" style="width: 15%;">SUBTOTAL BIAYA</th>
+                                                    <th class="px-3 py-2.5" style="width: 28%;">NAMA BAHAN BAKU</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 10%;">TIPE</th>
+                                                    <th class="px-3 py-2.5 text-end" style="width: 14%;">HARGA SATUAN</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 15%;">QTY DIPOTONG</th>
+                                                    <th class="px-3 py-2.5 text-center" style="width: 9%;">SATUAN</th>
+                                                    <th class="px-3 py-2.5 text-end" style="width: 14%;">SUBTOTAL BIAYA</th>
                                                     @if($production->isDraft())
                                                     <th class="px-3 py-2.5 text-center text-nowrap" style="width: 10%;">AKSI</th>
                                                     @endif
@@ -540,6 +541,10 @@
                                             </thead>
                                             <tbody id="matTableBody_{{ $pItem->nid }}">
                                                 @foreach($linkedMaterials as $mat)
+                                                @php
+                                                $matCostDecimals = fmod((float)$mat->ncost, 1) != 0 ? 2 : 0;
+                                                $matSubDecimals = fmod((float)$mat->nsubtotal, 1) != 0 ? 2 : 0;
+                                                @endphp
                                                 <tr class="border-bottom border-light-subtle" id="matRow_{{ $mat->nid }}">
                                                     <td class="px-3 py-2.5 fw-medium text-dark">
                                                         {{ $mat->item_name }}
@@ -551,6 +556,9 @@
                                                         <span class="badge bg-secondary-subtle text-secondary border px-1.5 py-1" style="font-size: 0.68rem;">
                                                             {{ $mat->citem_type ?: 'PRODUK' }}
                                                         </span>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-end text-muted text-nowrap">
+                                                        Rp {{ number_format($mat->ncost, $matCostDecimals, ',', '.') }}
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
                                                         @if($production->isDraft())
@@ -576,8 +584,8 @@
                                                     <td class="px-3 py-2.5 text-center text-muted">
                                                         {{ $mat->item_unit }}
                                                     </td>
-                                                    <td class="px-3 py-2.5 text-end text-secondary" id="mat_subtotal_{{ $mat->nid }}">
-                                                        Rp {{ number_format($mat->nsubtotal, 0, ',', '.') }}
+                                                    <td class="px-3 py-2.5 text-end fw-medium text-dark text-nowrap" id="mat_subtotal_{{ $mat->nid }}">
+                                                        Rp {{ number_format($mat->nsubtotal, $matSubDecimals, ',', '.') }}
                                                     </td>
                                                     @if($production->isDraft())
                                                     <td class="px-3 py-2.5 text-center text-nowrap">
@@ -616,7 +624,8 @@
                                                             <option value="{{ $prod->nid }}"
                                                                 data-cname="{{ $prod->cname }}"
                                                                 data-stock="{{ (float)($prod->nqty ?? 0) }}"
-                                                                data-unit="{{ $prod->csatuan ?: 'PCS' }}">
+                                                                data-unit="{{ $prod->csatuan ?: 'PCS' }}"
+                                                                data-price="{{ (float)($prod->nprice_buy ?? 0) }}">
                                                                 {{ $prod->cname }}
                                                             </option>
                                                             @endforeach
@@ -627,18 +636,23 @@
                                                             BAHAN
                                                         </span>
                                                     </td>
+                                                    <td class="px-3 py-2.5 text-end text-muted text-nowrap" id="inlineMatPrice_{{ $pItem->nid }}">
+                                                        -
+                                                    </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
                                                         <input type="number"
                                                             step="any"
                                                             min="0.001"
                                                             class="form-control form-control-sm qty-edit-input mx-auto"
                                                             id="inlineMatQtyInput_{{ $pItem->nid }}"
+                                                            data-action="preview-inline-mat"
+                                                            data-prod-id="{{ $pItem->nid }}"
                                                             value="1">
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center text-muted" id="inlineMatUnit_{{ $pItem->nid }}">
                                                         PCS
                                                     </td>
-                                                    <td class="px-3 py-2.5 text-end text-secondary">
+                                                    <td class="px-3 py-2.5 text-end text-secondary text-nowrap" id="inlineMatSubtotal_{{ $pItem->nid }}">
                                                         -
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center text-nowrap">
@@ -1264,9 +1278,57 @@
                 if (opt && unitEl) {
                     unitEl.textContent = opt.unit || 'PCS';
                 }
+                updateInlineMatPricePreview(prodId);
             });
         }
     }
+
+    function formatRupiahInline(amount) {
+        const num = parseFloat(amount) || 0;
+        const hasDecimal = Math.abs(num % 1) > 0.0001;
+        return 'Rp ' + num.toLocaleString('id-ID', {
+            minimumFractionDigits: hasDecimal ? 2 : 0,
+            maximumFractionDigits: hasDecimal ? 2 : 0
+        });
+    }
+
+    function updateInlineMatPricePreview(prodId) {
+        const ts = inlineMatTsInstances[prodId];
+        const selectEl = document.getElementById('inlineMatSelect_' + prodId);
+        const qtyInp = document.getElementById('inlineMatQtyInput_' + prodId);
+        const priceEl = document.getElementById('inlineMatPrice_' + prodId);
+        const subEl = document.getElementById('inlineMatSubtotal_' + prodId);
+        if (!priceEl || !subEl) return;
+
+        let unitPrice = null;
+        if (ts && ts.getValue()) {
+            const opt = ts.options[ts.getValue()];
+            if (opt && opt.price !== undefined) {
+                unitPrice = parseFloat(opt.price) || 0;
+            }
+        } else if (selectEl && selectEl.value) {
+            const selectedOpt = selectEl.options[selectEl.selectedIndex];
+            if (selectedOpt && selectedOpt.dataset.price !== undefined) {
+                unitPrice = parseFloat(selectedOpt.dataset.price) || 0;
+            }
+        }
+
+        if (unitPrice === null) {
+            priceEl.textContent = '-';
+            subEl.textContent = '-';
+            return;
+        }
+
+        const qtyVal = parseFloat(qtyInp ? qtyInp.value : 0) || 0;
+        priceEl.textContent = formatRupiahInline(unitPrice);
+        subEl.textContent = formatRupiahInline(unitPrice * qtyVal);
+    }
+
+    document.addEventListener('input', function(e) {
+        const el = e.target.closest('[data-action="preview-inline-mat"]');
+        if (!el) return;
+        updateInlineMatPricePreview(el.dataset.prodId);
+    });
 
     function submitInlineMaterial(prodId) {
         const select = document.getElementById('inlineMatSelect_' + prodId);
