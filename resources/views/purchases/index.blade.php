@@ -1,7 +1,21 @@
 @extends('layouts.app')
 
-@section('title', 'Daftar Pembelian')
+@php
+$purchaseSubTitles = [
+'pending' => 'Pembelian Butuh Diproses',
+'received' => 'Pembelian Telah Diproses',
+'return' => 'Retur Pembelian',
+'cancelled' => 'Pembelian Dibatalkan',
+];
+$currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Diproses';
+@endphp
+
+@section('title', 'Daftar Pembelian / ' . $currentPurchaseSubTitle)
 @section('custom_alerts', '1')
+
+@section('sub_header')
+@include('purchases.partials.purchase_tabs', ['activeTab' => $statusTab])
+@endsection
 
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
@@ -273,9 +287,12 @@
 @endpush
 
 @section('content')
+@if($statusTab === 'return')
+<div class="card olsera-panel-card mb-4" style="min-height: 360px;"></div>
+@else
 <div class="card olsera-panel-card mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-        <h5 class="mb-0 fw-bold">Daftar Pembelian</h5>
+        <h5 class="mb-0 fw-bold">{{ $currentPurchaseSubTitle }}</h5>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#importPdfModal">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
@@ -297,19 +314,14 @@
     $dateLabel = 'Semua Tanggal';
     }
 
-    $statusLabels = [
-    'pending' => 'Butuh Diproses',
-    'received' => 'Telah Diproses',
-    'cancelled' => 'Dibatalkan',
-    'all' => 'Semua Status'
+    $statusFilterLabels = [
+    '' => 'Semua Status',
+    'PENDING' => 'Pending',
+    'RECEIVED' => 'Diterima',
     ];
-    $statusLabel = $statusLabels[$statusTab] ?? 'Semua Status';
+    $activeStatusFilter = $statusFilter ?? '';
+    $statusFilterLabelText = $statusFilterLabels[$activeStatusFilter] ?? 'Semua Status';
     @endphp
-
-    <!-- Status Tabs -->
-    <div class="bg-white border-bottom px-3">
-
-    </div>
 
     <!-- Active Filters Bar (Report Style: Date, Status, Search) -->
     <div class="px-4 py-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -364,32 +376,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Dropdown Status -->
-            <div class="dropdown d-inline-block">
-                <button type="button" id="statusFilterChip" class="filter-chip {{ ($statusTab && $statusTab !== 'all') ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Status">
-                    <i class="bi bi-check-circle"></i> <span id="statusFilterLabel">{{ $statusLabel }}</span>
-                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
-                </button>
-                <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 200px;">
-                    <button type="button" class="dropdown-item status-filter-btn d-flex align-items-center {{ $statusTab === 'all' ? 'active' : '' }}" data-status="all">
-                        <span>Semua Status</span>
-                        <i class="bi bi-check-lg text-primary ms-auto check-icon {{ $statusTab === 'all' ? '' : 'd-none' }}"></i>
-                    </button>
-                    <button type="button" class="dropdown-item status-filter-btn d-flex align-items-center {{ $statusTab === 'pending' ? 'active' : '' }}" data-status="pending">
-                        <span>Butuh Diproses</span>
-                        <i class="bi bi-check-lg text-primary ms-auto check-icon {{ $statusTab === 'pending' ? '' : 'd-none' }}"></i>
-                    </button>
-                    <button type="button" class="dropdown-item status-filter-btn d-flex align-items-center {{ $statusTab === 'received' ? 'active' : '' }}" data-status="received">
-                        <span>Telah Diproses</span>
-                        <i class="bi bi-check-lg text-primary ms-auto check-icon {{ $statusTab === 'received' ? '' : 'd-none' }}"></i>
-                    </button>
-                    <button type="button" class="dropdown-item status-filter-btn d-flex align-items-center {{ $statusTab === 'cancelled' ? 'active' : '' }}" data-status="cancelled">
-                        <span>Dibatalkan</span>
-                        <i class="bi bi-check-lg text-primary ms-auto check-icon {{ $statusTab === 'cancelled' ? '' : 'd-none' }}"></i>
-                    </button>
-                </div>
-            </div>
         </div>
 
         <!-- Searching Box -->
@@ -397,7 +383,7 @@
             <div class="input-group input-group-sm" style="width: 700px;">
                 <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="filterSearchInput" class="form-control border-start-0 ps-0" placeholder="Cari No. PO, Supplier, No. SJ..." value="{{ $search }}">
-                <button class="btn btn-white border border-start-0 text-muted" type="button" id="clearSearchBtn" @style(['display: none' => !$search]) title="Hapus Pencarian">
+                <button class="btn btn-white border border-start-0 text-muted" type="button" id="clearSearchBtn" @style(['display: none'=> !$search]) title="Hapus Pencarian">
                     <i class="bi bi-x-circle"></i>
                 </button>
             </div>
@@ -431,6 +417,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <!-- Modal Import Pembelian dari PDF -->
 <div class="modal fade" id="importPdfModal" tabindex="-1" aria-labelledby="importPdfModalLabel" aria-hidden="true">
@@ -457,36 +444,36 @@
                         <select class="form-select @error('nid_supplier') is-invalid @enderror" id="import_supplier_id" name="nid_supplier" required>
                             <option value="">-- Pilih Supplier --</option>
                             @foreach($suppliers as $s)
-                                <option value="{{ $s->nid }}" {{ (string)old('nid_supplier') === (string)$s->nid ? 'selected' : '' }}>
-                                    {{ $s->cname }}
-                                </option>
+                            <option value="{{ $s->nid }}" {{ (string)old('nid_supplier') === (string)$s->nid ? 'selected' : '' }}>
+                                {{ $s->cname }}
+                            </option>
                             @endforeach
                         </select>
                         @error('nid_supplier')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="mb-3">
                         <label for="import_outlet_id" class="form-label fw-semibold small">Outlet Tujuan Stok <span class="text-danger">*</span></label>
                         @if($isOutletLocked)
-                            @php
-                                $lockedOutlet = $outlets->firstWhere('nid', $outletId);
-                            @endphp
-                            <input type="text" class="form-control bg-light" value="{{ $lockedOutlet ? $lockedOutlet->cname : 'Outlet Terkunci' }}" readonly>
-                            <input type="hidden" name="nid_outlet" value="{{ $outletId }}">
+                        @php
+                        $lockedOutlet = $outlets->firstWhere('nid', $outletId);
+                        @endphp
+                        <input type="text" class="form-control bg-light" value="{{ $lockedOutlet ? $lockedOutlet->cname : 'Outlet Terkunci' }}" readonly>
+                        <input type="hidden" name="nid_outlet" value="{{ $outletId }}">
                         @else
-                            <select class="form-select @error('nid_outlet') is-invalid @enderror" id="import_outlet_id" name="nid_outlet" required>
-                                <option value="">-- Pilih Outlet --</option>
-                                @foreach($outlets as $o)
-                                    <option value="{{ $o->nid }}" {{ (string)($outletId ?? old('nid_outlet')) === (string)$o->nid ? 'selected' : '' }}>
-                                        {{ $o->cname }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('nid_outlet')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <select class="form-select @error('nid_outlet') is-invalid @enderror" id="import_outlet_id" name="nid_outlet" required>
+                            <option value="">-- Pilih Outlet --</option>
+                            @foreach($outlets as $o)
+                            <option value="{{ $o->nid }}" {{ (string)($outletId ?? old('nid_outlet')) === (string)$o->nid ? 'selected' : '' }}>
+                                {{ $o->cname }}
+                            </option>
+                            @endforeach
+                        </select>
+                        @error('nid_outlet')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                         @endif
                     </div>
 
@@ -494,7 +481,7 @@
                         <label for="import_pdf_file" class="form-label fw-semibold small">File PDF (.pdf) <span class="text-danger">*</span></label>
                         <input class="form-control @error('pdf_file') is-invalid @enderror" type="file" id="import_pdf_file" name="pdf_file" accept=".pdf,application/pdf" required>
                         @error('pdf_file')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>
@@ -631,7 +618,9 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-<script type="application/json" id="purchasesProductsData">@json($products ?? [])</script>
+<script type="application/json" id="purchasesProductsData">
+    @json($products ?? [])
+</script>
 <script>
     const allProducts = JSON.parse(document.getElementById('purchasesProductsData')?.textContent || '[]');
     let rowIndex = 0;
@@ -1016,7 +1005,8 @@
         // ==========================================
         // Real-Time AJAX Fetching & Filter Handler
         // ==========================================
-        let currentStatus = '{{ $statusTab }}';
+        let currentTab = '{{ $statusTab }}';
+        let currentStatusFilter = '{{ $statusFilter ?? "" }}';
         let currentStartDate = '{{ $startDate }}';
         let currentEndDate = '{{ $endDate }}';
         let currentSearch = '{{ $search }}';
@@ -1034,11 +1024,10 @@
         const overlay = document.getElementById('tableLoadingOverlay');
         const tableContent = document.getElementById('tableContent');
 
-        const statusNames = {
-            'all': 'Semua Status',
-            'pending': 'Butuh Diproses',
-            'received': 'Telah Diproses',
-            'cancelled': 'Dibatalkan'
+        const statusFilterNames = {
+            '': 'Semua Status',
+            'PENDING': 'Pending',
+            'RECEIVED': 'Diterima'
         };
 
         function formatYmd(d) {
@@ -1065,7 +1054,8 @@
             if (overlay) overlay.classList.remove('d-none');
 
             const params = new URLSearchParams();
-            if (currentStatus) params.append('tab', currentStatus);
+            if (currentTab) params.append('tab', currentTab);
+            if (currentStatusFilter) params.append('status_filter', currentStatusFilter);
             if (currentStartDate) params.append('start_date', currentStartDate);
             if (currentEndDate) params.append('end_date', currentEndDate);
             if (currentSearch) params.append('search', currentSearch);
@@ -1092,14 +1082,6 @@
                     if (data.html && tableContent) {
                         tableContent.innerHTML = data.html;
                     }
-                    if (data.counts) {
-                        const badgePending = document.getElementById('badgePending');
-                        const badgeReceived = document.getElementById('badgeReceived');
-                        const badgeCancelled = document.getElementById('badgeCancelled');
-                        if (badgePending && data.counts.pending !== undefined) badgePending.textContent = data.counts.pending;
-                        if (badgeReceived && data.counts.received !== undefined) badgeReceived.textContent = data.counts.received;
-                        if (badgeCancelled && data.counts.cancelled !== undefined) badgeCancelled.textContent = data.counts.cancelled;
-                    }
                 })
                 .catch(err => {
                     if (err.name !== 'AbortError') {
@@ -1111,16 +1093,15 @@
                 });
         }
 
-        // Set Status Handler
-        function setStatus(status) {
-            currentStatus = status;
+        // Sub-filter Status Handler (within Butuh Diproses tab)
+        function setStatusFilter(filterVal) {
+            currentStatusFilter = filterVal;
 
-            // Update Status Filter Chip
             if (statusFilterLabel) {
-                statusFilterLabel.textContent = statusNames[status] || 'Semua Status';
+                statusFilterLabel.textContent = statusFilterNames[filterVal] || 'Semua Status';
             }
             if (statusFilterChip) {
-                if (status && status !== 'all') {
+                if (filterVal !== '') {
                     statusFilterChip.classList.remove('filter-chip-inactive');
                     statusFilterChip.classList.add('filter-chip-active');
                 } else {
@@ -1129,11 +1110,10 @@
                 }
             }
 
-            // Update Status Dropdown Menu Checkmarks
             document.querySelectorAll('.status-filter-btn').forEach(btn => {
-                const btnStatus = btn.getAttribute('data-status');
+                const btnStatus = btn.getAttribute('data-status-filter') || '';
                 const check = btn.querySelector('.check-icon');
-                if (btnStatus === status) {
+                if (btnStatus === filterVal) {
                     btn.classList.add('active');
                     if (check) check.classList.remove('d-none');
                 } else {
@@ -1142,34 +1122,15 @@
                 }
             });
 
-            // Update Status Tabs
-            document.querySelectorAll('.status-tab-link').forEach(link => {
-                const tabStatus = link.getAttribute('data-status');
-                if (tabStatus === status) {
-                    link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
-                }
-            });
-
             fetchPurchases(1);
         }
-
-        // Status Tabs click
-        document.querySelectorAll('.status-tab-link').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const status = this.getAttribute('data-status');
-                setStatus(status);
-            });
-        });
 
         // Status dropdown items click
         document.querySelectorAll('.status-filter-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
-                const status = this.getAttribute('data-status');
-                setStatus(status);
+                const filterVal = this.getAttribute('data-status-filter') || '';
+                setStatusFilter(filterVal);
             });
         });
 

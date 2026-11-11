@@ -1,0 +1,82 @@
+@php
+    $activeTab = $activeTab ?? 'pending';
+@endphp
+
+<div class="catalog-headbar-tabs bg-white border-bottom">
+    <div class="d-flex align-items-stretch flex-nowrap catalog-horizontal-nav">
+        <a href="{{ route('purchases.index', ['tab' => 'pending']) }}"
+            class="catalog-nav-tab {{ $activeTab === 'pending' ? 'active' : '' }}">
+            <span>Butuh Diproses</span>
+        </a>
+        <a href="{{ route('purchases.index', ['tab' => 'received']) }}"
+            class="catalog-nav-tab {{ $activeTab === 'received' ? 'active' : '' }}">
+            <span>Telah Diproses</span>
+        </a>
+        <a href="{{ route('purchases.index', ['tab' => 'return']) }}"
+            class="catalog-nav-tab {{ $activeTab === 'return' ? 'active' : '' }}">
+            <span>Retur</span>
+        </a>
+        <a href="{{ route('purchases.index', ['tab' => 'cancelled']) }}"
+            class="catalog-nav-tab {{ $activeTab === 'cancelled' ? 'active' : '' }}">
+            <span>Dibatalkan</span>
+        </a>
+    </div>
+</div>
+
+<style>
+    .catalog-headbar-tabs {
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    }
+
+    .catalog-horizontal-nav {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .catalog-horizontal-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .catalog-nav-tab {
+        flex: 1 1 0;
+        min-width: 120px;
+        padding: 12px 16px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: #334155;
+        text-decoration: none;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 2.5px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .catalog-nav-tab:hover {
+        color: #b63352;
+        background-color: #fff8f9;
+    }
+
+    .catalog-nav-tab.active {
+        color: #b63352;
+        font-weight: 600;
+        background-color: #fff1f2;
+        border-bottom-color: #b63352;
+    }
+
+    @media (max-width: 575.98px) {
+        .catalog-nav-tab {
+            flex: 1 1 auto;
+            min-width: 110px;
+            padding: 11px 14px;
+        }
+    }
+</style>
+

@@ -23,10 +23,19 @@ class PurchaseController extends Controller
 
     public function index(Request $request)
     {
-        $statusTab = strtolower($request->input('status', $request->input('tab', 'pending')));
-        if (!in_array($statusTab, ['pending', 'received', 'cancelled', 'all'])) {
-            $statusTab = 'pending';
+        $rawTab = strtolower((string) $request->input('tab', $request->input('status', 'pending')));
+        if ($rawTab === 'retur') {
+            $rawTab = 'return';
         }
+        $statusTab = in_array($rawTab, ['pending', 'received', 'return', 'cancelled'], true)
+            ? $rawTab
+            : 'pending';
+
+        $statusFilter = strtoupper((string) $request->input('status_filter', ''));
+        if (!in_array($statusFilter, ['', 'PENDING', 'RECEIVED'], true)) {
+            $statusFilter = '';
+        }
+
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
         $supplierId = $request->input('supplier_id');
@@ -59,8 +68,18 @@ class PurchaseController extends Controller
             $baseQuery->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        $countPending = (clone $baseQuery)->where('cstatus', MposPurchaseH::STATUS_PENDING)->count();
-        $countReceived = (clone $baseQuery)->where('cstatus', MposPurchaseH::STATUS_RECEIVED)->count();
+        $countPending = (clone $baseQuery)
+            ->where('cstatus', '!=', MposPurchaseH::STATUS_CANCELLED)
+            ->where(function ($q) {
+                $q->where('cstatus', MposPurchaseH::STATUS_PENDING)
+                  ->orWhere('cpayment_status', '!=', MposPurchaseH::PAYMENT_PAID)
+                  ->orWhereNull('cpayment_status');
+            })
+            ->count();
+        $countReceived = (clone $baseQuery)
+            ->where('cstatus', MposPurchaseH::STATUS_RECEIVED)
+            ->where('cpayment_status', MposPurchaseH::PAYMENT_PAID)
+            ->count();
         $countCancelled = (clone $baseQuery)->where('cstatus', MposPurchaseH::STATUS_CANCELLED)->count();
         $countAll = (clone $baseQuery)->count();
 
@@ -74,13 +93,24 @@ class PurchaseController extends Controller
             $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        // Apply Tab / Status Filter
+        // Apply Tab / Status Filter (Olsera flow: Butuh Diproses, Telah Diproses, Retur, Dibatalkan)
         if ($statusTab === 'pending') {
-            $query->where('cstatus', MposPurchaseH::STATUS_PENDING);
+            $query->where('cstatus', '!=', MposPurchaseH::STATUS_CANCELLED)
+                ->where(function ($q) {
+                    $q->where('cstatus', MposPurchaseH::STATUS_PENDING)
+                      ->orWhere('cpayment_status', '!=', MposPurchaseH::PAYMENT_PAID)
+                      ->orWhereNull('cpayment_status');
+                });
+            if ($statusFilter !== '') {
+                $query->where('cstatus', $statusFilter);
+            }
         } elseif ($statusTab === 'received') {
-            $query->where('cstatus', MposPurchaseH::STATUS_RECEIVED);
+            $query->where('cstatus', MposPurchaseH::STATUS_RECEIVED)
+                ->where('cpayment_status', MposPurchaseH::PAYMENT_PAID);
         } elseif ($statusTab === 'cancelled') {
             $query->where('cstatus', MposPurchaseH::STATUS_CANCELLED);
+        } elseif ($statusTab === 'return') {
+            $query->whereRaw('1 = 0');
         }
 
         if (!empty($startDate)) {
@@ -152,6 +182,7 @@ class PurchaseController extends Controller
         return view('purchases.index', compact(
             'purchases',
             'statusTab',
+            'statusFilter',
             'countPending',
             'countReceived',
             'countCancelled',
