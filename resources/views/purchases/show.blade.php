@@ -46,28 +46,37 @@
     }
 
     .detail-card-title {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         font-weight: 700;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 12px;
+        color: #1e293b;
+        letter-spacing: 0.2px;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #f1f5f9;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
 
-    .field-label {
-        font-size: 0.75rem;
-        color: #64748b;
-        margin-bottom: 2px;
+    .kv-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 5px 0;
+        font-size: 0.85rem;
     }
 
-    .field-value {
-        font-size: 0.9rem;
-        font-weight: 500;
+    .kv-label {
+        color: #64748b;
+        flex-shrink: 0;
+    }
+
+    .kv-value {
         color: #1e293b;
-        margin-bottom: 8px;
+        font-weight: 500;
+        text-align: right;
+        word-break: break-word;
     }
 </style>
 @endpush
@@ -165,28 +174,33 @@
             <div class="detail-card-title">
                 <span><i class="bi bi-building me-1 text-primary"></i> Supplier</span>
                 @if($purchase->supplier)
-                <a href="{{ route('suppliers.show', $purchase->supplier->nid) }}" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.75rem;">
+                <a href="{{ route('suppliers.show', $purchase->supplier->nid) }}" class="btn btn-link btn-sm p-0 text-decoration-none fw-normal" style="font-size: 0.75rem;">
                     Rincian <i class="bi bi-arrow-right"></i>
                 </a>
                 @endif
             </div>
             @if($purchase->supplier)
-            <div class="field-label">Nama Supplier</div>
-            <div class="field-value">{{ $purchase->supplier->cname }}</div>
-
-            <div class="field-label">PIC / Kontak</div>
-            <div class="field-value">{{ $purchase->supplier->ccontact_person ?: '-' }}</div>
-
-            <div class="field-label">Telepon & Email</div>
-            <div class="field-value">
-                {{ $purchase->supplier->cphone ?: '-' }}
-                @if($purchase->supplier->cemail)
-                <span class="text-muted">({{ $purchase->supplier->cemail }})</span>
-                @endif
+            <div class="kv-row">
+                <span class="kv-label">Nama Supplier</span>
+                <span class="kv-value fw-semibold">{{ $purchase->supplier->cname }}</span>
             </div>
-
-            <div class="field-label">Alamat</div>
-            <div class="field-value text-muted small">{{ $purchase->supplier->caddress ?: '-' }}</div>
+            <div class="kv-row">
+                <span class="kv-label">PIC / Kontak</span>
+                <span class="kv-value">{{ $purchase->supplier->ccontact_person ?: '-' }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Telepon & Email</span>
+                <span class="kv-value">
+                    {{ $purchase->supplier->cphone ?: '-' }}
+                    @if($purchase->supplier->cemail)
+                    <span class="text-muted fw-normal">({{ $purchase->supplier->cemail }})</span>
+                    @endif
+                </span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Alamat</span>
+                <span class="kv-value text-muted fw-normal">{{ $purchase->supplier->caddress ?: '-' }}</span>
+            </div>
             @else
             <div class="text-muted small">Supplier tidak ditemukan.</div>
             @endif
@@ -200,23 +214,27 @@
                 <span><i class="bi bi-box-seam me-1 text-success"></i> Info Penerimaan</span>
             </div>
 
-            <div class="field-label">Tanggal Diterima</div>
-            <div class="field-value">
-                @if($purchase->dreceived)
-                <span class="text-success fw-bold">{{ \Carbon\Carbon::parse($purchase->dreceived)->format('d F Y') }}</span>
-                @else
-                <span class="text-muted fst-italic">Belum diterima</span>
-                @endif
+            <div class="kv-row">
+                <span class="kv-label">Tanggal Diterima</span>
+                <span class="kv-value">
+                    @if($purchase->dreceived)
+                    <span class="text-success fw-bold">{{ \Carbon\Carbon::parse($purchase->dreceived)->format('d F Y') }}</span>
+                    @else
+                    <span class="text-muted fst-italic fw-normal">Belum diterima</span>
+                    @endif
+                </span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">No. Terima / Surat Jalan</span>
+                <span class="kv-value">{{ $purchase->cno_reference ?: '-' }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Penerima Barang</span>
+                <span class="kv-value">{{ $purchase->creceived_by ?: '-' }}</span>
             </div>
 
-            <div class="field-label">No. Terima / Surat Jalan</div>
-            <div class="field-value">{{ $purchase->cno_reference ?: '-' }}</div>
-
-            <div class="field-label">Penerima Barang</div>
-            <div class="field-value">{{ $purchase->creceived_by ?: '-' }}</div>
-
             @if($purchase->cstatus === 'RECEIVED')
-            <div class="alert alert-success p-2 small mb-0 mt-2">
+            <div class="alert alert-success p-2 small mb-0 mt-3">
                 <i class="bi bi-check-circle me-1"></i> Stok produk telah ditambahkan ke sistem.
             </div>
             @endif
@@ -230,21 +248,22 @@
                 <div class="detail-card-title">
                     <span><i class="bi bi-card-text me-1 text-secondary"></i> Catatan</span>
                 </div>
-                <div class="field-value text-muted small" style="white-space: pre-line;">
-                    {{ $purchase->cnote ?: 'Tidak ada catatan khusus.' }}
-                </div>
+                <div class="text-muted small pt-1" style="white-space: pre-line;">{{ $purchase->cnote ?: 'Tidak ada catatan khusus.' }}</div>
             </div>
 
             <div class="detail-card">
                 <div class="detail-card-title">
                     <span><i class="bi bi-calendar-event me-1 text-warning"></i> Jatuh Tempo</span>
                 </div>
-                <div class="field-value">
-                    @if($purchase->ddue_date)
-                    {{ \Carbon\Carbon::parse($purchase->ddue_date)->format('d F Y') }}
-                    @else
-                    <span class="text-muted">Tidak ditentukan</span>
-                    @endif
+                <div class="kv-row">
+                    <span class="kv-label">Tanggal Jatuh Tempo</span>
+                    <span class="kv-value">
+                        @if($purchase->ddue_date)
+                        {{ \Carbon\Carbon::parse($purchase->ddue_date)->format('d F Y') }}
+                        @else
+                        <span class="text-muted fw-normal">Tidak ditentukan</span>
+                        @endif
+                    </span>
                 </div>
             </div>
         </div>
@@ -252,7 +271,7 @@
 </div>
 
 <!-- Section Item Pesanan -->
-<div class="card shadow-sm border-0 mb-4">
+<div class="card mb-4 overflow-hidden" style="border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <div class="d-flex align-items-center gap-2">
             <h6 class="mb-0 fw-bold">Daftar Item Pesanan</h6>
