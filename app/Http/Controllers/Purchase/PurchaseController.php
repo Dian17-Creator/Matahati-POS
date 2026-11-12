@@ -32,7 +32,10 @@ class PurchaseController extends Controller
             : 'pending';
 
         $statusFilter = strtoupper((string) $request->input('status_filter', ''));
-        if (!in_array($statusFilter, ['', 'PENDING', 'RECEIVED'], true)) {
+        $allowedStatusFilters = $statusTab === 'return'
+            ? ['', 'PENDING', 'POSTED', 'CANCELLED']
+            : ['', 'PENDING', 'RECEIVED'];
+        if (!in_array($statusFilter, $allowedStatusFilters, true)) {
             $statusFilter = '';
         }
 
@@ -40,7 +43,10 @@ class PurchaseController extends Controller
         $endDate = $request->input('end_date');
         $supplierId = $request->input('supplier_id');
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
-        $paymentStatus = $request->input('payment_status');
+        $paymentStatus = strtoupper((string) $request->input('payment_status', ''));
+        if (!in_array($paymentStatus, ['', 'UNPAID', 'PAID'], true)) {
+            $paymentStatus = '';
+        }
         $search = $request->input('search');
 
         $outlets = $this->getAvailableOutlets();
@@ -60,8 +66,8 @@ class PurchaseController extends Controller
         }
         $suppliers = $supplierQuery->orderBy('cname')->get();
 
-        // Base query for counts
-        $baseQuery = MposPurchaseH::query();
+        // Base query for counts (exclude RETURN documents)
+        $baseQuery = MposPurchaseH::onlyPurchases();
         if (!empty($outletId)) {
             $baseQuery->where('nid_outlet', $outletId);
         } elseif (!$this->isSuperAdminUser()) {
@@ -84,7 +90,7 @@ class PurchaseController extends Controller
         $countAll = (clone $baseQuery)->count();
 
         // Filtered query for listing
-        $query = MposPurchaseH::with(['supplier', 'outlet', 'user'])
+        $query = MposPurchaseH::with(['supplier', 'outlet', 'user', 'purchaseRef'])
             ->withCount('details');
 
         if (!empty($outletId)) {
@@ -94,23 +100,29 @@ class PurchaseController extends Controller
         }
 
         // Apply Tab / Status Filter (Olsera flow: Butuh Diproses, Telah Diproses, Retur, Dibatalkan)
-        if ($statusTab === 'pending') {
-            $query->where('cstatus', '!=', MposPurchaseH::STATUS_CANCELLED)
-                ->where(function ($q) {
-                    $q->where('cstatus', MposPurchaseH::STATUS_PENDING)
-                      ->orWhere('cpayment_status', '!=', MposPurchaseH::PAYMENT_PAID)
-                      ->orWhereNull('cpayment_status');
-                });
+        if ($statusTab === 'return') {
+            $query->onlyReturns();
             if ($statusFilter !== '') {
                 $query->where('cstatus', $statusFilter);
             }
-        } elseif ($statusTab === 'received') {
-            $query->where('cstatus', MposPurchaseH::STATUS_RECEIVED)
-                ->where('cpayment_status', MposPurchaseH::PAYMENT_PAID);
-        } elseif ($statusTab === 'cancelled') {
-            $query->where('cstatus', MposPurchaseH::STATUS_CANCELLED);
-        } elseif ($statusTab === 'return') {
-            $query->whereRaw('1 = 0');
+        } else {
+            $query->onlyPurchases();
+            if ($statusTab === 'pending') {
+                $query->where('cstatus', '!=', MposPurchaseH::STATUS_CANCELLED)
+                    ->where(function ($q) {
+                        $q->where('cstatus', MposPurchaseH::STATUS_PENDING)
+                          ->orWhere('cpayment_status', '!=', MposPurchaseH::PAYMENT_PAID)
+                          ->orWhereNull('cpayment_status');
+                    });
+                if ($statusFilter !== '') {
+                    $query->where('cstatus', $statusFilter);
+                }
+            } elseif ($statusTab === 'received') {
+                $query->where('cstatus', MposPurchaseH::STATUS_RECEIVED)
+                    ->where('cpayment_status', MposPurchaseH::PAYMENT_PAID);
+            } elseif ($statusTab === 'cancelled') {
+                $query->where('cstatus', MposPurchaseH::STATUS_CANCELLED);
+            }
         }
 
         if (!empty($startDate)) {
@@ -131,6 +143,7 @@ class PurchaseController extends Controller
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('cno_purchase', 'like', "%{$search}%")
+                  ->orWhere('cno_purchase_ref', 'like', "%{$search}%")
                   ->orWhere('cno_reference', 'like', "%{$search}%")
                   ->orWhereHas('supplier', function ($sq) use ($search) {
                       $sq->where('cname', 'like', "%{$search}%");
@@ -145,9 +158,13 @@ class PurchaseController extends Controller
 
         // Return AJAX JSON response for real-time fetching without page reload
         if ($request->ajax() || $request->wantsJson() || $request->has('ajax')) {
+            $tablePartial = $statusTab === 'return'
+                ? 'purchases.partials.return_table'
+                : 'purchases.partials.table';
+
             return response()->json([
                 'success' => true,
-                'html' => view('purchases.partials.table', compact('purchases', 'statusTab'))->render(),
+                'html' => view($tablePartial, compact('purchases', 'statusTab'))->render(),
                 'counts' => [
                     'pending' => $countPending,
                     'received' => $countReceived,
@@ -697,6 +714,10 @@ class PurchaseController extends Controller
             'details.ingredient',
         ])->findOrFail($id);
 
+        if ($purchase->isReturn()) {
+            return redirect()->route('purchases.returns.show', $purchase->nid);
+        }
+
         // Kelompokkan produk per nama, utamakan record di outlet PO
         $productsQuery = MposProduct::where('cstatus', 'ACTIVE')->orderBy('cname');
         $productColumns = ['nid', 'cname', 'nid_outlet', 'nprice', 'nprice_buy', 'nqty'];
@@ -742,6 +763,10 @@ class PurchaseController extends Controller
     public function addItem(Request $request, string $id)
     {
         $purchase = MposPurchaseH::findOrFail($id);
+
+        if ($purchase->isReturn()) {
+            return redirect()->back()->with('error', 'Gunakan halaman rincian retur untuk menambah item retur.');
+        }
 
         if ($purchase->cstatus !== MposPurchaseH::STATUS_PENDING) {
             return redirect()->back()->with('error', 'Item tidak dapat ditambah karena pesanan sudah diproses atau dibatalkan.');
@@ -855,6 +880,10 @@ class PurchaseController extends Controller
     {
         $purchase = MposPurchaseH::findOrFail($id);
 
+        if ($purchase->isReturn()) {
+            return redirect()->back()->with('error', 'Operasi ini hanya berlaku untuk Pembelian (PO).');
+        }
+
         if ($purchase->cstatus !== MposPurchaseH::STATUS_PENDING) {
             return redirect()->back()->with('error', 'Item tidak dapat dihapus karena pesanan sudah diproses.');
         }
@@ -879,6 +908,10 @@ class PurchaseController extends Controller
     public function receive(Request $request, string $id)
     {
         $purchase = MposPurchaseH::with(['details.product', 'details.ingredient'])->findOrFail($id);
+
+        if ($purchase->isReturn()) {
+            return redirect()->back()->with('error', 'Dokumen retur tidak dapat diproses sebagai penerimaan barang.');
+        }
 
         if ($purchase->cstatus !== MposPurchaseH::STATUS_PENDING) {
             return redirect()->back()->with('error', 'Status pesanan saat ini tidak dapat dikonfirmasi diterima.');
@@ -1016,6 +1049,10 @@ class PurchaseController extends Controller
     {
         $purchase = MposPurchaseH::findOrFail($id);
 
+        if ($purchase->isReturn()) {
+            return redirect()->back()->with('error', 'Operasi ini hanya berlaku untuk Pembelian (PO).');
+        }
+
         if ($purchase->cstatus !== MposPurchaseH::STATUS_PENDING) {
             return redirect()->back()->with('error', 'Pesanan yang sudah diproses atau dibatalkan tidak dapat diubah.');
         }
@@ -1057,6 +1094,10 @@ class PurchaseController extends Controller
             'details.product',
             'details.ingredient',
         ])->findOrFail($id);
+
+        if ($purchase->isReturn()) {
+            return redirect()->route('purchases.returns.print', $purchase->nid);
+        }
 
         return view('purchases.print', compact('purchase'));
     }

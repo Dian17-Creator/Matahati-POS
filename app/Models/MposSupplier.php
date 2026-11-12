@@ -53,7 +53,16 @@ class MposSupplier extends Model
             MposPurchaseH::class,
             'nid_supplier',
             'nid'
-        );
+        )->where('cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE);
+    }
+
+    public function purchaseReturns()
+    {
+        return $this->hasMany(
+            MposPurchaseH::class,
+            'nid_supplier',
+            'nid'
+        )->where('cdoc_type', MposPurchaseH::DOC_TYPE_RETURN);
     }
 
     public function getLogoUrlAttribute(): ?string

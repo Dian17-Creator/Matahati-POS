@@ -159,7 +159,8 @@ class InventoryController extends Controller
             $totalStockIn = $stockInDocs->count();
 
             // Ambil daftar Pembelian (PO) dengan status PENDING untuk modal "Terima dari Pembelian"
-            $pendingPurchasesQuery = MposPurchaseH::with(['supplier', 'outlet', 'details'])
+            $pendingPurchasesQuery = MposPurchaseH::onlyPurchases()
+                ->with(['supplier', 'outlet', 'details'])
                 ->where('cstatus', MposPurchaseH::STATUS_PENDING);
 
             if (!empty($selectedOutletId)) {
@@ -435,7 +436,8 @@ class InventoryController extends Controller
      */
     public function receivePurchase(Request $request, string $purchaseId)
     {
-        $purchase = MposPurchaseH::with(['details.product', 'details.ingredient', 'supplier', 'outlet'])
+        $purchase = MposPurchaseH::onlyPurchases()
+            ->with(['details.product', 'details.ingredient', 'supplier', 'outlet'])
             ->findOrFail($purchaseId);
 
         if ($purchase->cstatus !== MposPurchaseH::STATUS_PENDING) {
@@ -2719,6 +2721,10 @@ class InventoryController extends Controller
         // 3. Dukungan untuk Legacy PO yang belum tercatat di mpos_stock_mutations
         $legacyPoQuery = DB::table('mpos_purchase_d')
             ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
+            ->where(function ($q) {
+                $q->where('mpos_purchase_h.cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE)
+                  ->orWhereNull('mpos_purchase_h.cdoc_type');
+            })
             ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
             ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
             ->whereNotExists(function ($sub) {
@@ -2745,6 +2751,10 @@ class InventoryController extends Controller
         $latestPoQuery = DB::table('mpos_purchase_d')
             ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
             ->leftJoin('muser', 'mpos_purchase_h.nid_user', '=', 'muser.nid')
+            ->where(function ($q) {
+                $q->where('mpos_purchase_h.cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE)
+                  ->orWhereNull('mpos_purchase_h.cdoc_type');
+            })
             ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
             ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
             ->whereNotExists(function ($sub) {

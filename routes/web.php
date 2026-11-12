@@ -19,6 +19,7 @@ use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\InventoryController;
 use App\Http\Controllers\Purchase\PurchaseController;
+use App\Http\Controllers\Purchase\PurchaseReturnController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 
@@ -166,6 +167,24 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [PurchaseController::class, 'index'])->name('index');
         Route::post('/', [PurchaseController::class, 'store'])->name('store');
         Route::post('/import-pdf', [PurchaseController::class, 'importPdf'])->name('import-pdf');
+
+        // Retur Pembelian Routes (wajib sebelum route /{id})
+        Route::prefix('returns')->name('returns.')->group(function () {
+            Route::get('/purchases-by-supplier', [PurchaseReturnController::class, 'getPurchasesBySupplier'])->name('purchases-by-supplier');
+            Route::get('/po-items/{purchaseId}', [PurchaseReturnController::class, 'getPurchaseItems'])->name('po-items');
+            Route::post('/', [PurchaseReturnController::class, 'store'])->name('store');
+            Route::get('/{id}', [PurchaseReturnController::class, 'show'])->name('show');
+            Route::patch('/{id}/note', [PurchaseReturnController::class, 'updateNote'])->name('update-note');
+            Route::post('/{id}/items', [PurchaseReturnController::class, 'storeItem'])->name('items.store');
+            Route::put('/{id}/items/{detailId}', [PurchaseReturnController::class, 'updateItem'])->name('items.update');
+            Route::delete('/{id}/items/{detailId}', [PurchaseReturnController::class, 'destroyItem'])->name('items.destroy');
+            Route::post('/{id}/post', [PurchaseReturnController::class, 'post'])->name('post');
+            Route::post('/{id}/cancel', [PurchaseReturnController::class, 'cancel'])->name('cancel');
+            Route::delete('/{id}', [PurchaseReturnController::class, 'destroy'])->name('destroy');
+            Route::post('/{id}/payment', [PurchaseReturnController::class, 'updatePayment'])->name('update-payment');
+            Route::get('/{id}/print', [PurchaseReturnController::class, 'print'])->name('print');
+        });
+
         Route::get('/{id}', [PurchaseController::class, 'show'])->name('show');
         Route::post('/{id}/items', [PurchaseController::class, 'addItem'])->name('add-item');
         Route::delete('/{id}/items/{detailId}', [PurchaseController::class, 'removeItem'])->name('remove-item');
