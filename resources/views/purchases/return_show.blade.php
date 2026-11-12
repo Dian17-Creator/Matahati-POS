@@ -36,40 +36,49 @@
     }
 
     .detail-card-title {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         font-weight: 700;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 12px;
+        color: #1e293b;
+        letter-spacing: 0.2px;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #f1f5f9;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
 
-    .field-label {
-        font-size: 0.75rem;
-        color: #64748b;
-        margin-bottom: 2px;
+    .kv-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 5px 0;
+        font-size: 0.85rem;
     }
 
-    .field-value {
-        font-size: 0.9rem;
-        font-weight: 500;
+    .kv-label {
+        color: #64748b;
+        flex-shrink: 0;
+    }
+
+    .kv-value {
         color: #1e293b;
-        margin-bottom: 8px;
+        font-weight: 500;
+        text-align: right;
+        word-break: break-word;
     }
 </style>
 @endpush
 
 @section('content')
 @php
-    $isPending = $return->cstatus === 'PENDING';
-    $isPosted = $return->cstatus === 'POSTED';
-    $isCancelled = $return->cstatus === 'CANCELLED';
-    $sourcePo = $return->purchaseRef;
-    $poTotalQty = $sourcePo ? (int) $sourcePo->details->sum('nqty') : 0;
-    $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it['qty_remaining'] ?? 0) > 0);
+$isPending = $return->cstatus === 'PENDING';
+$isPosted = $return->cstatus === 'POSTED';
+$isCancelled = $return->cstatus === 'CANCELLED';
+$sourcePo = $return->purchaseRef;
+$poTotalQty = $sourcePo ? (int) $sourcePo->details->sum('nqty') : 0;
+$hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it['qty_remaining'] ?? 0) > 0);
 @endphp
 
 <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -192,17 +201,22 @@
                 @endif
             </div>
             @if($return->supplier)
-            <div class="field-label">Nama Supplier</div>
-            <div class="field-value">{{ $return->supplier->cname }}</div>
-
-            <div class="field-label">Personal Yg Dihubungi</div>
-            <div class="field-value">{{ $return->supplier->ccontact_person ?: '-' }}</div>
-
-            <div class="field-label">Telepon</div>
-            <div class="field-value">{{ $return->supplier->cphone ?: '-' }}</div>
-
-            <div class="field-label">Alamat</div>
-            <div class="field-value text-muted small mb-0">{{ $return->supplier->caddress ?: '-' }}</div>
+            <div class="kv-row">
+                <span class="kv-label">Nama Supplier</span>
+                <span class="kv-value fw-semibold">{{ $return->supplier->cname }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Personal Yg Dihubungi</span>
+                <span class="kv-value">{{ $return->supplier->ccontact_person ?: '-' }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Telepon</span>
+                <span class="kv-value">{{ $return->supplier->cphone ?: '-' }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Alamat</span>
+                <span class="kv-value text-muted fw-normal">{{ $return->supplier->caddress ?: '-' }}</span>
+            </div>
             @else
             <div class="text-muted small">Supplier tidak ditemukan.</div>
             @endif
@@ -215,38 +229,45 @@
             <div class="detail-card-title">
                 <span><i class="bi bi-box-seam me-1 text-info"></i> Pembelian</span>
                 @if($sourcePo)
-                <a href="{{ route('purchases.show', $sourcePo->nid) }}" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size: 0.75rem;">
+                <a href="{{ route('purchases.show', $sourcePo->nid) }}" class="btn btn-link btn-sm p-0 text-decoration-none fw-normal" style="font-size: 0.75rem;">
                     Lihat PO <i class="bi bi-arrow-right"></i>
                 </a>
                 @endif
             </div>
 
-            <div class="field-label">No. Pembelian</div>
-            <div class="field-value fw-bold">{{ $return->cno_purchase_ref ?: ($sourcePo?->cno_purchase ?? '-') }}</div>
-
-            <div class="field-label">Tanggal Beli</div>
-            <div class="field-value">{{ $sourcePo?->dpurchase ? \Carbon\Carbon::parse($sourcePo->dpurchase)->format('d M Y') : '-' }}</div>
-
-            <div class="field-label">Status Bayar PO</div>
-            <div class="field-value">
-                @if($sourcePo?->cpayment_status === 'PAID')
-                <span class="badge bg-success-subtle text-success border border-success-subtle">Lunas</span>
-                @elseif($sourcePo)
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Belum</span>
-                @else
-                -
-                @endif
+            <div class="kv-row">
+                <span class="kv-label">No. Pembelian</span>
+                <span class="kv-value fw-bold">{{ $return->cno_purchase_ref ?: ($sourcePo?->cno_purchase ?? '-') }}</span>
             </div>
-
-            <div class="row">
-                <div class="col-5">
-                    <div class="field-label">QTY Produk PO</div>
-                    <div class="field-value mb-0">{{ $poTotalQty }}</div>
-                </div>
-                <div class="col-7">
-                    <div class="field-label">Jumlah PO</div>
-                    <div class="field-value mb-0">Rp {{ rtrim(rtrim(number_format((float) ($sourcePo?->ntotal_amount ?? 0), 2, ',', '.'), '0'), ',') }}</div>
-                </div>
+            <div class="kv-row">
+                <span class="kv-label">Tanggal Beli</span>
+                <span class="kv-value">{{ $sourcePo?->dpurchase ? \Carbon\Carbon::parse($sourcePo->dpurchase)->format('d M Y') : '-' }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Status Bayar</span>
+                <span class="kv-value">
+                    @if($sourcePo?->cpayment_status === 'PAID')
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Lunas</span>
+                    @elseif($sourcePo)
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Belum</span>
+                    @else
+                    -
+                    @endif
+                </span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">QTY Produk</span>
+                <span class="kv-value">{{ $poTotalQty }}</span>
+            </div>
+            <div class="kv-row">
+                <span class="kv-label">Jumlah</span>
+                <span class="kv-value fw-bold">
+                    @if($sourcePo)
+                    Rp {{ rtrim(rtrim(number_format((float) $sourcePo->ntotal_amount, 2, ',', '.'), '0'), ',') }}
+                    @else
+                    -
+                    @endif
+                </span>
             </div>
         </div>
     </div>
@@ -262,7 +283,7 @@
                 </button>
                 @endif
             </div>
-            <div class="field-value text-muted small" style="white-space: pre-line;">{{ $return->cnote ?: 'Tidak ada catatan khusus.' }}</div>
+            <div class="text-muted small pt-1" style="white-space: pre-line;">{{ $return->cnote ?: 'Tidak ada catatan khusus.' }}</div>
             @if($isPosted && $return->cno_reference)
             <div class="alert alert-success p-2 small mb-0 mt-3">
                 <i class="bi bi-check-circle me-1"></i> Mutasi Stok Keluar: <strong>{{ $return->cno_reference }}</strong>
@@ -293,7 +314,7 @@
                     <tr>
                         <th class="py-3 ps-3" style="width: 50px;">NO.</th>
                         <th class="py-3">BARANG (PRODUK / BAHAN BAKU)</th>
-                        <th class="py-3 text-center">STOK SAAT INI</th>
+                        <th class="py-3 text-center">QTY BELI</th>
                         <th class="py-3 text-center">QTY RETUR</th>
                         <th class="py-3 text-center">SATUAN</th>
                         <th class="py-3 text-end">HARGA BELI</th>
@@ -307,14 +328,13 @@
                 <tbody class="small">
                     @forelse($return->details as $index => $item)
                     @php
-                        $prodModel = $item->product;
-                        $ingModel = $item->ingredient;
-                        $itemUnit = $item->getItemUnit();
-                        $normType = $item->getItemTypeNormalized();
-                        $currentStock = $prodModel ? (float) ($prodModel->nqty ?? 0) : ($ingModel ? (float) ($ingModel->nstock ?? 0) : 0);
-                        $currentStockFormatted = rtrim(rtrim(number_format($currentStock, 2, ',', '.'), '0'), ',');
-                        $poItemMeta = collect($availablePoItems)->firstWhere('nid_purchase_detail_ref', (int) $item->nid_purchase_detail_ref);
-                        $maxEditableQty = $poItemMeta ? (int) $poItemMeta['qty_remaining'] : (int) $item->nqty;
+                    $prodModel = $item->product;
+                    $ingModel = $item->ingredient;
+                    $itemUnit = $item->getItemUnit();
+                    $normType = $item->getItemTypeNormalized();
+                    $poItemMeta = collect($availablePoItems)->firstWhere('nid_purchase_detail_ref', (int) $item->nid_purchase_detail_ref);
+                    $purchasedQty = $item->purchaseDetailRef?->nqty ?? ($poItemMeta['qty_purchased'] ?? null);
+                    $maxEditableQty = $poItemMeta ? (int) $poItemMeta['qty_remaining'] : (int) $item->nqty;
                     @endphp
                     <tr>
                         <td class="ps-3 text-center text-muted">{{ $index + 1 }}</td>
@@ -328,13 +348,14 @@
                                 @else
                                 <span class="badge bg-primary-subtle text-primary">Produk</span>
                                 @endif
-                                @if($item->purchaseDetailRef)
-                                <span class="ms-1">Beli di PO: {{ $item->purchaseDetailRef->nqty }} {{ $itemUnit }}</span>
-                                @endif
                             </div>
                         </td>
                         <td class="text-center">
-                            <span class="badge bg-light text-dark border">{{ $currentStockFormatted }} {{ $itemUnit }}</span>
+                            @if($purchasedQty !== null)
+                            <span class="badge bg-light text-dark border">{{ (int) $purchasedQty }} {{ $itemUnit }}</span>
+                            @else
+                            <span class="text-muted">-</span>
+                            @endif
                         </td>
                         <td class="text-center fw-bold fs-6 text-danger">
                             -{{ $item->nqty }}
@@ -447,15 +468,15 @@
                         <select name="nid_purchase_detail_ref" id="addReturnPoItemSelect" class="form-select" required>
                             <option value="">-- Pilih Barang --</option>
                             @foreach($availablePoItems as $poIt)
-                                @if((int) $poIt['qty_remaining'] > 0)
-                                <option value="{{ $poIt['nid_purchase_detail_ref'] }}"
-                                    data-unit="{{ $poIt['unit'] }}"
-                                    data-cost="{{ $poIt['ncost'] }}"
-                                    data-max="{{ $poIt['qty_remaining'] }}"
-                                    data-stock="{{ $poIt['current_stock'] }}">
-                                    {{ $poIt['item_name'] }} (Stok: {{ $poIt['current_stock'] }} {{ $poIt['unit'] }} | Sisa retur: {{ $poIt['qty_remaining'] }})
-                                </option>
-                                @endif
+                            @if((int) $poIt['qty_remaining'] > 0)
+                            <option value="{{ $poIt['nid_purchase_detail_ref'] }}"
+                                data-unit="{{ $poIt['unit'] }}"
+                                data-cost="{{ $poIt['ncost'] }}"
+                                data-max="{{ $poIt['qty_remaining'] }}"
+                                data-stock="{{ $poIt['current_stock'] }}">
+                                {{ $poIt['item_name'] }} (Stok: {{ $poIt['current_stock'] }} {{ $poIt['unit'] }} | Sisa retur: {{ $poIt['qty_remaining'] }})
+                            </option>
+                            @endif
                             @endforeach
                         </select>
                     </div>
@@ -590,7 +611,7 @@
                             <option value="PAID" {{ $return->cpayment_status === 'PAID' ? 'selected' : '' }}>Selesai (Refund Diterima / Potong Nota)</option>
                         </select>
                     </div>
-                    <div class="mb-0" id="returnPaymentDateGroup" @style(['display: none' => $return->cpayment_status !== 'PAID'])>
+                    <div class="mb-0" id="returnPaymentDateGroup" @style(['display: none'=> $return->cpayment_status !== 'PAID'])>
                         <label class="form-label small fw-semibold">Tanggal Pembayaran</label>
                         <input type="date" name="dpayment" class="form-control" value="{{ $return->dpayment ? \Carbon\Carbon::parse($return->dpayment)->format('Y-m-d') : date('Y-m-d') }}">
                     </div>
@@ -608,11 +629,11 @@
 
 @push('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function() {
         const payStatusSelect = document.getElementById('returnPaymentStatusSelect');
         const payDateGroup = document.getElementById('returnPaymentDateGroup');
         if (payStatusSelect && payDateGroup) {
-            payStatusSelect.addEventListener('change', function () {
+            payStatusSelect.addEventListener('change', function() {
                 payDateGroup.style.display = this.value === 'PAID' ? 'block' : 'none';
             });
         }
@@ -622,7 +643,7 @@
         const addUnitInput = document.getElementById('addReturnItemUnit');
         const addLimitHint = document.getElementById('addReturnItemLimitHint');
         if (addPoItemSelect) {
-            addPoItemSelect.addEventListener('change', function () {
+            addPoItemSelect.addEventListener('change', function() {
                 const opt = this.options[this.selectedIndex];
                 if (!opt || !opt.value) {
                     if (addLimitHint) addLimitHint.textContent = '';
@@ -647,7 +668,7 @@
         const editModalEl = document.getElementById('editReturnItemModal');
         const editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
         document.querySelectorAll('.btn-edit-return-item').forEach(btn => {
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function() {
                 const form = document.getElementById('editReturnItemForm');
                 if (form) form.action = this.getAttribute('data-action');
 
@@ -677,4 +698,3 @@
     });
 </script>
 @endpush
-
