@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,8 +11,12 @@ class MposPurchaseH extends Model
 {
     use HasFactory;
 
+    public const DOC_TYPE_PURCHASE = 'PURCHASE';
+    public const DOC_TYPE_RETURN = 'RETURN';
+
     public const STATUS_PENDING = 'PENDING';
     public const STATUS_RECEIVED = 'RECEIVED';
+    public const STATUS_POSTED = 'POSTED';
     public const STATUS_CANCELLED = 'CANCELLED';
 
     public const PAYMENT_UNPAID = 'UNPAID';
@@ -24,7 +29,10 @@ class MposPurchaseH extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'cdoc_type',
         'cno_purchase',
+        'nid_purchase_ref',
+        'cno_purchase_ref',
         'dpurchase',
         'nid_supplier',
         'nid_outlet',
@@ -89,6 +97,42 @@ class MposPurchaseH extends Model
         );
     }
 
+    public function purchaseRef()
+    {
+        return $this->belongsTo(
+            self::class,
+            'nid_purchase_ref',
+            'nid'
+        );
+    }
+
+    public function returns()
+    {
+        return $this->hasMany(
+            self::class,
+            'nid_purchase_ref',
+            'nid'
+        )->where('cdoc_type', self::DOC_TYPE_RETURN);
+    }
+
+    public function scopeOnlyPurchases(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->where('cdoc_type', self::DOC_TYPE_PURCHASE)
+              ->orWhereNull('cdoc_type');
+        });
+    }
+
+    public function scopeOnlyReturns(Builder $query): Builder
+    {
+        return $query->where('cdoc_type', self::DOC_TYPE_RETURN);
+    }
+
+    public function isReturn(): bool
+    {
+        return strtoupper((string) $this->cdoc_type) === self::DOC_TYPE_RETURN;
+    }
+
     /**
      * Generate unique PO number matching Olsera format:
      * 2 letters 'PO' + 14 digit numbers (6 digits YYMMDD + 8 digits running sequence), total 16 chars.
@@ -96,18 +140,32 @@ class MposPurchaseH extends Model
      */
     public static function generatePurchaseNumber(?Carbon $date = null): string
     {
-        $date = $date ?? Carbon::now();
-        $prefix = 'PO' . $date->format('ymd');
+        return self::generatePrefixedNumber('PO', $date);
+    }
 
-        // Look for the latest purchase order to get continuous running sequence
-        $last = self::where('cno_purchase', 'LIKE', 'PO%')
+    /**
+     * Generate unique Purchase Return number matching Olsera format:
+     * 2 letters 'RE' + 14 digit numbers (6 digits YYMMDD + 8 digits running sequence), total 16 chars.
+     * Example: RE26041000000002
+     */
+    public static function generateReturnNumber(?Carbon $date = null): string
+    {
+        return self::generatePrefixedNumber('RE', $date);
+    }
+
+    protected static function generatePrefixedNumber(string $code, ?Carbon $date = null): string
+    {
+        $date = $date ?? Carbon::now();
+        $code = strtoupper(trim($code));
+        $prefix = $code . $date->format('ymd');
+
+        $last = self::where('cno_purchase', 'LIKE', $code . '%')
             ->orderBy('nid', 'desc')
             ->first();
 
         $nextSeq = 1;
         if ($last && !empty($last->cno_purchase)) {
             $lastCno = trim($last->cno_purchase);
-            // Prefix 'PO' (2 chars) + 'ymd' (6 chars) = 8 chars offset.
             if (strlen($lastCno) > 8) {
                 $lastSeqNum = (int) substr($lastCno, 8);
                 if ($lastSeqNum > 0) {
@@ -116,16 +174,15 @@ class MposPurchaseH extends Model
             }
         }
 
-        $seq = str_pad($nextSeq, 8, '0', STR_PAD_LEFT);
-        $poNumber = $prefix . $seq;
+        $seq = str_pad((string) $nextSeq, 8, '0', STR_PAD_LEFT);
+        $generatedNumber = $prefix . $seq;
 
-        // Ensure uniqueness in case of race conditions
-        while (self::where('cno_purchase', $poNumber)->exists()) {
+        while (self::where('cno_purchase', $generatedNumber)->exists()) {
             $nextSeq++;
-            $seq = str_pad($nextSeq, 8, '0', STR_PAD_LEFT);
-            $poNumber = $prefix . $seq;
+            $seq = str_pad((string) $nextSeq, 8, '0', STR_PAD_LEFT);
+            $generatedNumber = $prefix . $seq;
         }
 
-        return $poNumber;
+        return $generatedNumber;
     }
 }

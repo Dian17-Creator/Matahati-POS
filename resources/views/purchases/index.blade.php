@@ -94,8 +94,56 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         padding-bottom: 8px;
     }
 
-    #createItemsTable tr:hover td {
+    #createItemsTable tr:hover td,
+    #createReturnItemsTable tr:hover td {
         background-color: #f8fafc;
+    }
+
+    #createReturnItemsTable {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    #createReturnItemsTable th {
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        color: #64748b;
+        background: transparent;
+        border-bottom: 2px solid #e2e8f0;
+        border-top: none;
+        white-space: nowrap;
+    }
+
+    #createReturnItemsTable td {
+        border-bottom: 1px solid #f1f5f9;
+        border-top: none;
+        vertical-align: middle;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    #createReturnItemsTable .ts-wrapper.single .ts-control {
+        flex-wrap: nowrap !important;
+        padding-right: 26px !important;
+    }
+
+    #createReturnItemsTable .ts-wrapper.single .ts-control>.item {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px;
+    }
+
+    #createReturnItemsTable .ts-wrapper.single .ts-control>input {
+        width: 4px !important;
+        min-width: 4px !important;
+    }
+
+    #createReturnItemsTable .ts-wrapper.single.input-active .ts-control>input {
+        width: auto !important;
+        min-width: 60px !important;
     }
 
     /* Modern Filter Chips (Report Style) */
@@ -287,19 +335,22 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
 @endpush
 
 @section('content')
-@if($statusTab === 'return')
-<div class="card olsera-panel-card mb-4" style="min-height: 360px;"></div>
-@else
 <div class="card olsera-panel-card mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0 fw-bold">{{ $currentPurchaseSubTitle }}</h5>
         <div class="d-flex gap-2">
+            @if($statusTab === 'return')
+            <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createReturnModal">
+                <i class="bi bi-plus-lg me-1"></i> Tambah Retur
+            </button>
+            @else
             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#importPdfModal">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
             </button>
             <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createPurchaseModal">
                 <i class="bi bi-plus-lg me-1"></i> Tambah Pembelian
             </button>
+            @endif
         </div>
     </div>
 
@@ -314,19 +365,68 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
     $dateLabel = 'Semua Tanggal';
     }
 
-    $statusFilterLabels = [
+    $statusFilterLabels = $statusTab === 'return'
+    ? [
+    '' => 'Semua Status',
+    'PENDING' => 'Pending',
+    'POSTED' => 'Diposting',
+    'CANCELLED' => 'Batal',
+    ]
+    : [
     '' => 'Semua Status',
     'PENDING' => 'Pending',
     'RECEIVED' => 'Diterima',
     ];
     $activeStatusFilter = $statusFilter ?? '';
     $statusFilterLabelText = $statusFilterLabels[$activeStatusFilter] ?? 'Semua Status';
+
+    $paymentFilterLabels = [
+    '' => 'Semua Pembayaran',
+    'UNPAID' => 'Belum',
+    'PAID' => 'Selesai',
+    ];
+    $activePaymentFilter = $paymentStatus ?? '';
+    $paymentFilterLabelText = $paymentFilterLabels[$activePaymentFilter] ?? 'Semua Pembayaran';
     @endphp
 
-    <!-- Active Filters Bar (Report Style: Date, Status, Search) -->
+    <!-- Active Filters Bar (Report Style: Status, Pembayaran, Date, Search) -->
     <div class="px-4 py-3 bg-light border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3">
-        <div class="d-flex flex-wrap align-items-center">
-            <span class="fw-bold me-2 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">FILTER :</span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-bold me-1 text-secondary" style="font-size: 0.85rem; text-transform: uppercase;">FILTER :</span>
+
+            @if($statusTab === 'return')
+            <!-- Dropdown Status Retur -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip {{ $activeStatusFilter !== '' ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" id="statusFilterChip" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> <span id="statusFilterLabel">{{ $statusFilterLabelText }}</span>
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-1">
+                    @foreach($statusFilterLabels as $val => $lbl)
+                    <button type="button" class="dropdown-item rounded py-1 px-3 d-flex justify-content-between align-items-center status-filter-btn {{ $activeStatusFilter === $val ? 'active' : '' }}" data-status-filter="{{ $val }}">
+                        <span>{{ $lbl }}</span>
+                        <i class="bi bi-check2 check-icon {{ $activeStatusFilter === $val ? '' : 'd-none' }}"></i>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Dropdown Pembayaran / Pengembalian -->
+            <div class="dropdown d-inline-block">
+                <button type="button" class="filter-chip {{ $activePaymentFilter !== '' ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" id="paymentFilterChip" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-cash-coin"></i> <span id="paymentFilterLabel">{{ $paymentFilterLabelText }}</span>
+                    <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem;"></i>
+                </button>
+                <div class="dropdown-menu filter-dropdown-menu shadow border-0 p-1">
+                    @foreach($paymentFilterLabels as $val => $lbl)
+                    <button type="button" class="dropdown-item rounded py-1 px-3 d-flex justify-content-between align-items-center payment-filter-btn {{ $activePaymentFilter === $val ? 'active' : '' }}" data-payment-filter="{{ $val }}">
+                        <span>{{ $lbl }}</span>
+                        <i class="bi bi-check2 check-icon {{ $activePaymentFilter === $val ? '' : 'd-none' }}"></i>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
 
             <!-- Dropdown Periode Tanggal -->
             <div class="dropdown d-inline-block">
@@ -380,9 +480,9 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
 
         <!-- Searching Box -->
         <div class="d-flex align-items-center">
-            <div class="input-group input-group-sm" style="width: 700px;">
+            <div class="input-group input-group-sm" style="width: {{ $statusTab === 'return' ? '360px' : '700px' }}; max-width: 100%;">
                 <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
-                <input type="text" id="filterSearchInput" class="form-control border-start-0 ps-0" placeholder="Cari No. PO, Supplier, No. SJ..." value="{{ $search }}">
+                <input type="text" id="filterSearchInput" class="form-control border-start-0 ps-0" placeholder="{{ $statusTab === 'return' ? 'Cari No. Retur, No. PO, Supplier...' : 'Cari No. PO, Supplier, No. SJ...' }}" value="{{ $search }}">
                 <button class="btn btn-white border border-start-0 text-muted" type="button" id="clearSearchBtn" @style(['display: none'=> !$search]) title="Hapus Pencarian">
                     <i class="bi bi-x-circle"></i>
                 </button>
@@ -413,11 +513,10 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         </div>
 
         <div id="tableContent" class="p-3">
-            @include('purchases.partials.table', ['purchases' => $purchases])
+            @include($statusTab === 'return' ? 'purchases.partials.return_table' : 'purchases.partials.table', ['purchases' => $purchases])
         </div>
     </div>
 </div>
-@endif
 
 <!-- Modal Import Pembelian dari PDF -->
 <div class="modal fade" id="importPdfModal" tabindex="-1" aria-labelledby="importPdfModalLabel" aria-hidden="true">
@@ -608,6 +707,124 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
                     <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm">
                         <i class="bi bi-check2-circle me-1"></i> Simpan Pembelian
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Tambah Retur Barang (Alur serupa Pembelian Baru) -->
+<div class="modal fade" id="createReturnModal" tabindex="-1" aria-labelledby="createReturnModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1120px;">
+        <div class="modal-content border-0 shadow">
+            <form action="{{ route('purchases.returns.store') }}" method="POST" id="createReturnForm">
+                @csrf
+                <div class="modal-header bg-light-subtle py-3 border-bottom">
+                    <h5 class="modal-title fw-bold" id="createReturnModalLabel">
+                        <i class="bi bi-arrow-return-left me-2 text-warning"></i>Retur Pembelian Baru
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- Baris 1: Supplier, Nomor Pembelian, Outlet (otomatis), Tanggal Retur -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Supplier <span class="text-danger">*</span></label>
+                            <select name="nid_supplier" id="modalReturnSupplier" class="form-select" required>
+                                <option value="">-- Pilih Supplier --</option>
+                                @foreach($suppliers as $sp)
+                                <option value="{{ $sp->nid }}">
+                                    {{ $sp->cname }} @if($sp->outlet) ({{ $sp->outlet->cname }}) @endif
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small text-secondary">Nomor Pembelian (PO Diterima) <span class="text-danger">*</span></label>
+                            <select name="nid_purchase_ref" id="modalReturnPurchase" class="form-select" required disabled>
+                                <option value="">-- Pilih Supplier Dulu --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small text-secondary">Outlet Asal Stok</label>
+                            <input type="text" id="modalReturnOutletDisplay" class="form-control bg-light" value="-" readonly placeholder="Otomatis dari PO">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold small text-secondary">Tanggal Retur <span class="text-danger">*</span></label>
+                            <input type="date" name="dpurchase" id="modalReturnDate" class="form-control" value="{{ date('Y-m-d') }}" required>
+                        </div>
+                    </div>
+
+                    <!-- Baris 2: Catatan Retur -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-secondary">Catatan Retur</label>
+                            <textarea name="cnote" class="form-control" rows="2" style="min-height: 70px;" placeholder="Catatan alasan atau keterangan retur barang..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Header Section Item Retur -->
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <div>
+                            <span class="fw-bold text-dark fs-6">
+                                <i class="bi bi-box-seam me-1 text-primary"></i> Barang Retur
+                            </span>
+                            <span class="text-muted small ms-2 d-none d-sm-inline">Hanya menampilkan barang &amp; stok dari <strong>Nomor Pembelian</strong> yang dipilih</span>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold shadow-sm" id="btnAddReturnItemRow" disabled>
+                            <i class="bi bi-plus-lg me-1"></i> Tambah Baris
+                        </button>
+                    </div>
+
+                    <div id="returnPoInfoBanner" class="alert alert-info py-2 px-3 small mt-2 mb-2 d-none"></div>
+
+                    <!-- Table Item Retur -->
+                    <div class="table-responsive mt-2" style="overflow: visible;">
+                        <table class="table align-middle mb-0" id="createReturnItemsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35px;" class="text-center py-2 text-muted text-nowrap">No</th>
+                                    <th style="min-width: 280px;" class="py-2 text-nowrap">BARANG (DARI PO)</th>
+                                    <th style="width: 120px;" class="text-center py-2 text-nowrap">QTY RETUR</th>
+                                    <th style="width: 115px;" class="text-end py-2 text-nowrap">HARGA BELI</th>
+                                    <th style="min-width: 220px; width: 235px;" class="py-2 text-nowrap">ALASAN</th>
+                                    <th style="width: 120px;" class="text-end py-2 text-nowrap">SUBTOTAL</th>
+                                    <th style="width: 35px;" class="text-center py-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="createReturnItemsTableBody" class="small">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted">
+                                        Pilih <strong>Supplier</strong> dan <strong>Nomor Pembelian</strong> untuk melihat barang yang dapat diretur.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Baris Ringkasan Total Retur -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top bg-light-subtle rounded-3 p-3">
+                        <div class="text-muted small">
+                            <i class="bi bi-info-circle text-primary me-1"></i>
+                            Stok akan otomatis berkurang (<strong>Stok Keluar</strong>) saat dokumen diposting pada halaman Rincian Retur.
+                        </div>
+                        <div class="d-flex align-items-center gap-4 text-end">
+                            <div>
+                                <span class="text-secondary small d-block">Total Kuantitas Retur:</span>
+                                <span class="fw-bold fs-6 text-dark" id="createReturnTotalQty">0</span> <span class="small text-muted">unit</span>
+                            </div>
+                            <div>
+                                <span class="text-secondary small d-block">Total Nilai Retur:</span>
+                                <span class="fw-bold fs-5 text-primary" id="createReturnTotalAmount">Rp 0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light-subtle py-2 px-4 border-top">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success btn-sm px-4 fw-semibold shadow-sm" id="btnSubmitReturnForm" disabled>
+                        <i class="bi bi-check2-circle me-1"></i> Simpan Draft Retur
                     </button>
                 </div>
             </form>
@@ -1005,11 +1222,12 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         // ==========================================
         // Real-Time AJAX Fetching & Filter Handler
         // ==========================================
-        let currentTab = '{{ $statusTab }}';
-        let currentStatusFilter = '{{ $statusFilter ?? "" }}';
-        let currentStartDate = '{{ $startDate }}';
-        let currentEndDate = '{{ $endDate }}';
-        let currentSearch = '{{ $search }}';
+        let currentTab = @json($statusTab);
+        let currentStatusFilter = @json($statusFilter ?? '');
+        let currentPaymentStatus = @json($paymentStatus ?? '');
+        let currentStartDate = @json($startDate ?? '');
+        let currentEndDate = @json($endDate ?? '');
+        let currentSearch = @json($search ?? '');
         let abortController = null;
         let searchDebounceTimeout = null;
 
@@ -1017,6 +1235,8 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         const dateFilterLabel = document.getElementById('dateFilterLabel');
         const statusFilterChip = document.getElementById('statusFilterChip');
         const statusFilterLabel = document.getElementById('statusFilterLabel');
+        const paymentFilterChip = document.getElementById('paymentFilterChip');
+        const paymentFilterLabel = document.getElementById('paymentFilterLabel');
         const customStartDate = document.getElementById('customStartDate');
         const customEndDate = document.getElementById('customEndDate');
         const filterSearchInput = document.getElementById('filterSearchInput');
@@ -1027,7 +1247,15 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         const statusFilterNames = {
             '': 'Semua Status',
             'PENDING': 'Pending',
-            'RECEIVED': 'Diterima'
+            'RECEIVED': 'Diterima',
+            'POSTED': 'Diposting',
+            'CANCELLED': 'Batal'
+        };
+
+        const paymentFilterNames = {
+            '': 'Semua Pembayaran',
+            'UNPAID': 'Belum',
+            'PAID': 'Selesai'
         };
 
         function formatYmd(d) {
@@ -1056,6 +1284,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
             const params = new URLSearchParams();
             if (currentTab) params.append('tab', currentTab);
             if (currentStatusFilter) params.append('status_filter', currentStatusFilter);
+            if (currentPaymentStatus) params.append('payment_status', currentPaymentStatus);
             if (currentStartDate) params.append('start_date', currentStartDate);
             if (currentEndDate) params.append('end_date', currentEndDate);
             if (currentSearch) params.append('search', currentSearch);
@@ -1093,7 +1322,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
                 });
         }
 
-        // Sub-filter Status Handler (within Butuh Diproses tab)
+        // Sub-filter Status Handler
         function setStatusFilter(filterVal) {
             currentStatusFilter = filterVal;
 
@@ -1131,6 +1360,42 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
                 e.preventDefault();
                 const filterVal = this.getAttribute('data-status-filter') || '';
                 setStatusFilter(filterVal);
+            });
+        });
+
+        // Payment filter dropdown items click (Retur)
+        document.querySelectorAll('.payment-filter-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const val = this.getAttribute('data-payment-filter') || '';
+                currentPaymentStatus = val;
+
+                if (paymentFilterLabel) {
+                    paymentFilterLabel.textContent = paymentFilterNames[val] || 'Semua Pembayaran';
+                }
+                if (paymentFilterChip) {
+                    if (val !== '') {
+                        paymentFilterChip.classList.remove('filter-chip-inactive');
+                        paymentFilterChip.classList.add('filter-chip-active');
+                    } else {
+                        paymentFilterChip.classList.remove('filter-chip-active');
+                        paymentFilterChip.classList.add('filter-chip-inactive');
+                    }
+                }
+
+                document.querySelectorAll('.payment-filter-btn').forEach(item => {
+                    const itemVal = item.getAttribute('data-payment-filter') || '';
+                    const check = item.querySelector('.check-icon');
+                    if (itemVal === val) {
+                        item.classList.add('active');
+                        if (check) check.classList.remove('d-none');
+                    } else {
+                        item.classList.remove('active');
+                        if (check) check.classList.add('d-none');
+                    }
+                });
+
+                fetchPurchases(1);
             });
         });
 
@@ -1289,6 +1554,482 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
                     } catch (err) {
                         // fallback
                     }
+                }
+            });
+        }
+
+        // ==========================================
+        // Modal Tambah Retur Barang (Alur Pembelian Baru)
+        // ==========================================
+        const returnModalEl = document.getElementById('createReturnModal');
+        const returnSupplierSelect = document.getElementById('modalReturnSupplier');
+        const returnPurchaseSelect = document.getElementById('modalReturnPurchase');
+        const returnOutletDisplay = document.getElementById('modalReturnOutletDisplay');
+        const returnItemsTbody = document.getElementById('createReturnItemsTableBody');
+        const btnAddReturnRow = document.getElementById('btnAddReturnItemRow');
+        const btnSubmitReturn = document.getElementById('btnSubmitReturnForm');
+        const returnPoInfoBanner = document.getElementById('returnPoInfoBanner');
+        const returnTotalQtyEl = document.getElementById('createReturnTotalQty');
+        const returnTotalAmountEl = document.getElementById('createReturnTotalAmount');
+
+        let returnPoTomSelect = null;
+        let currentPoReturnItems = [];
+        let returnRowCounter = 0;
+
+        const returnReasons = [
+            'Barang Rusak / Cacat',
+            'Salah Kirim Barang',
+            'Kadaluarsa',
+            'Kelebihan Kirim',
+            'Tidak Sesuai Pesanan',
+            'Lainnya'
+        ];
+
+        function formatRupiahRetur(num) {
+            const val = Math.round(Number(num) || 0);
+            return 'Rp ' + val.toLocaleString('id-ID');
+        }
+
+        function destroyReturnRowTomSelects() {
+            if (!returnItemsTbody) return;
+            returnItemsTbody.querySelectorAll('tr.return-item-row').forEach(tr => {
+                if (tr._returnTs) {
+                    tr._returnTs.destroy();
+                    tr._returnTs = null;
+                }
+            });
+        }
+
+        function resetReturnItemsTable(messageHtml) {
+            destroyReturnRowTomSelects();
+            currentPoReturnItems = [];
+            if (returnOutletDisplay) returnOutletDisplay.value = '-';
+            if (btnAddReturnRow) btnAddReturnRow.disabled = true;
+            if (btnSubmitReturn) btnSubmitReturn.disabled = true;
+            if (returnPoInfoBanner) returnPoInfoBanner.classList.add('d-none');
+            if (returnItemsTbody) {
+                returnItemsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">' + messageHtml + '</td></tr>';
+            }
+            updateReturnTotals();
+        }
+
+        function updateReturnTotals() {
+            if (!returnItemsTbody) return;
+            let totalQty = 0;
+            let totalAmount = 0;
+            let activeRows = 0;
+
+            returnItemsTbody.querySelectorAll('tr.return-item-row').forEach((tr, idx) => {
+                const noCell = tr.querySelector('.return-row-no');
+                if (noCell) noCell.textContent = idx + 1;
+
+                const sel = tr.querySelector('.return-item-select');
+                const qtyInput = tr.querySelector('.return-item-qty');
+                const costInput = tr.querySelector('.return-item-cost');
+                const subtotalEl = tr.querySelector('.return-item-subtotal');
+
+                const qty = parseInt(qtyInput ? qtyInput.value : '0', 10) || 0;
+                const cost = parseFloat(costInput ? costInput.value : '0') || 0;
+                const sub = qty * cost;
+
+                if (subtotalEl) subtotalEl.textContent = formatRupiahRetur(sub);
+
+                if (sel && sel.value && qty > 0) {
+                    activeRows++;
+                    totalQty += qty;
+                    totalAmount += sub;
+                }
+            });
+
+            if (returnTotalQtyEl) returnTotalQtyEl.textContent = totalQty;
+            if (returnTotalAmountEl) returnTotalAmountEl.textContent = formatRupiahRetur(totalAmount);
+            if (btnSubmitReturn) btnSubmitReturn.disabled = activeRows === 0;
+            syncAddReturnRowState();
+        }
+
+        function getReturnablePoItems() {
+            return currentPoReturnItems.filter(it => Number(it.qty_remaining) > 0);
+        }
+
+        function syncAddReturnRowState() {
+            if (!btnAddReturnRow || !returnItemsTbody) return;
+            const maxRows = getReturnablePoItems().length;
+            const currentRows = returnItemsTbody.querySelectorAll('tr.return-item-row').length;
+            btnAddReturnRow.disabled = maxRows === 0 || currentRows >= maxRows;
+        }
+
+        function addReturnItemRow() {
+            if (!returnItemsTbody || currentPoReturnItems.length === 0) return;
+
+            const availableItems = getReturnablePoItems();
+            const currentRows = returnItemsTbody.querySelectorAll('tr.return-item-row').length;
+            if (availableItems.length === 0 || currentRows >= availableItems.length) {
+                syncAddReturnRowState();
+                return;
+            }
+
+            if (returnItemsTbody.querySelector('tr:not(.return-item-row)')) {
+                returnItemsTbody.innerHTML = '';
+            }
+
+            const idx = returnRowCounter++;
+            const tr = document.createElement('tr');
+            tr.className = 'return-item-row';
+
+            let optionsHtml = '<option value="">-- Cari atau pilih barang dari PO --</option>';
+            availableItems.forEach(item => {
+                optionsHtml += `<option value="${item.nid_purchase_detail_ref}" data-type="${item.item_type_label}" data-name="${item.item_name}" data-remaining="${item.qty_remaining}" data-unit="${item.unit}">[${item.item_type_label}] ${item.item_name}</option>`;
+            });
+
+            let reasonOptionsHtml = '<option value="">-- Pilih Alasan (Opsional) --</option>';
+            returnReasons.forEach(r => {
+                reasonOptionsHtml += `<option value="${r}">${r}</option>`;
+            });
+
+            tr.innerHTML = `
+                <td class="text-center text-muted return-row-no">1</td>
+                <td>
+                    <select name="items[${idx}][nid_purchase_detail_ref]" class="form-select form-select-sm return-item-select">
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td class="text-center">
+                    <div class="qty-stepper mx-auto">
+                        <button type="button" class="qty-stepper-btn qty-stepper-minus return-qty-minus" title="Kurangi 1" disabled>
+                            <i class="bi bi-dash-lg"></i>
+                        </button>
+                        <input type="number" name="items[${idx}][nqty]" class="qty-stepper-input return-item-qty no-spinners" min="1" step="1" value="1" disabled required>
+                        <button type="button" class="qty-stepper-btn qty-stepper-plus return-qty-plus" title="Tambah 1" disabled>
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="items[${idx}][csatuan]" class="return-item-unit" value="">
+                </td>
+                <td class="text-end">
+                    <span class="return-item-cost-text text-muted">-</span>
+                    <input type="hidden" name="items[${idx}][ncost]" class="return-item-cost" value="0">
+                </td>
+                <td>
+                    <select name="items[${idx}][creason]" class="form-select form-select-sm return-item-reason">
+                        ${reasonOptionsHtml}
+                    </select>
+                </td>
+                <td class="text-end fw-bold text-dark return-item-subtotal">Rp 0</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-outline-danger btn-sm p-1 btn-remove-return-row" title="Hapus Baris">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </td>
+            `;
+
+            const selectEl = tr.querySelector('.return-item-select');
+            const qtyEl = tr.querySelector('.return-item-qty');
+            const btnMinus = tr.querySelector('.return-qty-minus');
+            const btnPlus = tr.querySelector('.return-qty-plus');
+            const unitEl = tr.querySelector('.return-item-unit');
+            const costTextEl = tr.querySelector('.return-item-cost-text');
+            const costHiddenEl = tr.querySelector('.return-item-cost');
+
+            let returnItemTs = null;
+            if (typeof TomSelect !== 'undefined') {
+                returnItemTs = new TomSelect(selectEl, {
+                    create: false,
+                    maxItems: 1,
+                    placeholder: '-- Cari atau pilih barang dari PO --',
+                    allowEmptyOption: true,
+                    sortField: {
+                        field: 'text',
+                        direction: 'asc'
+                    },
+                    render: {
+                        item: function(data, escape) {
+                            const label = data.name ? `[${data.type || 'Produk'}] ${data.name}` : (data.text || '');
+                            if (!data.value) {
+                                return '<span class="text-truncate fw-medium text-muted">' + escape(label) + '</span>';
+                            }
+                            const qtyBadge = (data.remaining !== undefined ? data.remaining : '0') + ' ' + (data.unit || 'PCS');
+                            return '<span class="text-truncate fw-medium">' + escape(label) + '</span>' +
+                                '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-0.5 small flex-shrink-0">' + escape(qtyBadge) + '</span>';
+                        },
+                        option: function(data, escape) {
+                            if (!data.value) {
+                                return '<div class="text-muted small">' + escape(data.text || '') + '</div>';
+                            }
+                            const qtyLabel = (data.remaining !== undefined ? data.remaining : '0') + ' ' + (data.unit || 'PCS');
+                            const itemLabel = data.name ? `[${data.type || 'Produk'}] ${data.name}` : (data.text || '');
+                            return '<div class="d-flex justify-content-between align-items-center py-1 px-1">' +
+                                '<span class="fw-medium text-dark text-truncate me-2">' + escape(itemLabel) + '</span>' +
+                                '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-0.5 small flex-shrink-0">Qty: ' + escape(qtyLabel) + '</span>' +
+                                '</div>';
+                        }
+                    }
+                });
+
+                returnItemTs.clear(true);
+                returnItemTs.clearOptions();
+                availableItems.forEach(item => {
+                    returnItemTs.addOption({
+                        value: String(item.nid_purchase_detail_ref),
+                        text: `[${item.item_type_label}] ${item.item_name}`,
+                        name: item.item_name,
+                        type: item.item_type_label,
+                        remaining: item.qty_remaining,
+                        unit: item.unit || 'PCS'
+                    });
+                });
+                returnItemTs.refreshOptions(false);
+                tr._returnTs = returnItemTs;
+            }
+
+            function handleReturnItemSelected(selectedVal) {
+                const selectedId = Number(selectedVal || 0);
+                const found = currentPoReturnItems.find(it => Number(it.nid_purchase_detail_ref) === selectedId);
+                if (!found) {
+                    qtyEl.value = 1;
+                    qtyEl.disabled = true;
+                    btnMinus.disabled = true;
+                    btnPlus.disabled = true;
+                    unitEl.value = '';
+                    costTextEl.textContent = '-';
+                    costHiddenEl.value = 0;
+                    updateReturnTotals();
+                    return;
+                }
+
+                // Cek duplikasi pilihan barang dalam satu retur
+                const duplicate = Array.from(returnItemsTbody.querySelectorAll('.return-item-select'))
+                    .some(other => other !== selectEl && Number(other.value) === selectedId);
+                if (duplicate) {
+                    alert('Barang ini sudah dipilih pada baris lain.');
+                    if (returnItemTs) {
+                        returnItemTs.clear(true);
+                    } else {
+                        selectEl.value = '';
+                    }
+                    handleReturnItemSelected('');
+                    return;
+                }
+
+                qtyEl.disabled = false;
+                btnMinus.disabled = false;
+                btnPlus.disabled = false;
+                qtyEl.max = found.qty_remaining;
+                qtyEl.value = 1;
+                unitEl.value = found.unit;
+                costTextEl.textContent = formatRupiahRetur(found.ncost);
+                costHiddenEl.value = found.ncost;
+
+                updateReturnTotals();
+            }
+
+            if (returnItemTs) {
+                returnItemTs.on('change', function(val) {
+                    handleReturnItemSelected(val);
+                });
+            } else {
+                selectEl.addEventListener('change', function() {
+                    handleReturnItemSelected(this.value);
+                });
+            }
+
+            btnMinus.addEventListener('click', function() {
+                let currentVal = parseInt(qtyEl.value || '1', 10);
+                if (Number.isNaN(currentVal) || currentVal <= 1) {
+                    qtyEl.value = 1;
+                } else {
+                    qtyEl.value = currentVal - 1;
+                }
+                qtyEl.dispatchEvent(new Event('input'));
+            });
+
+            btnPlus.addEventListener('click', function() {
+                const selectedId = Number(selectEl.value || 0);
+                const found = currentPoReturnItems.find(it => Number(it.nid_purchase_detail_ref) === selectedId);
+                const maxVal = found ? Number(found.qty_remaining) : 999999;
+                let currentVal = parseInt(qtyEl.value || '1', 10);
+                if (Number.isNaN(currentVal)) currentVal = 1;
+                if (currentVal < maxVal) {
+                    qtyEl.value = currentVal + 1;
+                } else {
+                    qtyEl.value = maxVal;
+                }
+                qtyEl.dispatchEvent(new Event('input'));
+            });
+
+            qtyEl.addEventListener('input', function() {
+                const selectedId = Number(selectEl.value || 0);
+                const found = currentPoReturnItems.find(it => Number(it.nid_purchase_detail_ref) === selectedId);
+                let val = parseInt(this.value || '0', 10);
+                if (this.value !== '' && (Number.isNaN(val) || val < 1)) {
+                    val = 1;
+                    this.value = val;
+                }
+                if (found && val > found.qty_remaining) {
+                    val = found.qty_remaining;
+                    this.value = val;
+                }
+                updateReturnTotals();
+            });
+
+            qtyEl.addEventListener('blur', function() {
+                let val = parseInt(this.value || '0', 10);
+                if (Number.isNaN(val) || val < 1) {
+                    this.value = 1;
+                    updateReturnTotals();
+                }
+            });
+
+            tr.querySelector('.btn-remove-return-row').addEventListener('click', function() {
+                if (tr._returnTs) {
+                    tr._returnTs.destroy();
+                    tr._returnTs = null;
+                }
+                tr.remove();
+                if (returnItemsTbody.querySelectorAll('tr.return-item-row').length === 0) {
+                    addReturnItemRow();
+                } else {
+                    updateReturnTotals();
+                }
+            });
+
+            returnItemsTbody.appendChild(tr);
+            updateReturnTotals();
+        }
+
+        function loadPurchasesForReturnSupplier(supplierId) {
+            if (!returnPurchaseSelect) return;
+
+            if (returnPoTomSelect) {
+                returnPoTomSelect.destroy();
+                returnPoTomSelect = null;
+            }
+
+            if (!supplierId) {
+                returnPurchaseSelect.innerHTML = '<option value="">-- Pilih Supplier Dulu --</option>';
+                returnPurchaseSelect.disabled = true;
+                resetReturnItemsTable('Pilih <strong>Supplier</strong> dan <strong>Nomor Pembelian</strong> untuk melihat barang yang dapat diretur.');
+                return;
+            }
+
+            returnPurchaseSelect.disabled = true;
+            returnPurchaseSelect.innerHTML = '<option value="">Memuat daftar PO...</option>';
+            resetReturnItemsTable('Memuat nomor pembelian...');
+
+            const url = @json(route('purchases.returns.purchases-by-supplier')) + '?supplier_id=' + encodeURIComponent(supplierId);
+            fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    const list = data.purchases || [];
+                    if (list.length === 0) {
+                        returnPurchaseSelect.innerHTML = '<option value="">Tidak ada PO Diterima untuk supplier ini</option>';
+                        returnPurchaseSelect.disabled = true;
+                        resetReturnItemsTable('Supplier ini belum memiliki Nomor Pembelian berstatus <strong>Diterima</strong>.');
+                        return;
+                    }
+
+                    let html = '<option value="">-- Pilih Nomor Pembelian --</option>';
+                    list.forEach(po => {
+                        const disabledAttr = po.remaining_qty <= 0 ? 'disabled' : '';
+                        html += `<option value="${po.nid}" ${disabledAttr}>${po.cno_purchase}</option>`;
+                    });
+                    returnPurchaseSelect.innerHTML = html;
+                    returnPurchaseSelect.disabled = false;
+
+                    if (typeof TomSelect !== 'undefined') {
+                        returnPoTomSelect = new TomSelect(returnPurchaseSelect, {
+                            allowEmptyOption: true,
+                            placeholder: '-- Cari Nomor Pembelian --'
+                        });
+                    }
+
+                    resetReturnItemsTable('Pilih <strong>Nomor Pembelian</strong> untuk menampilkan barang &amp; stok dari PO tersebut.');
+                })
+                .catch(err => {
+                    console.error('Gagal memuat PO supplier:', err);
+                    returnPurchaseSelect.innerHTML = '<option value="">Gagal memuat PO</option>';
+                });
+        }
+
+        function loadPoItemsForReturn(purchaseId) {
+            if (!purchaseId) {
+                resetReturnItemsTable('Pilih <strong>Nomor Pembelian</strong> untuk menampilkan barang &amp; stok dari PO tersebut.');
+                return;
+            }
+
+            const baseUrl = @json(route('purchases.returns.po-items', ['purchaseId' => '__PO_ID__']));
+            const url = baseUrl.replace('__PO_ID__', encodeURIComponent(purchaseId));
+
+            destroyReturnRowTomSelects();
+            if (returnItemsTbody) {
+                returnItemsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Memuat barang &amp; stok dari PO...</td></tr>';
+            }
+
+            fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    const po = data.purchase || {};
+                    const items = data.items || [];
+                    currentPoReturnItems = items;
+
+                    if (returnOutletDisplay) returnOutletDisplay.value = po.outlet_name || '-';
+
+                    const returnableItems = items.filter(it => Number(it.qty_remaining) > 0);
+                    if (returnPoInfoBanner) {
+                        returnPoInfoBanner.innerHTML = `<i class="bi bi-receipt me-1"></i> PO <strong>${po.cno_purchase}</strong> (${po.dpurchase_formatted}) • Outlet: <strong>${po.outlet_name}</strong> • Barang tersedia untuk retur: <strong>${returnableItems.length} item</strong>`;
+                        returnPoInfoBanner.classList.remove('d-none');
+                    }
+
+                    if (returnableItems.length === 0) {
+                        if (btnAddReturnRow) btnAddReturnRow.disabled = true;
+                        if (btnSubmitReturn) btnSubmitReturn.disabled = true;
+                        returnItemsTbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Seluruh barang pada Nomor Pembelian ini sudah habis diretur.</td></tr>';
+                        updateReturnTotals();
+                        return;
+                    }
+
+                    destroyReturnRowTomSelects();
+                    returnItemsTbody.innerHTML = '';
+                    addReturnItemRow();
+                    syncAddReturnRowState();
+                })
+                .catch(err => {
+                    console.error('Gagal memuat item PO:', err);
+                    resetReturnItemsTable('Gagal memuat barang dari Nomor Pembelian.');
+                });
+        }
+
+        if (returnSupplierSelect) {
+            returnSupplierSelect.addEventListener('change', function() {
+                loadPurchasesForReturnSupplier(this.value);
+            });
+        }
+
+        if (returnPurchaseSelect) {
+            returnPurchaseSelect.addEventListener('change', function() {
+                loadPoItemsForReturn(this.value);
+            });
+        }
+
+        if (btnAddReturnRow) {
+            btnAddReturnRow.addEventListener('click', function() {
+                addReturnItemRow();
+            });
+        }
+
+        if (returnModalEl) {
+            returnModalEl.addEventListener('show.bs.modal', function() {
+                if (returnSupplierSelect && returnSupplierSelect.value && (!returnPurchaseSelect || returnPurchaseSelect.options.length <= 1)) {
+                    loadPurchasesForReturnSupplier(returnSupplierSelect.value);
                 }
             });
         }

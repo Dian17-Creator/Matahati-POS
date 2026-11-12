@@ -25,12 +25,16 @@ class MposPurchaseD extends Model
 
     protected $fillable = [
         'nid_purchase',
+        'nid_purchase_detail_ref',
         'citem_type',
         'nid_product',
         'nid_ingredient',
         'nqty',
+        'csatuan',
         'ncost',
         'nsubtotal',
+        'creason',
+        'cnote',
     ];
 
     protected function casts(): array
@@ -70,6 +74,9 @@ class MposPurchaseD extends Model
 
     public function getItemUnit(): string
     {
+        if (!empty($this->csatuan)) {
+            return $this->csatuan;
+        }
         if ($this->product && !empty($this->product->csatuan)) {
             return $this->product->csatuan;
         }
@@ -84,6 +91,15 @@ class MposPurchaseD extends Model
         return $this->belongsTo(
             MposPurchaseH::class,
             'nid_purchase',
+            'nid'
+        );
+    }
+
+    public function purchaseDetailRef()
+    {
+        return $this->belongsTo(
+            self::class,
+            'nid_purchase_detail_ref',
             'nid'
         );
     }
