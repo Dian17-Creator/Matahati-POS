@@ -100,12 +100,13 @@ class ProductsImport implements ToCollection, WithHeadingRow
             }
 
             // Parse Stok / QTY (Logika Timpa/Replace Stok)
-            $hasStockColumn = array_key_exists('stock_qty', $row)
-                || array_key_exists('stock', $row)
-                || array_key_exists('qty', $row)
-                || array_key_exists('stok', $row)
-                || array_key_exists('stok_qty', $row)
-                || array_key_exists('quantity', $row);
+            $rowArray = is_array($row) ? $row : ($row instanceof Collection ? $row->toArray() : (array) $row);
+            $hasStockColumn = array_key_exists('stock_qty', $rowArray)
+                || array_key_exists('stock', $rowArray)
+                || array_key_exists('qty', $rowArray)
+                || array_key_exists('stok', $rowArray)
+                || array_key_exists('stok_qty', $rowArray)
+                || array_key_exists('quantity', $rowArray);
 
             $rawStockQty = $row['stock_qty'] ?? $row['stock'] ?? $row['qty'] ?? $row['stok'] ?? $row['stok_qty'] ?? $row['quantity'] ?? null;
             $stockQty = null;
