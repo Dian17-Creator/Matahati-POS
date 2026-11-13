@@ -94,6 +94,23 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 }
             }
 
+            // Parse Stok / QTY
+            $rawStockQty = $row['stock_qty'] ?? $row['stock'] ?? $row['qty'] ?? $row['stok'] ?? $row['stok_qty'] ?? $row['quantity'] ?? null;
+            $stockQty = null;
+            if ($rawStockQty !== null && trim((string)$rawStockQty) !== '') {
+                $trimmedStock = trim((string)$rawStockQty);
+                $cleanedStock = preg_replace('/[^0-9.-]/', '', $trimmedStock);
+                if ($cleanedStock !== '' && is_numeric($cleanedStock)) {
+                    $stockVal = floatval($cleanedStock);
+                    if ($stockVal < 0) {
+                        $this->results['failed']++;
+                        $this->results['errors'][] = "Row {$rowNum} ({$cname}): Jumlah stok/qty tidak valid atau bernilai negatif ({$trimmedStock})";
+                        continue;
+                    }
+                    $stockQty = $stockVal;
+                }
+            }
+
             // Parse foto
             // Jika ada foto, kita simpan teksnya. Jika null, null
             $photo = isset($row['photo_1']) && trim($row['photo_1']) !== '' ? trim($row['photo_1']) : null;
@@ -124,7 +141,10 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         $updateData['nprice_buy'] = $buyPrice;
                     }
 
-                    // Abaikan stok: nqty produk lama tidak diubah (tetap sesuai stok berjalan saat ini)
+                    // Perbarui stok (nqty) jika kolom stok/qty tersedia di baris import
+                    if ($stockQty !== null) {
+                        $updateData['nqty'] = $stockQty;
+                    }
 
                     $existing->update($updateData);
                     $this->results['updated']++;
@@ -136,7 +156,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
                         'nprice_buy' => $buyPrice ?? 0,
-                        'nqty' => 0, // Abaikan stok import, default 0 untuk produk baru
+                        'nqty' => $stockQty ?? 0,
                         'cphotos' => $photo,
                         'cstatus' => $status,
                         'fcombo' => 0,
