@@ -70,9 +70,14 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 ->first();
 
             if (!$category) {
-                $this->results['failed']++;
-                $this->results['errors'][] = "Row {$rowNum} ({$cname}): Category '{$categoryName}' tidak ditemukan untuk outlet id {$this->outletId}";
-                continue;
+                // Auto-create kategori untuk outlet ini jika belum terdaftar
+                $refCategory = MposGrpProduct::where(DB::raw('LOWER(cname)'), strtolower($categoryName))->first();
+                $category = MposGrpProduct::create([
+                    'nid_outlet' => $this->outletId,
+                    'cname' => $refCategory ? $refCategory->cname : $categoryName,
+                    'ftrack_stock' => $refCategory ? (bool)$refCategory->ftrack_stock : true,
+                    'fshow_pos' => $refCategory ? (bool)$refCategory->fshow_pos : true,
+                ]);
             }
 
             // Parse Harga Jual POS & Online
@@ -94,20 +99,35 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 }
             }
 
-            // Parse Stok / QTY
+            // Parse Stok / QTY (Logika Timpa/Replace Stok)
+            $hasStockColumn = array_key_exists('stock_qty', $row)
+                || array_key_exists('stock', $row)
+                || array_key_exists('qty', $row)
+                || array_key_exists('stok', $row)
+                || array_key_exists('stok_qty', $row)
+                || array_key_exists('quantity', $row);
+
             $rawStockQty = $row['stock_qty'] ?? $row['stock'] ?? $row['qty'] ?? $row['stok'] ?? $row['stok_qty'] ?? $row['quantity'] ?? null;
             $stockQty = null;
-            if ($rawStockQty !== null && trim((string)$rawStockQty) !== '') {
-                $trimmedStock = trim((string)$rawStockQty);
-                $cleanedStock = preg_replace('/[^0-9.-]/', '', $trimmedStock);
-                if ($cleanedStock !== '' && is_numeric($cleanedStock)) {
-                    $stockVal = floatval($cleanedStock);
-                    if ($stockVal < 0) {
-                        $this->results['failed']++;
-                        $this->results['errors'][] = "Row {$rowNum} ({$cname}): Jumlah stok/qty tidak valid atau bernilai negatif ({$trimmedStock})";
-                        continue;
+
+            if ($hasStockColumn) {
+                if ($rawStockQty !== null && trim((string)$rawStockQty) !== '') {
+                    $trimmedStock = trim((string)$rawStockQty);
+                    $cleanedStock = preg_replace('/[^0-9.-]/', '', $trimmedStock);
+                    if ($cleanedStock !== '' && is_numeric($cleanedStock)) {
+                        $stockVal = floatval($cleanedStock);
+                        if ($stockVal < 0) {
+                            $this->results['failed']++;
+                            $this->results['errors'][] = "Row {$rowNum} ({$cname}): Jumlah stok/qty tidak valid atau bernilai negatif ({$trimmedStock})";
+                            continue;
+                        }
+                        $stockQty = $stockVal;
+                    } else {
+                        $stockQty = 0;
                     }
-                    $stockQty = $stockVal;
+                } else {
+                    // Jika kolom stok disediakan tapi sel kosong, timpa menjadi 0
+                    $stockQty = 0;
                 }
             }
 
@@ -141,7 +161,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         $updateData['nprice_buy'] = $buyPrice;
                     }
 
-                    // Perbarui stok (nqty) jika kolom stok/qty tersedia di baris import
+                    // Timpa nilai stok (nqty): Berapapun stok lama di sistem langsung digantikan oleh stok Excel
                     if ($stockQty !== null) {
                         $updateData['nqty'] = $stockQty;
                     }
