@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/user/outlets', [AuthController::class, 'outlets']);
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
 Route::get('/products', [ProductController::class, 'apiIndex']);
