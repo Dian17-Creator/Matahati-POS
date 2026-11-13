@@ -400,8 +400,9 @@ class ShiftController extends Controller
             ->where('nid_user', $mposUser->nid)
             ->where('cstatus', 'CLOSED');
 
-        if ($request->filled('nid_outlet')) {
-            $query->where('nid_outlet', $request->input('nid_outlet'));
+        $outletFilter = $request->input('nid_outlet') ?? $request->input('outlet_id');
+        if ($outletFilter) {
+            $query->where('nid_outlet', $outletFilter);
         }
 
         if ($request->filled('date')) {

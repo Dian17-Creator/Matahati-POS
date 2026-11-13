@@ -25,6 +25,7 @@ class PosReportController extends Controller
                 'date_from' => 'required|date',
                 'date_to' => 'nullable|date|after_or_equal:date_from',
                 'nid_outlet' => 'nullable|integer',
+                'outlet_id' => 'nullable|integer',
                 'nid_category' => 'nullable|integer',
                 'nid_user' => 'nullable|integer',
             ]);
@@ -57,8 +58,9 @@ class PosReportController extends Controller
                 ->whereDate(DB::raw('COALESCE(sh.dpayment_date, parent.dpayment_date, parent.dtransaction, sh.dtransaction)'), '<=', $dateTo);
 
             // Apply optional filters
-            if ($request->filled('nid_outlet')) {
-                $query->where('sh.nid_outlet', $request->input('nid_outlet'));
+            $outletId = $request->input('nid_outlet') ?? $request->input('outlet_id');
+            if ($outletId) {
+                $query->where('sh.nid_outlet', $outletId);
             }
 
             if ($request->filled('nid_category')) {

@@ -15,12 +15,13 @@ class PosDashboardController extends Controller
         $validated = $request->validate([
             'date_from' => 'required|date_format:Y-m-d',
             'date_to' => 'required|date_format:Y-m-d|after_or_equal:date_from',
-            'nid_outlet' => 'nullable|integer'
+            'nid_outlet' => 'nullable|integer',
+            'outlet_id' => 'nullable|integer',
         ]);
 
         $dateFrom = $validated['date_from'];
         $dateTo = $validated['date_to'];
-        $nidOutlet = $validated['nid_outlet'] ?? null;
+        $nidOutlet = $validated['nid_outlet'] ?? $validated['outlet_id'] ?? $request->input('nid_outlet') ?? $request->input('outlet_id');
 
         // 1. Total Penjualan Bersih (Net Sales) = SUM(PAID + COMPLETED) + SUM(Reversals Baru < 0)
         $salesQuery = MposSalesH::where(function ($q) {
