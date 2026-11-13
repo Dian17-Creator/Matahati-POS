@@ -57,7 +57,7 @@ class ProductController extends Controller
 
         $customerId = $request->input('nid_customer') ?? $request->input('customer_id');
         $isReseller = false;
-        $resellerTypeId = null;
+        $resellerTypeIds = [];
 
         if (!empty($customerId)) {
             $customer = \App\Models\MposCust::with('type')->find($customerId);
@@ -65,27 +65,35 @@ class ProductController extends Controller
                 $typeName = strtoupper(trim((string) $customer->type->cname));
                 if ($typeName === 'RESELLER') {
                     $isReseller = true;
-                    $resellerTypeId = $customer->type->nid;
+                    $resellerTypeIds = MposCustType::whereRaw('UPPER(TRIM(cname)) = ?', ['RESELLER'])
+                        ->pluck('nid')
+                        ->toArray();
+                    if ($customer->type->nid && !in_array($customer->type->nid, $resellerTypeIds)) {
+                        $resellerTypeIds[] = $customer->type->nid;
+                    }
                 }
             }
         }
 
-        if ($isReseller && $resellerTypeId) {
-            // Filter: Hanya sertakan produk yang memiliki harga reseller untuk nid_cust_type ini
-            $query->whereHas('productPrices', function ($q) use ($resellerTypeId) {
-                $q->where('nid_cust_type', $resellerTypeId)
-                  ->where('nqty_start', 1);
+        if ($isReseller && !empty($resellerTypeIds)) {
+            // Filter: Hanya sertakan produk yang memiliki harga reseller untuk tipe RESELLER ini
+            $query->whereHas('productPrices', function ($q) use ($resellerTypeIds) {
+                $q->whereIn('nid_cust_type', $resellerTypeIds)
+                  ->where(function ($sq) {
+                      $sq->where('nqty_start', '<=', 1)
+                        ->orWhereNull('nqty_start');
+                  });
             });
 
-            $query->with(['productPrices' => function ($q) use ($resellerTypeId) {
-                $q->where('nid_cust_type', $resellerTypeId)
-                  ->where('nqty_start', 1);
+            $query->with(['productPrices' => function ($q) use ($resellerTypeIds) {
+                $q->whereIn('nid_cust_type', $resellerTypeIds)
+                  ->orderBy('nqty_start', 'asc');
             }]);
         }
 
         $products = $query->get();
 
-        if ($isReseller && $resellerTypeId) {
+        if ($isReseller && !empty($resellerTypeIds)) {
             // Override nprice dengan harga reseller dari mpos_product_price
             foreach ($products as $product) {
                 $resellerPriceObj = $product->productPrices->first();

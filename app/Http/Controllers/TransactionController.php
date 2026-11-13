@@ -308,7 +308,7 @@ class TransactionController extends Controller
         // Cek apakah Customer ber-tipe Reseller
         $customerId = $validated['nid_customer'] ?? null;
         $isReseller = false;
-        $resellerTypeId = null;
+        $resellerTypeIds = [];
 
         if (!empty($customerId)) {
             $customer = \App\Models\MposCust::with('type')->find($customerId);
@@ -316,7 +316,12 @@ class TransactionController extends Controller
                 $typeName = strtoupper(trim((string) $customer->type->cname));
                 if ($typeName === 'RESELLER') {
                     $isReseller = true;
-                    $resellerTypeId = $customer->type->nid;
+                    $resellerTypeIds = \App\Models\MposCustType::whereRaw('UPPER(TRIM(cname)) = ?', ['RESELLER'])
+                        ->pluck('nid')
+                        ->toArray();
+                    if ($customer->type->nid && !in_array($customer->type->nid, $resellerTypeIds)) {
+                        $resellerTypeIds[] = $customer->type->nid;
+                    }
                 }
             }
         }
@@ -402,10 +407,14 @@ class TransactionController extends Controller
                     $isOnlineOrder = ($orderType === 'ONLINE');
                     $price = (float) $product->nprice;
 
-                    if ($isReseller && $resellerTypeId) {
+                    if ($isReseller && !empty($resellerTypeIds)) {
                         $resellerPriceRecord = \App\Models\MposProductPrice::where('nid_product', $product->nid)
-                            ->where('nid_cust_type', $resellerTypeId)
-                            ->where('nqty_start', 1)
+                            ->whereIn('nid_cust_type', $resellerTypeIds)
+                            ->where(function ($sq) {
+                                $sq->where('nqty_start', '<=', 1)
+                                   ->orWhereNull('nqty_start');
+                            })
+                            ->orderBy('nqty_start', 'asc')
                             ->first();
 
                         if ($resellerPriceRecord && $resellerPriceRecord->nprice !== null) {
