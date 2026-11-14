@@ -76,6 +76,11 @@
                     <i class="bi bi-box-arrow-in-down me-1"></i> Import
                 </button> -->
 
+        <!-- Tombol Import PDF -->
+        <button type="button" class="btn btn-outline-danger btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importStockOutPdfModal">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
+        </button>
+
         <!-- Tombol + Tambah dengan Dropdown (Persis Olsera Image 2) -->
         <div class="dropdown d-inline-block">
             <button type="button" class="btn btn-success btn-sm px-3 dropdown-toggle shadow-sm fw-semibold" data-bs-toggle="dropdown" aria-expanded="false">
@@ -212,6 +217,78 @@
     {{ $stockOuts->links() }}
 </div>
 @endif
+
+<!-- ==================== MODAL IMPORT STOK KELUAR DARI PDF ==================== -->
+<div class="modal fade" id="importStockOutPdfModal" tabindex="-1" aria-labelledby="importStockOutPdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form action="{{ route('inventory.stock-out.import-pdf') }}" method="POST" enctype="multipart/form-data" id="importStockOutPdfForm">
+                @csrf
+                <div class="modal-header bg-light-subtle py-3 border-bottom">
+                    <h5 class="modal-title fw-bold" id="importStockOutPdfModalLabel">
+                        <i class="bi bi-file-earmark-pdf text-danger me-2"></i>Import Stok Keluar dari PDF
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info border-0 bg-info-subtle text-info-emphasis small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Unggah dokumen stok keluar / transfer dalam format PDF (misal: Olsera/IQOS). Sistem otomatis membaca nomor dokumen, tanggal, mencocokkan produk, qty, dan harga satuan.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Outlet Asal Stok <span class="text-danger">*</span></label>
+                        @if($isOutletLocked || !empty($selectedOutletId))
+                        @php
+                            $lockedOutlet = $outlets->firstWhere('nid', $selectedOutletId);
+                        @endphp
+                        <input type="text" class="form-control bg-light" value="{{ $lockedOutlet?->cname ?? 'Outlet Terpilih' }}" readonly>
+                        <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                        <div class="form-text text-muted small">Mengikuti outlet yang sedang aktif di pojok kanan atas.</div>
+                        @else
+                        <select name="nid_outlet" class="form-select" required>
+                            <option value="">-- Pilih Outlet Asal --</option>
+                            @foreach($outlets as $outlet)
+                            <option value="{{ $outlet->nid }}">{{ $outlet->cname }}</option>
+                            @endforeach
+                        </select>
+                        @endif
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Outlet Tujuan Transfer (Opsional)</label>
+                        <select name="nid_target_outlet" class="form-select">
+                            <option value="">-- Bukan Transfer (Stok Keluar Biasa) --</option>
+                            @foreach($outlets as $outlet)
+                            @if(empty($selectedOutletId) || (int) $outlet->nid !== (int) $selectedOutletId)
+                            <option value="{{ $outlet->nid }}">{{ $outlet->cname }}</option>
+                            @endif
+                            @endforeach
+                        </select>
+                        <div class="form-text text-muted small">Isi hanya jika dokumen ini adalah transfer stok ke outlet lain.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Alasan / Keterangan (Opsional)</label>
+                        <input type="text" name="creason" class="form-control" maxlength="100" placeholder="Misal: Transfer cabang, retur, rusak, dll.">
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small">File PDF Dokumen <span class="text-danger">*</span></label>
+                        <input type="file" name="pdf_file" class="form-control" accept=".pdf,application/pdf" required>
+                        <div class="form-text text-muted small">Format `.pdf`, maksimal 10 MB. Dokumen akan disimpan sebagai <strong>Draft</strong> agar bisa diperiksa terlebih dahulu.</div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light-subtle py-2 px-4">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger btn-sm px-4 fw-semibold">
+                        <i class="bi bi-upload me-1"></i> Mulai Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- ==================== MODAL TAMBAH STOK KELUAR (MIRIP MODAL PEMBELIAN BARU) ==================== -->
 <div class="modal fade" id="createStockOutModal" tabindex="-1" aria-labelledby="createStockOutModalLabel" aria-hidden="true">
