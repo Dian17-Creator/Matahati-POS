@@ -100,6 +100,7 @@ Route::middleware(['auth'])->group(function () {
     // Inventori Routes
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('/', [InventoryController::class, 'index'])->name('index');
+        Route::post('/stock-in/import-pdf', [InventoryController::class, 'importStockInPdf'])->name('stock-in.import-pdf');
         Route::post('/stock-in', [InventoryController::class, 'storeStockIn'])->name('stock-in.store');
         Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
         Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
@@ -134,8 +135,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/stock-opname/{id}/print', [InventoryController::class, 'printStockOpname'])->name('stock-opname.print');
         Route::get('/stock-opname/{id}/export-excel', [InventoryController::class, 'exportStockOpnameExcel'])->name('stock-opname.export-excel');
 
-        // Pergerakan Stok Export
+        // Pergerakan Stok Export & Import
         Route::get('/movement/export-excel', [InventoryController::class, 'exportStockMovementExcel'])->name('movement.export-excel');
+        Route::post('/movement/import-olsera', [InventoryController::class, 'importOlseraStockMovement'])->name('movement.import-olsera');
 
         // Produksi Stok Routes
         Route::post('/production', [InventoryController::class, 'storeProduction'])->name('production.store');

@@ -258,6 +258,47 @@
     </div>
     @endif
 
+    <!-- Alert Peringatan Selisih Harga Beli Dokumen PDF vs Master Sistem -->
+    @if(session('price_warnings') && count(session('price_warnings')) > 0)
+    <div class="alert alert-warning border-warning alert-dismissible fade show mb-3 shadow-sm" role="alert">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-exclamation-triangle-fill text-warning fs-5 me-2 mt-1"></i>
+            <div class="w-100">
+                <div class="fw-bold mb-1 text-dark">Peringatan: Ditemukan Selisih Harga Beli!</div>
+                <div class="small mb-2 text-dark">Terdapat <strong>{{ count(session('price_warnings')) }} produk</strong> pada dokumen PDF yang memiliki harga beli berbeda dengan harga beli master sistem:</div>
+                <div class="table-responsive bg-white rounded border">
+                    <table class="table table-sm table-bordered mb-0 small">
+                        <thead class="table-light text-secondary">
+                            <tr>
+                                <th class="px-2 py-1">Nama Produk</th>
+                                <th class="text-end px-2 py-1">Harga Master Sistem</th>
+                                <th class="text-end px-2 py-1">Harga Dokumen PDF</th>
+                                <th class="text-end px-2 py-1">Selisih</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(session('price_warnings') as $pw)
+                            <tr>
+                                <td class="fw-semibold px-2 py-1">{{ $pw['cname'] }}</td>
+                                <td class="text-end text-muted px-2 py-1">Rp {{ number_format($pw['master_cost'], 0, ',', '.') }}</td>
+                                <td class="text-end fw-bold text-dark px-2 py-1">Rp {{ number_format($pw['pdf_cost'], 0, ',', '.') }}</td>
+                                <td class="text-end px-2 py-1 {{ $pw['diff'] > 0 ? 'text-danger fw-bold' : 'text-success fw-bold' }}">
+                                    {{ $pw['diff'] > 0 ? '+' : '' }}Rp {{ number_format($pw['diff'], 0, ',', '.') }}
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="small text-muted mt-2">
+                    <i class="bi bi-info-circle me-1"></i>Harga beli pada baris draf Stok Masuk ini menggunakan nominal dari dokumen PDF. Silakan periksa kembali sebelum melakukan konfirmasi posting.
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     <!-- Alert Status Dokumen -->
     <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
         <i class="bi bi-exclamation-circle text-muted fs-5 me-3"></i>
@@ -520,6 +561,13 @@
                             </div>
                             @else
                             Rp {{ number_format((float) $detail->ncost, 0, ',', '.') }}
+                            @endif
+                            @if($detail->product && (float)$detail->product->nprice_buy > 0 && abs((float)$detail->product->nprice_buy - (float)$detail->ncost) > 0.01)
+                            <div class="mt-1">
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-0 px-1 small" title="Harga Master Sistem: Rp {{ number_format((float)$detail->product->nprice_buy, 0, ',', '.') }}">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Beda Master (Rp {{ number_format((float)$detail->product->nprice_buy, 0, ',', '.') }})
+                                </span>
+                            </div>
                             @endif
                         </td>
                         <td class="text-end text-dark fw-bold pe-3" id="subtotal-cell-{{ $detail->nid }}">
