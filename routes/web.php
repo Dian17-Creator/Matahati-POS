@@ -111,6 +111,7 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/stock-in/{id}/items/{itemId}', [InventoryController::class, 'updateStockInItem'])->name('stock-in.items.update');
         Route::delete('/stock-in/{id}/items/{itemId}', [InventoryController::class, 'destroyStockInItem'])->name('stock-in.items.destroy');
         Route::get('/stock-in/{id}/print', [InventoryController::class, 'printStockIn'])->name('stock-in.print');
+        Route::post('/stock-out/import-pdf', [InventoryController::class, 'importStockOutPdf'])->name('stock-out.import-pdf');
         Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
         Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');
         Route::put('/stock-out/{id}', [InventoryController::class, 'updateStockOutHeader'])->name('stock-out.update');

@@ -258,6 +258,35 @@
     </div>
     @endif
 
+    @if(session('price_warnings') && count(session('price_warnings')) > 0)
+    <div class="alert alert-warning alert-dismissible fade show mb-3 shadow-sm" role="alert">
+        <div class="fw-bold mb-2">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Peringatan Perbedaan Harga Beli (PDF vs Master Produk)
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered bg-white mb-0 small">
+                <thead class="table-warning">
+                    <tr>
+                        <th>Produk</th>
+                        <th class="text-end">Harga di PDF</th>
+                        <th class="text-end">Harga Beli Master</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach(session('price_warnings') as $pw)
+                    <tr>
+                        <td class="fw-semibold">{{ $pw['product'] }}</td>
+                        <td class="text-end text-danger fw-semibold">Rp {{ number_format((float) $pw['pdf_price'], 0, ',', '.') }}</td>
+                        <td class="text-end text-success fw-semibold">Rp {{ number_format((float) $pw['master_price'], 0, ',', '.') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     <!-- Alert Notifikasi Olsera -->
     <div class="alert alert-light detail-card shadow-sm d-flex align-items-center mb-3 py-3 px-4 rounded-3 text-secondary" style="background-color: #f8fafc;">
         <i class="bi bi-exclamation-circle text-muted fs-5 me-3"></i>
@@ -502,7 +531,14 @@
                             @endif
                         </td>
                         <td class="text-end text-secondary fw-semibold pe-3">
-                            Rp {{ number_format((float) $detail->ncost, 0, ',', '.') }}
+                            <div>Rp {{ number_format((float) $detail->ncost, 0, ',', '.') }}</div>
+                            @if($detail->product && (float) $detail->product->nprice_buy > 0 && abs((float) $detail->product->nprice_buy - (float) $detail->ncost) > 0.01)
+                            <div class="small text-warning-emphasis mt-1" title="Harga beli di Master Produk: Rp {{ number_format((float) $detail->product->nprice_buy, 0, ',', '.') }}">
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Beda Master (Rp {{ number_format((float) $detail->product->nprice_buy, 0, ',', '.') }})
+                                </span>
+                            </div>
+                            @endif
                         </td>
                         <td class="text-end text-dark fw-bold pe-3" id="subtotal-cell-{{ $detail->nid }}">
                             Rp {{ number_format((float) $detail->nsubtotal, 0, ',', '.') }}

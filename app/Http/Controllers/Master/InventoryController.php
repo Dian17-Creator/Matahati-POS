@@ -573,151 +573,20 @@ class InventoryController extends Controller
         ]);
 
         try {
-            $file = $request->file('pdf_file');
-            $parser = new \Smalot\PdfParser\Parser();
-            $pdf = $parser->parseFile($file->getPathname());
-            $fullText = $pdf->getText();
-
-            if (empty(trim($fullText))) {
-                return redirect()->back()
-                    ->with('error', 'Dokumen PDF tidak terbaca atau tidak memiliki teks yang dapat diekstrak.')
-                    ->withInput();
+            $parsed = $this->parseStockDocumentPdf($request->file('pdf_file'), 'IN');
+            if (!$parsed['success']) {
+                return redirect()->back()->with('error', $parsed['error'])->withInput();
             }
 
-            // 1. Ekstrak No Stok Masuk / Dokumen Referensi
-            $pdfDocNumber = null;
-            if (preg_match('#\b(IN\d{8,}[A-Za-z0-9_-]*)\b#i', $fullText, $mIn)) {
-                $pdfDocNumber = trim($mIn[1]);
-            } elseif (preg_match('#(?:\bNo\.?\s*Stok\s*Masuk|Stock\s*In\s*No\.?)\s*[:\#\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
-                $cand = trim($m[1]);
-                if (!in_array(strtolower($cand), ['tanggal', 'tgl', 'supplier', 'posted', 'produk'])) {
-                    $pdfDocNumber = $cand;
-                }
-            }
-
-            // Cek jika nomor stok masuk ini sudah pernah di-import
+            $pdfDocNumber = $parsed['doc_number'];
             if ($pdfDocNumber && MposStockMutation::where('cno_ref', $pdfDocNumber)->exists()) {
                 return redirect()->back()
                     ->with('error', "Dokumen Stok Masuk {$pdfDocNumber} sudah pernah di-import ke sistem sebelumnya.")
                     ->withInput();
             }
 
-            // 2. Ekstrak Tanggal Stok Masuk
-            $dStockIn = Carbon::now();
-            if (preg_match('#(?:\bTanggal|Date)\s*[:\s]+([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $mDate)) {
-                $dStockIn = $this->parsePdfDate($mDate[1]);
-            }
-            $dStockIn = $dStockIn->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
-
-            // 3. Ekstrak Email / User Pembuat Dokumen
-            $postedBy = null;
-            if (preg_match('#\bPosted\s*:\s*([^\r\n]+)#i', $fullText, $mPost)) {
-                $postedBy = trim($mPost[1]);
-            }
-
-            // 4. Ekstrak Item-item Produk Stok Masuk
-            $lines = preg_split('/\r\n|\r|\n/', $fullText);
-            $parsedItems = [];
-
-            // Pre-processing baris teks
-            $processedLines = [];
-            for ($idx = 0; $idx < count($lines); $idx++) {
-                $cur = trim(preg_replace('/\t+/', ' ', $lines[$idx]));
-                if (empty($cur)) {
-                    continue;
-                }
-                if (preg_match('#^[0-9.,]+$#', $cur) && count($processedLines) > 0) {
-                    $lastIdx = count($processedLines) - 1;
-                    if (preg_match('#(?:IDR|Rp|\s)$#i', $processedLines[$lastIdx])) {
-                        $processedLines[$lastIdx] .= ' ' . $cur;
-                        continue;
-                    }
-                }
-                $processedLines[] = $cur;
-            }
-
-            // Pola 1: Baris tabel lengkap dalam 1 baris
-            // Format: [#] [Nama Produk] [Qty] [Unit] [IDR/Rp] [Harga Beli] [IDR/Rp] [Jumlah]
-            $tableRowPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            // Pola 2: Angka berada di baris setelah nama produk
-            $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            // Pola 3: Fallback tanpa unit pengukuran
-            $fallbackPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
-
-            $ignoreKeywords = [
-                '#', 'produk', 'qty', 'harga beli', 'jumlah', 'no. stok masuk',
-                'tanggal :', 'supplier :', 'posted :', 'total', 'subtotal',
-                'diterima', 'catatan', 'status', 'iqos', 'halaman'
-            ];
-
-            $cleanLines = [];
-            foreach ($processedLines as $line) {
-                $lowerLine = strtolower($line);
-                $shouldSkip = false;
-                foreach ($ignoreKeywords as $kw) {
-                    if (str_starts_with($lowerLine, $kw) || $lowerLine === $kw) {
-                        $shouldSkip = true;
-                        break;
-                    }
-                }
-                if ($shouldSkip) {
-                    continue;
-                }
-                $cleanLines[] = $line;
-            }
-
-            for ($i = 0; $i < count($cleanLines); $i++) {
-                $currentLine = $cleanLines[$i];
-                $rawItemName = null;
-                $qty = 0.0;
-                $unit = 'PCS';
-                $cost = 0.0;
-                $subtotal = 0.0;
-
-                if (preg_match($tableRowPattern, $currentLine, $matches)) {
-                    $rawItemName = trim($matches[2]);
-                    $qty = (float) $this->parseIndonesianNumber($matches[3]);
-                    $unit = trim($matches[4]);
-                    $cost = $this->parseIndonesianNumber($matches[5]);
-                    $subtotal = isset($matches[6]) ? $this->parseIndonesianNumber($matches[6]) : ($qty * $cost);
-                } elseif ($i > 0 && preg_match($numbersOnlyPattern, $currentLine, $matches)) {
-                    $prevLine = $cleanLines[$i - 1];
-                    if (!preg_match($numbersOnlyPattern, $prevLine) && !preg_match($tableRowPattern, $prevLine)) {
-                        $rawItemName = trim(preg_replace('/^\d+[\s.)-]+\s*/', '', $prevLine));
-                        $qty = (float) $this->parseIndonesianNumber($matches[1]);
-                        $unit = trim($matches[2]);
-                        $cost = $this->parseIndonesianNumber($matches[3]);
-                        $subtotal = isset($matches[4]) ? $this->parseIndonesianNumber($matches[4]) : ($qty * $cost);
-                    }
-                } elseif (preg_match($fallbackPattern, $currentLine, $matches)) {
-                    $rawItemName = trim($matches[2]);
-                    $qty = (float) $this->parseIndonesianNumber($matches[3]);
-                    $cost = $this->parseIndonesianNumber($matches[4]);
-                    $subtotal = isset($matches[5]) ? $this->parseIndonesianNumber($matches[5]) : ($qty * $cost);
-                }
-
-                if ($rawItemName && $qty > 0) {
-                    $cleanName = trim(preg_replace('/^\d+[\s.)-]+\s*/', '', $rawItemName));
-                    $cleanName = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $cleanName));
-                    $parsedItems[] = [
-                        'raw_name' => $rawItemName,
-                        'clean_name' => $cleanName,
-                        'qty' => $qty,
-                        'unit' => strtoupper($unit ?: 'PCS'),
-                        'cost' => $cost,
-                        'subtotal' => $subtotal > 0 ? $subtotal : ($qty * $cost),
-                    ];
-                }
-            }
-
-            if (empty($parsedItems)) {
-                return redirect()->back()
-                    ->with('error', 'Tidak ditemukan item produk pada dokumen PDF tersebut. Pastikan format tabel sesuai.')
-                    ->withInput();
-            }
-
+            $dStockIn = $parsed['date'];
+            $postedBy = $parsed['posted_by'];
             $targetOutletId = (int) $request->input('nid_outlet');
             $supplier = MposSupplier::find($request->input('nid_supplier'));
             $supplierName = $supplier ? $supplier->cname : 'Supplier';
@@ -731,79 +600,20 @@ class InventoryController extends Controller
             $priceWarnings = [];
             $itemsCount = 0;
 
-            foreach ($parsedItems as $item) {
-                $cname = $item['clean_name'];
+            foreach ($parsed['items'] as $item) {
                 $itemCost = (float) $item['cost'];
                 $itemQty = (float) $item['qty'];
                 $itemSubtotal = (float) $item['subtotal'];
 
-                // 1. Cari exact match di outlet tujuan
-                $product = MposProduct::where('nid_outlet', $targetOutletId)
-                    ->where(function ($q) use ($item, $cname) {
-                        $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
-                          ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($item['raw_name']))]);
-                    })
-                    ->first();
+                $product = $this->resolveOrCreatePdfProduct(
+                    $item['clean_name'],
+                    $item['raw_name'],
+                    $targetOutletId,
+                    $itemCost,
+                    $item['unit']
+                );
 
-                // 2. Partial query jika belum match
-                if (!$product) {
-                    $partialQuery = MposProduct::where('nid_outlet', $targetOutletId)
-                        ->where(function ($q) use ($item, $cname) {
-                            $q->whereRaw('LOWER(cname) LIKE ?', ['%' . strtolower($cname) . '%'])
-                              ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(cname), "%")', [strtolower($cname)]);
-                        });
-
-                    if (!str_contains(strtolower($cname), 'kdr')) {
-                        $partialQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
-                    }
-
-                    $product = $partialQuery->first();
-                }
-
-                // 3. Jika belum ada di outlet tujuan, cari di outlet lain untuk disalin
-                if (!$product) {
-                    $otherProductQuery = MposProduct::where(function ($q) use ($item, $cname) {
-                        $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
-                          ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($item['raw_name']))]);
-                    });
-
-                    if (!str_contains(strtolower($cname), 'kdr')) {
-                        $otherProductQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
-                    }
-
-                    $otherProduct = $otherProductQuery->first();
-
-                    if ($otherProduct) {
-                        $product = $this->resolveOrCreateOutletProduct($otherProduct, $targetOutletId, $itemCost);
-                    }
-                }
-
-                // 4. Jika produk sama sekali belum ada di database, buat baru
-                if (!$product) {
-                    $firstCat = MposGrpProduct::where('nid_outlet', $targetOutletId)->first()
-                        ?? MposGrpProduct::first();
-
-                    $productPayload = [
-                        'cname' => $cname,
-                        'nid_category' => $firstCat ? $firstCat->nid : 1,
-                        'nid_outlet' => $targetOutletId,
-                        'nprice' => $itemCost > 0 ? $itemCost : 0,
-                        'nprice_online' => $itemCost > 0 ? $itemCost : 0,
-                        'nprice_buy' => $itemCost,
-                        'nqty' => 0,
-                        'cstatus' => 'ACTIVE',
-                        'fcombo' => 0,
-                    ];
-                    if (MposProduct::hasSatuanColumn()) {
-                        $productPayload['csatuan'] = $item['unit'] ?? 'PCS';
-                    }
-                    if (MposProduct::hasProductTypeColumn()) {
-                        $productPayload['cproduct_type'] = MposPurchaseD::TYPE_PRODUK;
-                    }
-                    $product = MposProduct::create($productPayload);
-                }
-
-                // PERIKSA SELISIH HARGA BELI (Paling penting: warning jika harga beli master sistem berbeda dengan PDF)
+                // Periksa selisih harga beli (PDF vs master sistem)
                 $masterCost = (float) ($product->nprice_buy ?? 0);
                 if ($masterCost > 0 && abs($masterCost - $itemCost) > 0.01) {
                     $priceWarnings[] = [
@@ -816,7 +626,6 @@ class InventoryController extends Controller
 
                 $normalizedType = MposStockMutation::normalizeItemType($product->cproduct_type ?? 'PRODUCT');
 
-                // Simpan baris item ke mpos_stock_mutations dengan status DRAFT
                 MposStockMutation::create([
                     'cno_ref' => $stockInNumber,
                     'dmutation' => $dStockIn,
@@ -860,6 +669,348 @@ class InventoryController extends Controller
                 ->with('error', 'Gagal meng-import PDF Stok Masuk: ' . $e->getMessage())
                 ->withInput();
         }
+    }
+
+    /**
+     * Import Dokumen Stok Keluar dari PDF (format Olsera / IQOS)
+     */
+    public function importStockOutPdf(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'nid_outlet' => 'required|exists:mpos_outlet,nid',
+            'nid_target_outlet' => 'nullable|different:nid_outlet|exists:mpos_outlet,nid',
+            'creason' => 'nullable|string|max:100',
+            'pdf_file' => 'required|file|mimes:pdf|max:10240',
+        ], [
+            'nid_outlet.required' => 'Outlet asal wajib dipilih.',
+            'nid_target_outlet.different' => 'Outlet tujuan transfer tidak boleh sama dengan outlet asal.',
+            'pdf_file.required' => 'File PDF wajib diunggah.',
+            'pdf_file.mimes' => 'Format file harus berupa PDF (.pdf).',
+            'pdf_file.max' => 'Ukuran file PDF maksimal 10MB.',
+        ]);
+
+        try {
+            $parsed = $this->parseStockDocumentPdf($request->file('pdf_file'), 'OUT');
+            if (!$parsed['success']) {
+                return redirect()->back()->with('error', $parsed['error'])->withInput();
+            }
+
+            $pdfDocNumber = $parsed['doc_number'];
+            if ($pdfDocNumber && MposStockMutation::where('cno_ref', $pdfDocNumber)->exists()) {
+                return redirect()->back()
+                    ->with('error', "Dokumen Stok Keluar {$pdfDocNumber} sudah pernah di-import ke sistem sebelumnya.")
+                    ->withInput();
+            }
+
+            $dStockOut = $parsed['date'];
+            $postedBy = $parsed['posted_by'];
+            $originOutletId = (int) $request->input('nid_outlet');
+            $targetOutletId = $request->filled('nid_target_outlet') ? (int) $request->input('nid_target_outlet') : null;
+            $isTransfer = !empty($targetOutletId);
+
+            $stockOutNumber = $pdfDocNumber ?: MposStockMutation::generateNumber('OUT', $dStockOut);
+            $reason = $request->filled('creason')
+                ? trim((string) $request->input('creason'))
+                : ($isTransfer ? 'Transfer Antar Toko' : 'Stok Keluar (Import PDF)');
+            $note = 'Import PDF Stok Keluar' . ($pdfDocNumber ? " #{$pdfDocNumber}" : '') . ($postedBy ? " (Posted: {$postedBy})" : '');
+
+            DB::beginTransaction();
+
+            $priceWarnings = [];
+            $itemsCount = 0;
+
+            foreach ($parsed['items'] as $item) {
+                $itemCost = (float) $item['cost'];
+                $itemQty = (float) $item['qty'];
+                $itemSubtotal = (float) $item['subtotal'];
+
+                $product = $this->resolveOrCreatePdfProduct(
+                    $item['clean_name'],
+                    $item['raw_name'],
+                    $originOutletId,
+                    $itemCost,
+                    $item['unit']
+                );
+
+                // Periksa selisih harga beli / HPP antara PDF dan master sistem
+                $masterCost = (float) ($product->nprice_buy ?? 0);
+                if ($masterCost > 0 && $itemCost > 0 && abs($masterCost - $itemCost) > 0.01) {
+                    $priceWarnings[] = [
+                        'cname' => $product->cname,
+                        'master_cost' => $masterCost,
+                        'pdf_cost' => $itemCost,
+                        'diff' => $itemCost - $masterCost,
+                    ];
+                }
+
+                $finalCost = $itemCost > 0 ? $itemCost : $masterCost;
+                $finalSubtotal = $itemSubtotal > 0 ? $itemSubtotal : ($itemQty * $finalCost);
+                $normalizedType = MposStockMutation::normalizeItemType($product->cproduct_type ?? 'PRODUCT');
+
+                MposStockMutation::create([
+                    'cno_ref' => $stockOutNumber,
+                    'dmutation' => $dStockOut,
+                    'ctype' => MposStockMutation::TYPE_OUT,
+                    'nid_outlet' => $originOutletId,
+                    'nid_target_outlet' => $targetOutletId,
+                    'nid_user' => Auth::id() ?? 1,
+                    'citem_type' => $normalizedType,
+                    'nid_product' => $product->nid,
+                    'nid_ingredient' => null,
+                    'nqty' => $itemQty,
+                    'ncost' => $finalCost,
+                    'nsubtotal' => $finalSubtotal,
+                    'creason' => $reason,
+                    'cstatus' => MposStockMutation::STATUS_DRAFT,
+                    'cnote' => $note,
+                    'dexpired' => null,
+                    'crack' => null,
+                    'dcreated' => Carbon::now(),
+                    'dupdated' => Carbon::now(),
+                ]);
+
+                $itemsCount++;
+            }
+
+            DB::commit();
+
+            $successMsg = "Dokumen Stok Keluar {$stockOutNumber} berhasil di-import dari PDF dengan {$itemsCount} item produk sebagai Draf.";
+            if (!empty($priceWarnings)) {
+                $countDiff = count($priceWarnings);
+                $successMsg .= " (Perhatian: Terdapat {$countDiff} produk dengan selisih harga beli antara PDF dan master sistem).";
+            }
+
+            return redirect()->route('inventory.stock-out.show', $stockOutNumber)
+                ->with('success', $successMsg)
+                ->with('price_warnings', $priceWarnings);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Gagal meng-import PDF Stok Keluar: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    /**
+     * Helper bersama untuk parsing PDF Stok Masuk / Stok Keluar (format Olsera / IQOS)
+     */
+    protected function parseStockDocumentPdf(\Illuminate\Http\UploadedFile $file, string $docType = 'IN'): array
+    {
+        $parser = new \Smalot\PdfParser\Parser();
+        $pdf = $parser->parseFile($file->getPathname());
+        $fullText = $pdf->getText();
+
+        if (empty(trim($fullText))) {
+            return [
+                'success' => false,
+                'error' => 'Dokumen PDF tidak terbaca atau tidak memiliki teks yang dapat diekstrak.',
+            ];
+        }
+
+        // 1. Ekstrak Nomor Dokumen Referensi (IN... atau OUT...)
+        $pdfDocNumber = null;
+        $prefixRegex = $docType === 'OUT' ? 'OUT' : 'IN';
+        if (preg_match("#\b({$prefixRegex}\d{8,}[A-Za-z0-9_-]*)\b#i", $fullText, $mDoc)) {
+            $pdfDocNumber = trim($mDoc[1]);
+        } elseif (preg_match('#(?:\bNo\.?\s*Stok\s*(?:Masuk|Keluar)|Stock\s*(?:In|Out)\s*No\.?)\s*[:\#\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
+            $cand = trim($m[1]);
+            if (!in_array(strtolower($cand), ['tanggal', 'tgl', 'supplier', 'posted', 'produk', 'alasan'])) {
+                $pdfDocNumber = $cand;
+            }
+        }
+
+        // 2. Ekstrak Tanggal Dokumen
+        $docDate = Carbon::now();
+        if (preg_match('#(?:\bTanggal|Date)\s*[:\s]+([0-9]{1,2}\s*[-/ ]\s*[A-Za-z0-9]{2,9}\s*[-/ ]\s*[0-9]{4})#i', $fullText, $mDate)) {
+            $docDate = $this->parsePdfDate($mDate[1]);
+        }
+        $docDate = $docDate->setTime(Carbon::now()->hour, Carbon::now()->minute, Carbon::now()->second);
+
+        // 3. Ekstrak Email / User Pembuat Dokumen
+        $postedBy = null;
+        if (preg_match('#\bPosted\s*:\s*([^\r\n]+)#i', $fullText, $mPost)) {
+            $postedBy = trim($mPost[1]);
+        }
+
+        // 4. Ekstrak Item-item Produk
+        $lines = preg_split('/\r\n|\r|\n/', $fullText);
+        $parsedItems = [];
+
+        $processedLines = [];
+        for ($idx = 0; $idx < count($lines); $idx++) {
+            $cur = trim(preg_replace('/\t+/', ' ', $lines[$idx]));
+            if (empty($cur)) {
+                continue;
+            }
+            if (preg_match('#^[0-9.,]+$#', $cur) && count($processedLines) > 0) {
+                $lastIdx = count($processedLines) - 1;
+                if (preg_match('#(?:IDR|Rp|\s)$#i', $processedLines[$lastIdx])) {
+                    $processedLines[$lastIdx] .= ' ' . $cur;
+                    continue;
+                }
+            }
+            $processedLines[] = $cur;
+        }
+
+        $tableRowPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+        $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+        $fallbackPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+
+        $ignoreKeywords = [
+            '#', 'produk', 'qty', 'harga beli', 'jumlah', 'no. stok masuk', 'no. stok keluar',
+            'tanggal :', 'supplier :', 'posted :', 'total', 'subtotal',
+            'diterima', 'catatan', 'status', 'iqos', 'halaman', 'alasan :', 'tujuan :'
+        ];
+
+        $cleanLines = [];
+        foreach ($processedLines as $line) {
+            $lowerLine = strtolower($line);
+            $shouldSkip = false;
+            foreach ($ignoreKeywords as $kw) {
+                if (str_starts_with($lowerLine, $kw) || $lowerLine === $kw) {
+                    $shouldSkip = true;
+                    break;
+                }
+            }
+            if ($shouldSkip) {
+                continue;
+            }
+            $cleanLines[] = $line;
+        }
+
+        for ($i = 0; $i < count($cleanLines); $i++) {
+            $currentLine = $cleanLines[$i];
+            $rawItemName = null;
+            $qty = 0.0;
+            $unit = 'PCS';
+            $cost = 0.0;
+            $subtotal = 0.0;
+
+            if (preg_match($tableRowPattern, $currentLine, $matches)) {
+                $rawItemName = trim($matches[2]);
+                $qty = (float) $this->parseIndonesianNumber($matches[3]);
+                $unit = trim($matches[4]);
+                $cost = $this->parseIndonesianNumber($matches[5]);
+                $subtotal = isset($matches[6]) ? $this->parseIndonesianNumber($matches[6]) : ($qty * $cost);
+            } elseif ($i > 0 && preg_match($numbersOnlyPattern, $currentLine, $matches)) {
+                $prevLine = $cleanLines[$i - 1];
+                if (!preg_match($numbersOnlyPattern, $prevLine) && !preg_match($tableRowPattern, $prevLine)) {
+                    $rawItemName = trim(preg_replace('/^\d+[\s.)-]+\s*/', '', $prevLine));
+                    $qty = (float) $this->parseIndonesianNumber($matches[1]);
+                    $unit = trim($matches[2]);
+                    $cost = $this->parseIndonesianNumber($matches[3]);
+                    $subtotal = isset($matches[4]) ? $this->parseIndonesianNumber($matches[4]) : ($qty * $cost);
+                }
+            } elseif (preg_match($fallbackPattern, $currentLine, $matches)) {
+                $rawItemName = trim($matches[2]);
+                $qty = (float) $this->parseIndonesianNumber($matches[3]);
+                $cost = $this->parseIndonesianNumber($matches[4]);
+                $subtotal = isset($matches[5]) ? $this->parseIndonesianNumber($matches[5]) : ($qty * $cost);
+            }
+
+            if ($rawItemName && $qty > 0) {
+                $cleanName = trim(preg_replace('/^\d+[\s.)-]+\s*/', '', $rawItemName));
+                $cleanName = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $cleanName));
+                $parsedItems[] = [
+                    'raw_name' => $rawItemName,
+                    'clean_name' => $cleanName,
+                    'qty' => $qty,
+                    'unit' => strtoupper($unit ?: 'PCS'),
+                    'cost' => $cost,
+                    'subtotal' => $subtotal > 0 ? $subtotal : ($qty * $cost),
+                ];
+            }
+        }
+
+        if (empty($parsedItems)) {
+            return [
+                'success' => false,
+                'error' => 'Tidak ditemukan item produk pada dokumen PDF tersebut. Pastikan format tabel sesuai.',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'doc_number' => $pdfDocNumber,
+            'date' => $docDate,
+            'posted_by' => $postedBy,
+            'items' => $parsedItems,
+        ];
+    }
+
+    /**
+     * Helper mencocokkan atau membuat produk baru pada outlet tujuan dari hasil parsing PDF
+     */
+    protected function resolveOrCreatePdfProduct(string $cname, string $rawName, int $outletId, float $itemCost, string $unit = 'PCS'): MposProduct
+    {
+        // 1. Cari exact match di outlet tujuan
+        $product = MposProduct::where('nid_outlet', $outletId)
+            ->where(function ($q) use ($rawName, $cname) {
+                $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
+                  ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
+            })
+            ->first();
+
+        // 2. Partial query jika belum match
+        if (!$product) {
+            $partialQuery = MposProduct::where('nid_outlet', $outletId)
+                ->where(function ($q) use ($cname) {
+                    $q->whereRaw('LOWER(cname) LIKE ?', ['%' . strtolower($cname) . '%'])
+                      ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(cname), "%")', [strtolower($cname)]);
+                });
+
+            if (!str_contains(strtolower($cname), 'kdr')) {
+                $partialQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
+            }
+
+            $product = $partialQuery->first();
+        }
+
+        // 3. Jika belum ada di outlet tujuan, cari di outlet lain untuk disalin
+        if (!$product) {
+            $otherProductQuery = MposProduct::where(function ($q) use ($rawName, $cname) {
+                $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
+                  ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
+            });
+
+            if (!str_contains(strtolower($cname), 'kdr')) {
+                $otherProductQuery->whereRaw('LOWER(cname) NOT LIKE ?', ['kdr%']);
+            }
+
+            $otherProduct = $otherProductQuery->first();
+
+            if ($otherProduct) {
+                return $this->resolveOrCreateOutletProduct($otherProduct, $outletId, $itemCost);
+            }
+        }
+
+        // 4. Jika produk sama sekali belum ada di database, buat baru
+        if (!$product) {
+            $firstCat = MposGrpProduct::where('nid_outlet', $outletId)->first()
+                ?? MposGrpProduct::first();
+
+            $productPayload = [
+                'cname' => $cname,
+                'nid_category' => $firstCat ? $firstCat->nid : 1,
+                'nid_outlet' => $outletId,
+                'nprice' => $itemCost > 0 ? $itemCost : 0,
+                'nprice_online' => $itemCost > 0 ? $itemCost : 0,
+                'nprice_buy' => $itemCost,
+                'nqty' => 0,
+                'cstatus' => 'ACTIVE',
+                'fcombo' => 0,
+            ];
+            if (MposProduct::hasSatuanColumn()) {
+                $productPayload['csatuan'] = $unit ?: 'PCS';
+            }
+            if (MposProduct::hasProductTypeColumn()) {
+                $productPayload['cproduct_type'] = MposPurchaseD::TYPE_PRODUK;
+            }
+            $product = MposProduct::create($productPayload);
+        }
+
+        return $product;
     }
 
     /**
