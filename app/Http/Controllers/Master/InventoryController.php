@@ -2919,7 +2919,7 @@ class InventoryController extends Controller
                 DB::raw('SUM(nqty) as total_qty')
             )->groupBy('ctype', 'citem_type', 'nid_product', 'nid_ingredient')->get();
 
-            // Legacy PO setelah endDateTime
+            // Legacy PO setelah endDateTime (hanya yang belum tercatat di mpos_stock_mutations)
             $legacyPoAfterQuery = DB::table('mpos_purchase_d')
                 ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
                 ->where(function ($q) {
@@ -2927,7 +2927,13 @@ class InventoryController extends Controller
                       ->orWhereNull('mpos_purchase_h.cdoc_type');
                 })
                 ->where('mpos_purchase_h.dreceived', '>', $endDateTime)
-                ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED);
+                ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('mpos_stock_mutations')
+                        ->where('ctype', 'IN')
+                        ->whereColumn('mpos_stock_mutations.cnote', 'like', DB::raw("CONCAT('%', mpos_purchase_h.cno_purchase, '%')"));
+                });
 
             if (!empty($selectedOutletId)) {
                 $legacyPoAfterQuery->where('mpos_purchase_h.nid_outlet', $selectedOutletId);
