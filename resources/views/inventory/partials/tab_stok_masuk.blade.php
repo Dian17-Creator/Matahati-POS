@@ -77,6 +77,11 @@
                     <i class="bi bi-cloud-arrow-up me-1"></i> Import
                 </button> -->
 
+                <!-- Tombol Import PDF (Persis Pembelian) -->
+                <button type="button" class="btn btn-outline-danger btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importStockInPdfModal">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
+                </button>
+
                 <!-- Tombol + Tambah langsung membuka Modal Tambah Stok Masuk -->
                 <button type="button" class="btn btn-success btn-sm px-3 shadow-sm fw-semibold" onclick="openStockInModal()">
                     <i class="bi bi-plus-lg me-1"></i> Tambah
@@ -179,7 +184,7 @@
                             @endif
                         </td>
                         <td class="px-3 py-3 fw-medium text-dark small">
-                            {{ $item->supplier?->cname ?? '-' }}
+                            {{ $item->supplier?->cname ?? (str_starts_with($item->creason ?? '', 'Penerimaan Supplier: ') ? str_replace('Penerimaan Supplier: ', '', $item->creason) : ($item->creason ?: '-')) }}
                         </td>
                         <td class="px-3 py-3 text-secondary small">
                             {{ $item->dstock_in ? \Carbon\Carbon::parse($item->dstock_in)->format('d-M-Y') : '-' }}
@@ -220,6 +225,85 @@
             </div>
             <div>
                 {{ $stockIns->links() }}
+            </div>
+        </div>
+
+        <!-- ==================== MODAL IMPORT STOK MASUK DARI PDF ==================== -->
+        <div class="modal fade" id="importStockInPdfModal" tabindex="-1" aria-labelledby="importStockInPdfModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-light-subtle py-3 border-bottom">
+                        <h5 class="modal-title fw-bold" id="importStockInPdfModalLabel">
+                            <i class="bi bi-file-earmark-pdf text-danger me-2"></i>Import Stok Masuk dari PDF
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ route('inventory.stock-in.import-pdf') }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        <div class="modal-body p-4">
+                            <div class="alert alert-light border small text-muted mb-3 d-flex align-items-start">
+                                <i class="bi bi-info-circle text-primary me-2 mt-1 fs-6"></i>
+                                <div>
+                                    Unggah dokumen invoice / stok masuk dalam format PDF (misal: Olsera/IQOS). Sistem otomatis membaca nomor dokumen, tanggal, mencocokkan produk, stok, dan harga beli satuan.
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="import_stock_in_supplier_id" class="form-label fw-semibold small">Pilih Supplier <span class="text-danger">*</span></label>
+                                <select class="form-select @error('nid_supplier') is-invalid @enderror" id="import_stock_in_supplier_id" name="nid_supplier" required>
+                                    <option value="">-- Pilih Supplier --</option>
+                                    @if(isset($suppliers))
+                                    @foreach($suppliers as $s)
+                                    <option value="{{ $s->nid }}" data-outlet-id="{{ $s->nid_outlet }}" {{ (string)old('nid_supplier') === (string)$s->nid ? 'selected' : '' }}>
+                                        {{ $s->cname }}@if(empty($selectedOutletId) && $s->outlet) ({{ $s->outlet->cname }})@endif
+                                    </option>
+                                    @endforeach
+                                    @endif
+                                </select>
+                                @error('nid_supplier')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="import_stock_in_outlet_id" class="form-label fw-semibold small">Outlet Tujuan Stok <span class="text-danger">*</span></label>
+                                @if($isOutletLocked || !empty($selectedOutletId))
+                                @php
+                                $lockedOutlet = $outlets->firstWhere('nid', $selectedOutletId);
+                                @endphp
+                                <input type="text" class="form-control bg-light" value="{{ $lockedOutlet ? $lockedOutlet->cname : 'Outlet Terkunci' }}" readonly>
+                                <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                                @else
+                                <select class="form-select @error('nid_outlet') is-invalid @enderror" id="import_stock_in_outlet_id" name="nid_outlet" required>
+                                    <option value="">-- Pilih Outlet --</option>
+                                    @foreach($outlets as $outlet)
+                                    <option value="{{ $outlet->nid }}" {{ (string)(old('nid_outlet') ?? $selectedOutletId) === (string)$outlet->nid ? 'selected' : '' }}>
+                                        {{ $outlet->cname }}
+                                    </option>
+                                    @endforeach
+                                </select>
+                                @endif
+                                @error('nid_outlet')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="import_stock_in_pdf_file" class="form-label fw-semibold small">File PDF (.pdf) <span class="text-danger">*</span></label>
+                                <input class="form-control @error('pdf_file') is-invalid @enderror" type="file" id="import_stock_in_pdf_file" name="pdf_file" accept=".pdf,application/pdf" required>
+                                @error('pdf_file')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light-subtle py-2">
+                            <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-danger btn-sm px-3">
+                                <i class="bi bi-upload me-1"></i> Mulai Import
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -839,6 +923,30 @@
                             }
                         });
                     });
+                }
+
+                // Filter supplier pada modal Import PDF sesuai outlet yang dipilih (jika mode Semua Outlet)
+                const importOutletSelect = document.getElementById('import_stock_in_outlet_id');
+                const importSupplierSelect = document.getElementById('import_stock_in_supplier_id');
+                if (importOutletSelect && importSupplierSelect) {
+                    const allSupplierOptions = Array.from(importSupplierSelect.querySelectorAll('option'));
+                    const filterImportSuppliers = () => {
+                        const selectedOutlet = importOutletSelect.value;
+                        const currentSupplier = importSupplierSelect.value;
+                        importSupplierSelect.innerHTML = '';
+                        allSupplierOptions.forEach(opt => {
+                            const optOutlet = opt.getAttribute('data-outlet-id');
+                            if (!opt.value || !selectedOutlet || !optOutlet || optOutlet === selectedOutlet) {
+                                importSupplierSelect.appendChild(opt.cloneNode(true));
+                            }
+                        });
+                        if (currentSupplier && importSupplierSelect.querySelector(`option[value="${currentSupplier}"]`)) {
+                            importSupplierSelect.value = currentSupplier;
+                        } else {
+                            importSupplierSelect.value = '';
+                        }
+                    };
+                    importOutletSelect.addEventListener('change', filterImportSuppliers);
                 }
             });
         </script>

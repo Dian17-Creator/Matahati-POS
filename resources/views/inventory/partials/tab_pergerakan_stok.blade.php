@@ -5,9 +5,12 @@
         <div class="text-muted small"><span id="movement-total-count">{{ $products->total() }}</span> Item Terdata</div>
     </div>
 
-    <div>
-        <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3" style="background-color: #0ea5e9; border-color: #0ea5e9;">
-            <i class=" bi bi-download me-1"></i> Download Excel
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importOlseraMovementModal">
+            <i class="bi bi-cloud-arrow-up me-1"></i> Import Excel Olsera
+        </button>
+        <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3 shadow-sm fw-semibold" style="background-color: #0ea5e9; border-color: #0ea5e9;">
+            <i class="bi bi-download me-1"></i> Download Excel
         </button>
     </div>
 </div>
@@ -123,6 +126,68 @@
 <!-- Container Tabel Pergerakan Stok untuk Auto-Fetching AJAX -->
 <div id="movement-container" style="position: relative; transition: opacity 0.2s ease;">
     @include('inventory.partials.movement_table', ['products' => $products])
+</div>
+
+<!-- ==================== MODAL IMPORT & SINKRONISASI STOK OLSERA ==================== -->
+<div class="modal fade" id="importOlseraMovementModal" tabindex="-1" aria-labelledby="importOlseraMovementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light-subtle py-3 border-bottom">
+                <h5 class="modal-title fw-bold text-dark" id="importOlseraMovementModalLabel">
+                    <i class="bi bi-cloud-arrow-up text-primary me-2"></i>Sinkronisasi Stok dari Olsera
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('inventory.movement.import-olsera') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border small text-muted mb-3 d-flex align-items-start">
+                        <i class="bi bi-info-circle text-primary me-2 mt-1 fs-6"></i>
+                        <div>
+                            Unggah dokumen Excel laporan pergerakan stok dari Olsera. Sistem otomatis membaca kolom <strong>product</strong> dan <strong>begining</strong> (atau <strong>balance</strong>) untuk mengkalibrasi master stok produk pada outlet tujuan secara akurat.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import_movement_outlet_id" class="form-label fw-semibold small">Outlet Target <span class="text-danger">*</span></label>
+                        @if($isOutletLocked)
+                        @php
+                        $lockedOutlet = $outlets->firstWhere('nid', $selectedOutletId);
+                        @endphp
+                        <input type="text" class="form-control bg-light" value="{{ $lockedOutlet ? $lockedOutlet->cname : 'Outlet Terkunci' }}" readonly>
+                        <input type="hidden" name="nid_outlet" value="{{ $selectedOutletId }}">
+                        @else
+                        <select class="form-select @error('nid_outlet') is-invalid @enderror" id="import_movement_outlet_id" name="nid_outlet" required>
+                            <option value="">-- Pilih Outlet --</option>
+                            @foreach($outlets as $outlet)
+                            <option value="{{ $outlet->nid }}" {{ (string)(old('nid_outlet') ?? $selectedOutletId) === (string)$outlet->nid ? 'selected' : '' }}>
+                                {{ $outlet->cname }}
+                            </option>
+                            @endforeach
+                        </select>
+                        @endif
+                        @error('nid_outlet')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import_movement_file" class="form-label fw-semibold small">File Excel Olsera (.xlsx, .xls) <span class="text-danger">*</span></label>
+                        <input class="form-control @error('file') is-invalid @enderror" type="file" id="import_movement_file" name="file" accept=".xlsx,.xls,.csv" required>
+                        @error('file')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="modal-footer bg-light-subtle py-2">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-3" style="background-color: #0ea5e9; border-color: #0ea5e9;">
+                        <i class="bi bi-upload me-1"></i> Mulai Sinkronisasi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
