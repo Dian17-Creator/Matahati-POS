@@ -144,6 +144,8 @@ class CustomerProductReportController extends Controller
         $grandTotals->total_laba = round($grandTotals->total_penjualan - $grandTotals->total_diskon - $grandTotals->total_modal, 2);
 
         $isSummary = empty($categoryId) && empty($productId);
+        $customerNameExpr = "COALESCE(NULLIF(mpos_cust.cname, ''), NULLIF(mpos_sales_h.cname_customer, ''), 'Pelanggan Umum')";
+        $productNameExpr = "COALESCE(mpos_product.cname, mpos_sales_d.cname)";
 
         if ($isSummary) {
             // Adjust sort col if it's not available in summary
@@ -151,7 +153,7 @@ class CustomerProductReportController extends Controller
                 $sortCol = 'customer_name';
             }
             $queryBuilder = $query->select(
-                'mpos_cust.cname as customer_name',
+                DB::raw("{$customerNameExpr} as customer_name"),
                 DB::raw('ROUND(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice), 2) as total_penjualan'),
                 DB::raw('ROUND(SUM(
                     CASE 
@@ -170,13 +172,13 @@ class CustomerProductReportController extends Controller
                 )), 2) as laba'),
                 DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
             )
-            ->groupBy('mpos_cust.cname')
+            ->groupBy('customer_name')
             ->orderBy($sortCol, $sortDir);
         } else {
             $queryBuilder = $query->select(
-                'mpos_cust.cname as customer_name',
+                DB::raw("{$customerNameExpr} as customer_name"),
                 'mpos_grp_product.cname as category_name',
-                'mpos_product.cname as product_name',
+                DB::raw("{$productNameExpr} as product_name"),
                 DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
                 DB::raw('ROUND(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice), 2) as total_penjualan'),
                 DB::raw('ROUND(SUM(
@@ -196,7 +198,7 @@ class CustomerProductReportController extends Controller
                 )), 2) as laba'),
                 DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
             )
-            ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname')
+            ->groupBy('customer_name', 'category_name', 'product_name')
             ->orderBy($sortCol, $sortDir);
         }
 
@@ -331,10 +333,13 @@ class CustomerProductReportController extends Controller
             'jml_transaksi' => $grandTotalsObj->total_transaksi ?? 0
         ];
 
+        $customerNameExpr = "COALESCE(NULLIF(mpos_cust.cname, ''), NULLIF(mpos_sales_h.cname_customer, ''), 'Pelanggan Umum')";
+        $productNameExpr = "COALESCE(mpos_product.cname, mpos_sales_d.cname)";
+
         // 1. Data Rangkuman per Pelanggan
         $summaryDataQuery = clone $query;
         $summaryData = $summaryDataQuery->select(
-            'mpos_cust.cname as customer_name',
+            DB::raw("{$customerNameExpr} as customer_name"),
             DB::raw('ROUND(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice), 2) as total_penjualan'),
             DB::raw('ROUND(SUM(
                 CASE 
@@ -345,7 +350,7 @@ class CustomerProductReportController extends Controller
             ), 2) as diskon'),
             DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
         )
-        ->groupBy('mpos_cust.cname');
+        ->groupBy('customer_name');
 
         $summarySortCol = $sortCol;
         if (in_array($sortCol, ['category_name', 'product_name', 'qty'])) {
@@ -362,9 +367,9 @@ class CustomerProductReportController extends Controller
         // 2. Data Detail Produk
         $detailDataQuery = clone $query;
         $detailData = $detailDataQuery->select(
-            'mpos_cust.cname as customer_name',
+            DB::raw("{$customerNameExpr} as customer_name"),
             'mpos_grp_product.cname as category_name',
-            'mpos_product.cname as product_name',
+            DB::raw("{$productNameExpr} as product_name"),
             DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as qty'),
             DB::raw('ROUND(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice), 2) as total_penjualan'),
             DB::raw('ROUND(SUM(
@@ -376,7 +381,7 @@ class CustomerProductReportController extends Controller
             ), 2) as diskon'),
             DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
         )
-        ->groupBy('mpos_cust.cname', 'mpos_grp_product.cname', 'mpos_product.cname');
+        ->groupBy('customer_name', 'category_name', 'product_name');
 
         if ($sortCol === 'laba') {
              $detailData->orderByRaw('(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END)) ' . $sortDir);
@@ -390,10 +395,13 @@ class CustomerProductReportController extends Controller
 
     private function buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId = null)
     {
+        $customerNameExpr = "COALESCE(NULLIF(mpos_cust.cname, ''), NULLIF(mpos_sales_h.cname_customer, ''), 'Pelanggan Umum')";
+        $productNameExpr = "COALESCE(mpos_product.cname, mpos_sales_d.cname)";
+
         $query = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->join('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
-            ->join('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
+            ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
+            ->leftJoin('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
             ->leftJoin('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
             ->where(function ($q) {
                 $q->whereIn('mpos_sales_h.cstatus', [
@@ -420,7 +428,7 @@ class CustomerProductReportController extends Controller
         }
 
         if ($customerId) {
-            $query->where('mpos_cust.cname', $customerId);
+            $query->whereRaw("{$customerNameExpr} = ?", [$customerId]);
         }
 
         if (!empty($categoryId)) {
@@ -432,7 +440,7 @@ class CustomerProductReportController extends Controller
         }
 
         if ($productId) {
-            $query->where('mpos_product.cname', $productId);
+            $query->whereRaw("{$productNameExpr} = ?", [$productId]);
         }
 
         return $query;
