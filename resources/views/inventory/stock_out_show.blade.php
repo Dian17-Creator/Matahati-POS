@@ -275,9 +275,9 @@
                 <tbody>
                     @foreach(session('price_warnings') as $pw)
                     <tr>
-                        <td class="fw-semibold">{{ $pw['product'] }}</td>
-                        <td class="text-end text-danger fw-semibold">Rp {{ number_format((float) $pw['pdf_price'], 0, ',', '.') }}</td>
-                        <td class="text-end text-success fw-semibold">Rp {{ number_format((float) $pw['master_price'], 0, ',', '.') }}</td>
+                        <td class="fw-semibold">{{ $pw['cname'] }}</td>
+                        <td class="text-end text-danger fw-semibold">Rp {{ number_format((float) $pw['pdf_cost'], 0, ',', '.') }}</td>
+                        <td class="text-end text-success fw-semibold">Rp {{ number_format((float) $pw['master_cost'], 0, ',', '.') }}</td>
                     </tr>
                     @endforeach
                 </tbody>
