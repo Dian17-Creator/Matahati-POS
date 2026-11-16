@@ -808,9 +808,9 @@ class InventoryController extends Controller
             ];
         }
 
-        // 1. Ekstrak Nomor Dokumen Referensi (IN... atau OUT...)
+        // 1. Ekstrak Nomor Dokumen Referensi (IN... atau OUT... / OG...)
         $pdfDocNumber = null;
-        $prefixRegex = $docType === 'OUT' ? 'OUT' : 'IN';
+        $prefixRegex = $docType === 'OUT' ? '(?:OUT|OG)' : 'IN';
         if (preg_match("#\b({$prefixRegex}\d{8,}[A-Za-z0-9_-]*)\b#i", $fullText, $mDoc)) {
             $pdfDocNumber = trim($mDoc[1]);
         } elseif (preg_match('#(?:\bNo\.?\s*Stok\s*(?:Masuk|Keluar)|Stock\s*(?:In|Out)\s*No\.?)\s*[:\#\s]+([A-Za-z0-9_-]+)#i', $fullText, $m)) {
@@ -856,11 +856,14 @@ class InventoryController extends Controller
         $tableRowPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
         $numbersOnlyPattern = '#^(\d+(?:[.,]\d+)?)\s*([A-Za-z]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
         $fallbackPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)\s+(?:IDR|Rp)?\s*([0-9.,]+)\s+(?:IDR|Rp)?\s*([0-9.,]+)$#i';
+        $qtyOnlyRowPattern = '#^(?:(\d+)[\s.)-]+)?(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s+([A-Za-z]{1,10}))?$#i';
+        $qtyNumberOnlyPattern = '#^(\d+(?:[.,]\d+)?)(?:\s+([A-Za-z]{1,10}))?$#i';
 
         $ignoreKeywords = [
             '#', 'produk', 'qty', 'harga beli', 'jumlah', 'no. stok masuk', 'no. stok keluar',
             'tanggal :', 'supplier :', 'posted :', 'total', 'subtotal',
-            'diterima', 'catatan', 'status', 'iqos', 'halaman', 'alasan :', 'tujuan :'
+            'diterima', 'catatan', 'status', 'iqos', 'halaman', 'alasan :', 'tujuan :',
+            'transfer ke toko', 'together.'
         ];
 
         $cleanLines = [];
@@ -907,6 +910,22 @@ class InventoryController extends Controller
                 $qty = (float) $this->parseIndonesianNumber($matches[3]);
                 $cost = $this->parseIndonesianNumber($matches[4]);
                 $subtotal = isset($matches[5]) ? $this->parseIndonesianNumber($matches[5]) : ($qty * $cost);
+            } elseif (preg_match($qtyOnlyRowPattern, $currentLine, $matches) && preg_match('/[A-Za-z]/', $matches[2])) {
+                $rawItemName = trim($matches[2]);
+                $qty = (float) $this->parseIndonesianNumber($matches[3]);
+                $unit = !empty($matches[4]) ? trim($matches[4]) : 'PCS';
+            } elseif ($i > 0 && preg_match($qtyNumberOnlyPattern, $currentLine, $matches)) {
+                $prevLine = $cleanLines[$i - 1];
+                if (
+                    preg_match('/[A-Za-z]/', $prevLine)
+                    && !preg_match($numbersOnlyPattern, $prevLine)
+                    && !preg_match($tableRowPattern, $prevLine)
+                    && !preg_match($qtyNumberOnlyPattern, $prevLine)
+                ) {
+                    $rawItemName = trim(preg_replace('/^\d+[\s.)-]+\s*/', '', $prevLine));
+                    $qty = (float) $this->parseIndonesianNumber($matches[1]);
+                    $unit = !empty($matches[2]) ? trim($matches[2]) : 'PCS';
+                }
             }
 
             if ($rawItemName && $qty > 0) {
