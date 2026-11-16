@@ -70,25 +70,6 @@
             </div>
         </div>
 
-        @if(!$isOutletLocked && count($outlets) > 1)
-        <form method="GET" action="{{ route('inventory.index') }}" class="d-inline">
-            <input type="hidden" name="tab" value="produksi_stok">
-            <input type="hidden" name="start_date" value="{{ $startDate }}">
-            <input type="hidden" name="end_date" value="{{ $endDate }}">
-            @if($search) <input type="hidden" name="search" value="{{ $search }}"> @endif
-            @if($perPage) <input type="hidden" name="per_page" value="{{ $perPage }}"> @endif
-
-            <select name="nid_outlet" class="form-select form-select-sm" style="width: auto; border-radius: 20px; font-size: 0.84rem;" onchange="this.form.submit()">
-                <option value="">Semua Outlet</option>
-                @foreach($outlets as $o)
-                <option value="{{ $o->nid }}" {{ (string)$selectedOutletId === (string)$o->nid ? 'selected' : '' }}>
-                    {{ $o->cname }}
-                </option>
-                @endforeach
-            </select>
-        </form>
-        @endif
-
         <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTambahProduksi">
             <i class="bi bi-plus-lg"></i>
             <span>Tambah</span>
