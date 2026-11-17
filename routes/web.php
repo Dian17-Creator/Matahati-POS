@@ -161,6 +161,7 @@ Route::middleware(['auth'])->group(function () {
 
     // POS Management Routes
     Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');
+    Route::get('customers/export', [CustomerController::class, 'export'])->name('customers.export');
     Route::resource('customers', CustomerController::class);
     Route::resource('payments', PaymentController::class);
     Route::resource('vouchers', VoucherController::class);

@@ -35,8 +35,11 @@
                 </div>
             </form>
         </div>
-        <div>
-            <button type="button" class="btn btn-outline-success btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+        <div class="d-flex align-items-center">
+            <a href="{{ route('customers.export', request()->only(['nid_type', 'search', 'nid_outlet'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm me-2">
+                <i class="bi bi-file-earmark-arrow-down"></i> Export Excel
+            </a>
+            <button type="button" class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-file-earmark-excel"></i> Import Data
             </button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
@@ -583,6 +586,18 @@
             const url = new URL(filterForm.action);
             const params = new URLSearchParams(new FormData(filterForm));
             url.search = params.toString();
+
+            const exportBtn = document.getElementById('exportExcelBtn');
+            if (exportBtn) {
+                const exportUrl = new URL(exportBtn.href);
+                const currentOutlet = new URLSearchParams(window.location.search).get('nid_outlet');
+                const exportParams = new URLSearchParams(new FormData(filterForm));
+                if (currentOutlet) {
+                    exportParams.set('nid_outlet', currentOutlet);
+                }
+                exportUrl.search = exportParams.toString();
+                exportBtn.href = exportUrl.toString();
+            }
 
             fetch(url, {
                 headers: {
