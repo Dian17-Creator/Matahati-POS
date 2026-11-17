@@ -70,6 +70,7 @@
                         <th class="py-3">Negara</th>
                         <th class="py-3">Catatan</th>
                         <th class="py-3">Transaksi Terakhir</th>
+                        <th class="py-3">Total Transaksi</th>
                         <th class="text-center py-3 pe-4 sticky-end bg-light">Aksi</th>
                     </tr>
                 </thead>
@@ -138,6 +139,7 @@
                                 <span class="text-muted">-</span>
                             @endif
                         </td>
+                        <td class="text-center fw-semibold">{{ number_format($customer->sales_count ?? 0, 0, ',', '.') }}</td>
                         <td class="text-center pe-4 sticky-end bg-white">
                             <div class="d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 36px; height: 36px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $customer->nid }}" title="Edit">
@@ -334,7 +336,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="17" class="text-center text-muted py-4">Tidak ada data pelanggan.</td>
+                        <td colspan="19" class="text-center text-muted py-4">Tidak ada data pelanggan.</td>
                     </tr>
                     @endforelse
                 </tbody>
