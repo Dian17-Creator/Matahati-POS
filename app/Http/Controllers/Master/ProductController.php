@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Master;
 
+use App\Exports\ProductsExport;
 use App\Http\Controllers\Controller;
 use App\Models\MposProduct;
 use App\Models\MposGrpProduct;
@@ -15,10 +16,60 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProductController extends Controller
 {
     use ResolvesOutletScope;
+    public function export(Request $request): BinaryFileResponse
+    {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+
+        $query = MposProduct::with(['category', 'outlet']);
+
+        if (!empty($selectedOutletId)) {
+            $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$this->isSuperAdminUser()) {
+            $query->whereIn('nid_outlet', $allowedOutletIds);
+        }
+
+        $matchedCategoryIds = $this->resolveMatchedCategoryIds($request);
+        if (!empty($matchedCategoryIds)) {
+            $query->whereIn('nid_category', $matchedCategoryIds);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('cname', 'like', "%{$search}%");
+        }
+
+        $products = $query->orderBy('cname')->orderBy('nid_outlet')->get();
+        $filename = 'daftar_produk_' . date('Y-m-d_His') . '.xlsx';
+
+        return Excel::download(new ProductsExport($products), $filename);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function resolveMatchedCategoryIds(Request $request): array
+    {
+        if (!$request->filled('nid_category')) {
+            return [];
+        }
+
+        $selectedCategory = MposGrpProduct::find($request->nid_category);
+        if ($selectedCategory) {
+            return MposGrpProduct::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $selectedCategory->cname))])
+                ->pluck('nid')
+                ->all();
+        }
+
+        return [(int) $request->nid_category];
+    }
+
     public function import(Request $request)
     {
         $request->validate([
@@ -130,17 +181,8 @@ class ProductController extends Controller
             $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        $matchedCategoryIds = [];
-        if ($request->filled('nid_category')) {
-            $selectedCategory = MposGrpProduct::find($request->nid_category);
-            if ($selectedCategory) {
-                $matchedCategoryIds = MposGrpProduct::whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $selectedCategory->cname))])
-                    ->pluck('nid')
-                    ->all();
-            } else {
-                $matchedCategoryIds = [(int) $request->nid_category];
-            }
-
+        $matchedCategoryIds = $this->resolveMatchedCategoryIds($request);
+        if (!empty($matchedCategoryIds)) {
             $query->whereIn('nid_category', $matchedCategoryIds);
         }
 
