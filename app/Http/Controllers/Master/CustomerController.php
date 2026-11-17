@@ -233,6 +233,9 @@ class CustomerController extends Controller
 
         $customers = MposCust::with(['type', 'outlet'])
                              ->withMax('sales', 'dtransaction')
+                             ->withCount(['sales' => function ($q) {
+                                 $q->whereNotIn('cstatus', ['CANCELLED', 'DRAFT', 'VOID', 'REFUND']);
+                             }])
                              ->whereIn('nid', $uniqueCustomerIds)
                              ->orderBy('cname')
                              ->paginate(10)
@@ -249,6 +252,9 @@ class CustomerController extends Controller
 
         $customers = MposCust::with(['type', 'outlet'])
             ->withMax('sales', 'dtransaction')
+            ->withCount(['sales' => function ($q) {
+                $q->whereNotIn('cstatus', ['CANCELLED', 'DRAFT', 'VOID', 'REFUND']);
+            }])
             ->whereIn('nid', $uniqueCustomerIds)
             ->orderBy('cname')
             ->get();
