@@ -46,16 +46,20 @@
                         </option>
                     @endforeach
                 </select>
-                <div class="input-group input-group-sm" style="width: 350px;">
+                <div class="input-group input-group-sm" style="width: 300px;">
                     <input type="text" name="search" id="searchInput" class="form-control" placeholder="Cari produk..." value="{{ request('search') }}">
                     <button class="btn btn-outline-secondary" type="submit">
                         <i class="bi bi-search"></i>
                     </button>
                 </div>
+                <div class="form-check form-switch d-flex align-items-center mb-0 ms-1">
+                    <input class="form-check-input me-2" type="checkbox" role="switch" id="hideEmptyFilter" name="hide_empty" value="1" {{ request('hide_empty') == '1' ? 'checked' : '' }} style="cursor: pointer;">
+                    <label class="form-check-label small text-secondary text-nowrap" for="hideEmptyFilter" style="cursor: pointer;">Sembunyikan Stok Kosong</label>
+                </div>
             </form>
         </div>
         <div class="d-flex align-items-center">
-            <a href="{{ route('products.export', request()->only(['nid_category', 'search', 'nid_outlet'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm me-2">
+            <a href="{{ route('products.export', request()->only(['nid_category', 'search', 'nid_outlet', 'hide_empty'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm me-2">
                 <i class="bi bi-file-earmark-arrow-down"></i> Export Excel
             </a>
             <button type="button" class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
@@ -112,26 +116,10 @@
                         </td>
                         <td>{{ $product->category->cname ?? '-' }}</td>
                         <td>
-                            @if(!empty($selectedOutletId) && $product->outlet)
+                            @if($product->outlet)
                                 <span class="badge bg-light text-dark border">{{ $product->outlet->cname }}</span>
                             @else
-                                @php
-                                    $productOutletsQuery = \App\Models\MposProduct::where('cname', $product->cname);
-                                    if (!($isSuperAdmin ?? false) && !empty($allowedOutletIds)) {
-                                        $productOutletsQuery->whereIn('nid_outlet', $allowedOutletIds);
-                                    }
-                                    $productOutlets = $productOutletsQuery->with('outlet')->get();
-                                    $hasOutlets = false;
-                                @endphp
-                                @foreach($productOutlets as $po)
-                                    @if($po->outlet)
-                                        <span class="badge bg-light text-dark border mb-1">{{ $po->outlet->cname }}</span><br>
-                                        @php $hasOutlets = true; @endphp
-                                    @endif
-                                @endforeach
-                                @if(!$hasOutlets)
-                                    <span class="text-muted">-</span>
-                                @endif
+                                <span class="text-muted">-</span>
                             @endif
                         </td>
                         <td>
@@ -594,6 +582,7 @@
         const searchInput = document.getElementById('searchInput');
         const outletFilter = document.getElementById('outletFilter');
         const categoryFilter = document.getElementById('categoryFilter');
+        const hideEmptyFilter = document.getElementById('hideEmptyFilter');
         const filterForm = document.getElementById('filterForm');
         const tableContainer = document.getElementById('table-container');
         let searchTimeout;
@@ -650,6 +639,10 @@
         
         if (categoryFilter) {
             categoryFilter.addEventListener('change', fetchResults);
+        }
+
+        if (hideEmptyFilter) {
+            hideEmptyFilter.addEventListener('change', fetchResults);
         }
         
         if (filterForm) {

@@ -35,6 +35,19 @@ class ProductController extends Controller
             $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
+        $this->applyProductFilters($query, $request);
+
+        $products = $query->orderBy('cname')->orderBy('nid_outlet')->get();
+        $filename = 'daftar_produk_' . date('Y-m-d_His') . '.xlsx';
+
+        return Excel::download(new ProductsExport($products), $filename);
+    }
+
+    /**
+     * Terapkan filter kategori, pencarian, dan sembunyikan stok kosong.
+     */
+    private function applyProductFilters(\Illuminate\Database\Eloquent\Builder $query, Request $request): void
+    {
         $matchedCategoryIds = $this->resolveMatchedCategoryIds($request);
         if (!empty($matchedCategoryIds)) {
             $query->whereIn('nid_category', $matchedCategoryIds);
@@ -45,10 +58,9 @@ class ProductController extends Controller
             $query->where('cname', 'like', "%{$search}%");
         }
 
-        $products = $query->orderBy('cname')->orderBy('nid_outlet')->get();
-        $filename = 'daftar_produk_' . date('Y-m-d_His') . '.xlsx';
-
-        return Excel::download(new ProductsExport($products), $filename);
+        if ($request->boolean('hide_empty')) {
+            $query->where('nqty', '>', 0);
+        }
     }
 
     /**
@@ -181,35 +193,9 @@ class ProductController extends Controller
             $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        $matchedCategoryIds = $this->resolveMatchedCategoryIds($request);
-        if (!empty($matchedCategoryIds)) {
-            $query->whereIn('nid_category', $matchedCategoryIds);
-        }
+        $this->applyProductFilters($query, $request);
 
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where('cname', 'like', "%{$search}%");
-        }
-
-        // Group by cname so we only show 1 row per product name
-        $query->whereIn('nid', function($q) use ($request, $selectedOutletId, $allowedOutletIds, $matchedCategoryIds) {
-            $q->select(DB::raw('MIN(nid)'))
-              ->from('mpos_product')
-              ->groupBy('cname');
-
-            if (!empty($selectedOutletId)) {
-                $q->where('nid_outlet', $selectedOutletId);
-            } elseif (!$this->isSuperAdminUser()) {
-                $q->whereIn('nid_outlet', $allowedOutletIds);
-            }
-            if (!empty($matchedCategoryIds)) {
-                $q->whereIn('nid_category', $matchedCategoryIds);
-            } elseif ($request->filled('nid_category')) {
-                $q->where('nid_category', $request->nid_category);
-            }
-        });
-
-        $products = $query->paginate(10)->withQueryString();
+        $products = $query->orderBy('cname')->orderBy('nid_outlet')->paginate(10)->withQueryString();
 
         $categoriesQuery = MposGrpProduct::whereIn('nid', function($q) use ($selectedOutletId, $allowedOutletIds) {
             $q->select(DB::raw('MIN(nid)'))
