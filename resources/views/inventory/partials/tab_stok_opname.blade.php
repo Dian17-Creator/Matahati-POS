@@ -79,14 +79,45 @@
 
 <!-- Tabel Daftar Stok Opname Sesuai Layout Referensi Stok Masuk/Keluar -->
 <div class="table-responsive">
+    @php
+        $soSortCol = ($activeTab ?? '') === 'stok_opname' ? ($sortCol ?? 'dopname') : 'dopname';
+        $soSortDir = ($activeTab ?? '') === 'stok_opname' ? ($sortDir ?? 'desc') : 'desc';
+        $soSortUrl = function (string $col, string $defaultDir = 'asc') use ($soSortCol, $soSortDir): string {
+            $nextDir = $soSortCol === $col ? ($soSortDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
+            return request()->fullUrlWithQuery(['tab' => 'stok_opname', 'sort_col' => $col, 'sort_dir' => $nextDir, 'page' => 1]);
+        };
+        $soSortIcon = function (string $col, bool $isNumeric = false) use ($soSortCol, $soSortDir): string {
+            if ($soSortCol === $col) {
+                if ($isNumeric) {
+                    return $soSortDir === 'asc'
+                        ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                        : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                }
+                return $soSortDir === 'asc'
+                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+            }
+            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-50" style="font-size: 0.75rem;"></i>';
+        };
+    @endphp
     <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
             <tr class="text-secondary small fw-semibold">
-                <th style="width: 22%;" class="px-3 py-3">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 14%;" class="px-3 py-3 text-center">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 24%;" class="px-3 py-3 text-center">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 12%;" class="px-3 py-3 text-center">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 18%;" class="px-3 py-3 text-center">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 22%;" class="px-3 py-3">
+                    <a href="{{ $soSortUrl('cno_opname', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">No. {!! $soSortIcon('cno_opname') !!}</a>
+                </th>
+                <th style="width: 14%;" class="px-3 py-3 text-center">
+                    <a href="{{ $soSortUrl('dopname', 'desc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Tanggal {!! $soSortIcon('dopname', true) !!}</a>
+                </th>
+                <th style="width: 24%;" class="px-3 py-3 text-center">
+                    <a href="{{ $soSortUrl('cnote', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Catatan {!! $soSortIcon('cnote') !!}</a>
+                </th>
+                <th style="width: 12%;" class="px-3 py-3 text-center">
+                    <a href="{{ $soSortUrl('cstatus', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Status {!! $soSortIcon('cstatus') !!}</a>
+                </th>
+                <th style="width: 18%;" class="px-3 py-3 text-center">
+                    <a href="{{ $soSortUrl('diterima_oleh', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Diterima Oleh {!! $soSortIcon('diterima_oleh') !!}</a>
+                </th>
             </tr>
         </thead>
         <tbody class="small">

@@ -107,7 +107,7 @@
 
 <!-- Container Tabel Pergerakan Stok untuk Auto-Fetching AJAX -->
 <div id="movement-container" style="position: relative; transition: opacity 0.2s ease;">
-    @include('inventory.partials.movement_table', ['products' => $products])
+    @include('inventory.partials.movement_table', ['products' => $products, 'sortCol' => $sortCol ?? 'cname', 'sortDir' => $sortDir ?? 'asc'])
 </div>
 
 <!-- ==================== MODAL IMPORT & SINKRONISASI STOK OLSERA ==================== -->
@@ -226,6 +226,13 @@
                 } else {
                     url.searchParams.delete('search');
                 }
+                const currentParams = new URLSearchParams(window.location.search);
+                if (currentParams.get('sort_col')) {
+                    url.searchParams.set('sort_col', currentParams.get('sort_col'));
+                }
+                if (currentParams.get('sort_dir')) {
+                    url.searchParams.set('sort_dir', currentParams.get('sort_dir'));
+                }
             }
 
             if (movementSpinner) movementSpinner.style.display = 'inline-flex';
@@ -289,13 +296,13 @@
             });
         }
 
-        // Intercept pagination clicks di dalam movementContainer
+        // Intercept pagination & sorting clicks di dalam movementContainer
         if (movementContainer) {
             movementContainer.addEventListener('click', function(e) {
-                const pageLink = e.target.closest('a.page-link');
-                if (pageLink && pageLink.href) {
+                const ajaxLink = e.target.closest('a.page-link, a.movement-sort-link');
+                if (ajaxLink && ajaxLink.href) {
                     e.preventDefault();
-                    fetchMovementData(pageLink.href);
+                    fetchMovementData(ajaxLink.href);
                 }
             });
         }
@@ -319,6 +326,14 @@
                 const search = document.getElementById('movementSearchInput')?.value || '';
                 if (search.trim()) {
                     params.set('search', search.trim());
+                }
+
+                const currentParams = new URLSearchParams(window.location.search);
+                if (currentParams.get('sort_col')) {
+                    params.set('sort_col', currentParams.get('sort_col'));
+                }
+                if (currentParams.get('sort_dir')) {
+                    params.set('sort_dir', currentParams.get('sort_dir'));
                 }
 
                 window.location.href = "{{ route('inventory.movement.export-excel') }}?" + params.toString();
