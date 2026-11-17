@@ -147,16 +147,51 @@
 
 <!-- Tabel Daftar Stok Keluar (Persis Kolom Olsera Image 1 & Image 5) -->
 <div class="table-responsive">
+    @php
+        $skSortCol = ($activeTab ?? '') === 'stok_keluar' ? ($sortCol ?? 'dstock_out') : 'dstock_out';
+        $skSortDir = ($activeTab ?? '') === 'stok_keluar' ? ($sortDir ?? 'desc') : 'desc';
+        $skSortUrl = function (string $col, string $defaultDir = 'asc') use ($skSortCol, $skSortDir): string {
+            $nextDir = $skSortCol === $col ? ($skSortDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
+            return request()->fullUrlWithQuery(['tab' => 'stok_keluar', 'sort_col' => $col, 'sort_dir' => $nextDir, 'page' => 1]);
+        };
+        $skSortIcon = function (string $col, bool $isNumeric = false) use ($skSortCol, $skSortDir): string {
+            if ($skSortCol === $col) {
+                if ($isNumeric) {
+                    return $skSortDir === 'asc'
+                        ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                        : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                }
+                return $skSortDir === 'asc'
+                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+            }
+            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-50" style="font-size: 0.75rem;"></i>';
+        };
+    @endphp
     <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
             <tr class="text-secondary small fw-semibold">
-                <th class="px-3 py-3">No. <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3">Transfer ke <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3">Tanggal <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3">Catatan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3">Alasan <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3 text-center">Status <i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.75rem;"></i></th>
-                <th class="px-3 py-3">Dibuat Oleh</th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('cno_stock_out', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">No. {!! $skSortIcon('cno_stock_out') !!}</a>
+                </th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('transfer_ke', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Transfer ke {!! $skSortIcon('transfer_ke') !!}</a>
+                </th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('dstock_out', 'desc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Tanggal {!! $skSortIcon('dstock_out', true) !!}</a>
+                </th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('cnote', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Catatan {!! $skSortIcon('cnote') !!}</a>
+                </th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('creason', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Alasan {!! $skSortIcon('creason') !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center">
+                    <a href="{{ $skSortUrl('cstatus', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Status {!! $skSortIcon('cstatus') !!}</a>
+                </th>
+                <th class="px-3 py-3">
+                    <a href="{{ $skSortUrl('dibuat_oleh', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Dibuat Oleh {!! $skSortIcon('dibuat_oleh') !!}</a>
+                </th>
             </tr>
         </thead>
         <tbody class="small">

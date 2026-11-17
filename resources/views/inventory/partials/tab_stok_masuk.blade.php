@@ -154,16 +154,51 @@
 
         <!-- Tabel Daftar Stok Masuk Sesuai Layout Referensi Olsera -->
         <div class="table-responsive">
+            @php
+                $smSortCol = ($activeTab ?? '') === 'stok_masuk' ? ($sortCol ?? 'dstock_in') : 'dstock_in';
+                $smSortDir = ($activeTab ?? '') === 'stok_masuk' ? ($sortDir ?? 'desc') : 'desc';
+                $smSortUrl = function (string $col, string $defaultDir = 'asc') use ($smSortCol, $smSortDir): string {
+                    $nextDir = $smSortCol === $col ? ($smSortDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
+                    return request()->fullUrlWithQuery(['tab' => 'stok_masuk', 'sort_col' => $col, 'sort_dir' => $nextDir, 'page' => 1]);
+                };
+                $smSortIcon = function (string $col, bool $isNumeric = false) use ($smSortCol, $smSortDir): string {
+                    if ($smSortCol === $col) {
+                        if ($isNumeric) {
+                            return $smSortDir === 'asc'
+                                ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                                : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                        }
+                        return $smSortDir === 'asc'
+                            ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                            : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+                    }
+                    return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-50" style="font-size: 0.75rem;"></i>';
+                };
+            @endphp
             <table class="table table-bordered table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr class="text-secondary small fw-semibold">
-                        <th class="px-3 py-3" style="width: 18%;">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3" style="width: 14%;">Diterima dari <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3" style="width: 14%;">Supplier <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3" style="width: 12%;">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3" style="width: 18%;">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3 text-center" style="width: 10%;">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                        <th class="px-3 py-3" style="width: 14%;">Diterima Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                        <th class="px-3 py-3" style="width: 18%;">
+                            <a href="{{ $smSortUrl('cno_stock_in', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">No. {!! $smSortIcon('cno_stock_in') !!}</a>
+                        </th>
+                        <th class="px-3 py-3" style="width: 14%;">
+                            <a href="{{ $smSortUrl('diterima_dari', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Diterima dari {!! $smSortIcon('diterima_dari') !!}</a>
+                        </th>
+                        <th class="px-3 py-3" style="width: 14%;">
+                            <a href="{{ $smSortUrl('supplier_name', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Supplier {!! $smSortIcon('supplier_name') !!}</a>
+                        </th>
+                        <th class="px-3 py-3" style="width: 12%;">
+                            <a href="{{ $smSortUrl('dstock_in', 'desc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Tanggal {!! $smSortIcon('dstock_in', true) !!}</a>
+                        </th>
+                        <th class="px-3 py-3" style="width: 18%;">
+                            <a href="{{ $smSortUrl('cnote', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Catatan {!! $smSortIcon('cnote') !!}</a>
+                        </th>
+                        <th class="px-3 py-3 text-center" style="width: 10%;">
+                            <a href="{{ $smSortUrl('cstatus', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Status {!! $smSortIcon('cstatus') !!}</a>
+                        </th>
+                        <th class="px-3 py-3" style="width: 14%;">
+                            <a href="{{ $smSortUrl('creceived_by', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Diterima Oleh {!! $smSortIcon('creceived_by') !!}</a>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>

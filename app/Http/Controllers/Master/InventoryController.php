@@ -54,12 +54,12 @@ class InventoryController extends Controller
         if (!empty($selectedOutletId)) {
             $supplierQuery->where(function ($q) use ($selectedOutletId) {
                 $q->where('nid_outlet', $selectedOutletId)
-                  ->orWhereNull('nid_outlet');
+                    ->orWhereNull('nid_outlet');
             });
         } elseif (!$isSuperAdmin) {
             $supplierQuery->where(function ($q) use ($allowedOutletIds) {
                 $q->whereIn('nid_outlet', $allowedOutletIds)
-                  ->orWhereNull('nid_outlet');
+                    ->orWhereNull('nid_outlet');
             });
         }
         $suppliers = $supplierQuery->orderBy('cname')->get();
@@ -71,6 +71,21 @@ class InventoryController extends Controller
         if (!in_array($perPage, [10, 25, 50, 100])) {
             $perPage = 10;
         }
+
+        $defaultSortByTab = [
+            'stok_masuk' => ['col' => 'dstock_in', 'dir' => 'desc', 'valid' => ['cno_stock_in', 'diterima_dari', 'supplier_name', 'dstock_in', 'cnote', 'cstatus', 'creceived_by']],
+            'stok_keluar' => ['col' => 'dstock_out', 'dir' => 'desc', 'valid' => ['cno_stock_out', 'transfer_ke', 'dstock_out', 'cnote', 'creason', 'cstatus', 'dibuat_oleh']],
+            'produksi_stok' => ['col' => 'dproduction', 'dir' => 'desc', 'valid' => ['cno_production', 'dproduction', 'cnote', 'cstatus', 'dibuat_oleh']],
+            'stok_opname' => ['col' => 'dopname', 'dir' => 'desc', 'valid' => ['cno_opname', 'dopname', 'cnote', 'cstatus', 'diterima_oleh']],
+            'pergerakan_stok' => ['col' => 'cname', 'dir' => 'asc', 'valid' => ['category_name', 'cname', 'qty_awal', 'qty_masuk', 'qty_pengembalian', 'qty_penjualan', 'qty_keluar', 'qty_sisa']],
+        ];
+        $tabSortConfig = $defaultSortByTab[$activeTab] ?? $defaultSortByTab['stok_masuk'];
+        $sortCol = (string) $request->input('sort_col', $tabSortConfig['col']);
+        if (!in_array($sortCol, $tabSortConfig['valid'], true)) {
+            $sortCol = $tabSortConfig['col'];
+        }
+        $rawSortDir = strtolower((string) $request->input('sort_dir', $tabSortConfig['dir']));
+        $sortDir = in_array($rawSortDir, ['asc', 'desc'], true) ? $rawSortDir : $tabSortConfig['dir'];
 
         $stockIns = null;
         $totalStockIn = 0;
@@ -142,8 +157,8 @@ class InventoryController extends Controller
                 DB::raw('SUM(nsubtotal) as ntotal_cost'),
                 DB::raw('COUNT(nid) as total_items')
             )->groupBy('cno_ref', 'dmutation', 'nid_outlet', 'nid_target_outlet', 'nid_user', 'creason', 'cstatus', 'cnote')
-             ->orderBy('dmutation', 'desc')
-             ->get();
+                ->orderBy('dmutation', 'desc')
+                ->get();
 
             $outletIds = $stockInRows->pluck('nid_outlet')->merge($stockInRows->pluck('nid_target_outlet'))->unique()->filter()->values();
             $outletsMap = MposOutlet::whereIn('nid', $outletIds)->get()->keyBy('nid');
@@ -158,8 +173,16 @@ class InventoryController extends Controller
                 $row->dstock_in = $row->dmutation;
                 $row->creceived_by = $row->user?->cemail ?: ($row->user?->email ?: ($row->user?->cname ?: 'Admin'));
                 $row->supplier = null;
+                $row->diterima_dari = !empty($row->targetOutlet) ? $row->targetOutlet->cname : ($row->outlet?->cname ?? '-');
+                $row->supplier_name = $row->supplier?->cname ?? (str_starts_with($row->creason ?? '', 'Penerimaan Supplier: ') ? str_replace('Penerimaan Supplier: ', '', $row->creason) : ($row->creason ?: '-'));
                 return $row;
             });
+
+            $stockInDocs = $stockInDocs->sortBy(
+                fn ($item) => (string) ($item->{$sortCol} ?? ''),
+                SORT_NATURAL | SORT_FLAG_CASE,
+                $sortDir === 'desc'
+            )->values();
 
             $currentPage = Paginator::resolveCurrentPage() ?: 1;
             $currentPageItems = $stockInDocs->slice(($currentPage - 1) * $perPage, $perPage)->values();
@@ -222,8 +245,8 @@ class InventoryController extends Controller
                 DB::raw('SUM(nsubtotal) as ntotal_cost'),
                 DB::raw('COUNT(nid) as total_items')
             )->groupBy('cno_ref', 'dmutation', 'nid_outlet', 'nid_target_outlet', 'nid_user', 'creason', 'cstatus', 'cnote')
-             ->orderBy('dmutation', 'desc')
-             ->get();
+                ->orderBy('dmutation', 'desc')
+                ->get();
 
             $outletIds = $stockOutRows->pluck('nid_outlet')->merge($stockOutRows->pluck('nid_target_outlet'))->unique()->filter()->values();
             $outletsMap = MposOutlet::whereIn('nid', $outletIds)->get()->keyBy('nid');
@@ -236,8 +259,16 @@ class InventoryController extends Controller
                 $row->user = $usersMap->get($row->nid_user);
                 $row->cno_stock_out = $row->cno_ref;
                 $row->dstock_out = $row->dmutation;
+                $row->transfer_ke = $row->targetOutlet?->cname ?? '-';
+                $row->dibuat_oleh = $row->user?->cemail ?: ($row->user?->email ?: ($row->user?->cname ?: 'admin'));
                 return $row;
             });
+
+            $stockOutDocs = $stockOutDocs->sortBy(
+                fn ($item) => (string) ($item->{$sortCol} ?? ''),
+                SORT_NATURAL | SORT_FLAG_CASE,
+                $sortDir === 'desc'
+            )->values();
 
             $currentPage = Paginator::resolveCurrentPage() ?: 1;
             $currentPageItems = $stockOutDocs->slice(($currentPage - 1) * $perPage, $perPage)->values();
@@ -269,8 +300,14 @@ class InventoryController extends Controller
                 });
             }
 
-            $productions = $productionQuery->orderBy('dproduction', 'desc')
-                ->orderBy('nid', 'desc')
+            if ($sortCol === 'dibuat_oleh') {
+                $productionQuery->orderByRaw(
+                    "(SELECT COALESCE(NULLIF(muser.cemail, ''), muser.cname, 'Admin') FROM muser WHERE muser.nid = mpos_production_h.nid_user LIMIT 1) " . $sortDir
+                );
+            } else {
+                $productionQuery->orderBy($sortCol, $sortDir);
+            }
+            $productions = $productionQuery->orderBy('nid', 'desc')
                 ->paginate($perPage)
                 ->withQueryString();
             $totalProduction = $productions->total();
@@ -294,8 +331,14 @@ class InventoryController extends Controller
                 });
             }
 
-            $stockOpnames = $stockOpnameQuery->orderBy('dopname', 'desc')
-                ->orderBy('nid', 'desc')
+            if ($sortCol === 'diterima_oleh') {
+                $stockOpnameQuery->orderByRaw(
+                    "(SELECT COALESCE(NULLIF(muser.cemail, ''), muser.cname, 'Admin') FROM muser WHERE muser.nid = mpos_stock_opname_h.nid_user LIMIT 1) " . $sortDir
+                );
+            } else {
+                $stockOpnameQuery->orderBy($sortCol, $sortDir);
+            }
+            $stockOpnames = $stockOpnameQuery->orderBy('nid', 'desc')
                 ->paginate($perPage)
                 ->withQueryString();
             $totalStockOpname = $stockOpnames->total();
@@ -308,6 +351,8 @@ class InventoryController extends Controller
                 $isSuperAdmin,
                 $allowedOutletIds
             );
+
+            $allItems = $this->sortStockMovementCollection($allItems, $sortCol, $sortDir);
 
             // Paginasi LengthAwarePaginator
             $currentPage = Paginator::resolveCurrentPage() ?: 1;
@@ -349,8 +394,8 @@ class InventoryController extends Controller
                     }
                     $q->select($cols);
                 }])
-                ->get()
-                ->groupBy('nid_product');
+                    ->get()
+                    ->groupBy('nid_product');
             }
         }
 
@@ -358,7 +403,7 @@ class InventoryController extends Controller
             if ($activeTab === 'pergerakan_stok') {
                 return response()->json([
                     'status' => 'success',
-                    'html' => view('inventory.partials.movement_table', compact('products'))->render(),
+                    'html' => view('inventory.partials.movement_table', compact('products', 'sortCol', 'sortDir'))->render(),
                     'total_count' => $products->total(),
                 ]);
             }
@@ -374,6 +419,8 @@ class InventoryController extends Controller
             'endDate',
             'search',
             'perPage',
+            'sortCol',
+            'sortDir',
             'stockIns',
             'totalStockIn',
             'pendingPurchases',
@@ -662,7 +709,6 @@ class InventoryController extends Controller
             return redirect()->route('inventory.stock-in.show', $stockInNumber)
                 ->with('success', $successMsg)
                 ->with('price_warnings', $priceWarnings);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
@@ -783,7 +829,6 @@ class InventoryController extends Controller
             return redirect()->route('inventory.stock-out.show', $stockOutNumber)
                 ->with('success', $successMsg)
                 ->with('price_warnings', $priceWarnings);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()
@@ -860,10 +905,27 @@ class InventoryController extends Controller
         $qtyNumberOnlyPattern = '#^(\d+(?:[.,]\d+)?)(?:\s+([A-Za-z]{1,10}))?$#i';
 
         $ignoreKeywords = [
-            '#', 'produk', 'qty', 'harga beli', 'jumlah', 'no. stok masuk', 'no. stok keluar',
-            'tanggal :', 'supplier :', 'posted :', 'total', 'subtotal',
-            'diterima', 'catatan', 'status', 'iqos', 'halaman', 'alasan :', 'tujuan :',
-            'transfer ke toko', 'together.'
+            '#',
+            'produk',
+            'qty',
+            'harga beli',
+            'jumlah',
+            'no. stok masuk',
+            'no. stok keluar',
+            'tanggal :',
+            'supplier :',
+            'posted :',
+            'total',
+            'subtotal',
+            'diterima',
+            'catatan',
+            'status',
+            'iqos',
+            'halaman',
+            'alasan :',
+            'tujuan :',
+            'transfer ke toko',
+            'together.'
         ];
 
         $cleanLines = [];
@@ -967,7 +1029,7 @@ class InventoryController extends Controller
         $product = MposProduct::where('nid_outlet', $outletId)
             ->where(function ($q) use ($rawName, $cname) {
                 $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
-                  ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
+                    ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
             })
             ->first();
 
@@ -976,7 +1038,7 @@ class InventoryController extends Controller
             $partialQuery = MposProduct::where('nid_outlet', $outletId)
                 ->where(function ($q) use ($cname) {
                     $q->whereRaw('LOWER(cname) LIKE ?', ['%' . strtolower($cname) . '%'])
-                      ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(cname), "%")', [strtolower($cname)]);
+                        ->orWhereRaw('LOWER(?) LIKE CONCAT("%", LOWER(cname), "%")', [strtolower($cname)]);
                 });
 
             if (!str_contains(strtolower($cname), 'kdr')) {
@@ -990,7 +1052,7 @@ class InventoryController extends Controller
         if (!$product) {
             $otherProductQuery = MposProduct::where(function ($q) use ($rawName, $cname) {
                 $q->whereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($cname))])
-                  ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
+                    ->orWhereRaw('LOWER(TRIM(cname)) = ?', [strtolower(trim($rawName))]);
             });
 
             if (!str_contains(strtolower($cname), 'kdr')) {
@@ -1045,9 +1107,18 @@ class InventoryController extends Controller
             return Carbon::parse($rawDate);
         } catch (\Exception $e) {
             $idMonths = [
-                'Jan' => 'Jan', 'Feb' => 'Feb', 'Mar' => 'Mar', 'Apr' => 'Apr',
-                'Mei' => 'May', 'Jun' => 'Jun', 'Jul' => 'Jul', 'Agu' => 'Aug',
-                'Agt' => 'Aug', 'Sep' => 'Sep', 'Okt' => 'Oct', 'Nov' => 'Nov',
+                'Jan' => 'Jan',
+                'Feb' => 'Feb',
+                'Mar' => 'Mar',
+                'Apr' => 'Apr',
+                'Mei' => 'May',
+                'Jun' => 'Jun',
+                'Jul' => 'Jul',
+                'Agu' => 'Aug',
+                'Agt' => 'Aug',
+                'Sep' => 'Sep',
+                'Okt' => 'Oct',
+                'Nov' => 'Nov',
                 'Des' => 'Dec'
             ];
             $engDate = str_ireplace(array_keys($idMonths), array_values($idMonths), $rawDate);
@@ -1173,7 +1244,7 @@ class InventoryController extends Controller
             ->where('ctype', MposStockMutation::TYPE_IN)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
-                  ->orWhere('nid', $id);
+                    ->orWhere('nid', $id);
             })
             ->get();
 
@@ -1584,7 +1655,7 @@ class InventoryController extends Controller
             ->where('ctype', MposStockMutation::TYPE_IN)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
-                  ->orWhere('nid', $id);
+                    ->orWhere('nid', $id);
             })
             ->get();
 
@@ -1715,7 +1786,7 @@ class InventoryController extends Controller
             ->where('ctype', MposStockMutation::TYPE_OUT)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
-                  ->orWhere('nid', $id);
+                    ->orWhere('nid', $id);
             })
             ->get();
 
@@ -2231,7 +2302,7 @@ class InventoryController extends Controller
             ->where('ctype', MposStockMutation::TYPE_OUT)
             ->where(function ($q) use ($id) {
                 $q->where('cno_ref', $id)
-                  ->orWhere('nid', $id);
+                    ->orWhere('nid', $id);
             })
             ->get();
 
@@ -2421,7 +2492,7 @@ class InventoryController extends Controller
             }
         ])->where(function ($q) use ($id) {
             $q->where('nid', $id)
-              ->orWhere('cno_opname', $id);
+                ->orWhere('cno_opname', $id);
         })->firstOrFail();
 
         $allowedOutletIds = $this->getUserAllowedOutletIds();
@@ -2448,7 +2519,7 @@ class InventoryController extends Controller
         // Kategori produk untuk filter di modal
         $categories = MposGrpProduct::where(function ($q) use ($opname) {
             $q->where('nid_outlet', $opname->nid_outlet)
-              ->orWhereNull('nid_outlet');
+                ->orWhereNull('nid_outlet');
         })->orderBy('cname')->get();
 
         return view('inventory.stock_opname_show', compact('opname', 'availableProducts', 'categories'));
@@ -2962,12 +3033,42 @@ class InventoryController extends Controller
             $allowedOutletIds
         );
 
+        $validSortCols = ['category_name', 'cname', 'qty_awal', 'qty_masuk', 'qty_pengembalian', 'qty_penjualan', 'qty_keluar', 'qty_sisa'];
+        $sortCol = (string) $request->input('sort_col', 'cname');
+        if (!in_array($sortCol, $validSortCols, true)) {
+            $sortCol = 'cname';
+        }
+        $sortDir = strtolower((string) $request->input('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $movements = $this->sortStockMovementCollection($movements, $sortCol, $sortDir);
+
         $dateSuffix = $startDate === $endDate
             ? Carbon::parse($startDate)->format('Ymd')
             : Carbon::parse($startDate)->format('Ymd') . '_' . Carbon::parse($endDate)->format('Ymd');
         $filename = "Pergerakan_Stok_{$dateSuffix}.xlsx";
 
         return Excel::download(new StockMovementExport($movements, $startDate, $endDate, $outletName), $filename);
+    }
+
+    /**
+     * @param Collection<int, object> $items
+     * @return Collection<int, object>
+     */
+    protected function sortStockMovementCollection(Collection $items, string $sortCol, string $sortDir): Collection
+    {
+        $numericCols = ['qty_awal', 'qty_masuk', 'qty_pengembalian', 'qty_penjualan', 'qty_keluar', 'qty_sisa'];
+        if (in_array($sortCol, $numericCols, true)) {
+            return $items->sortBy(
+                fn ($item) => (float) ($item->{$sortCol} ?? 0),
+                SORT_REGULAR,
+                $sortDir === 'desc'
+            )->values();
+        }
+
+        return $items->sortBy(
+            fn ($item) => (string) ($item->{$sortCol} ?? ''),
+            SORT_NATURAL | SORT_FLAG_CASE,
+            $sortDir === 'desc'
+        )->values();
     }
 
     /**
@@ -3094,7 +3195,7 @@ class InventoryController extends Controller
                 ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
                 ->where(function ($q) {
                     $q->where('mpos_purchase_h.cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE)
-                      ->orWhereNull('mpos_purchase_h.cdoc_type');
+                        ->orWhereNull('mpos_purchase_h.cdoc_type');
                 })
                 ->where('mpos_purchase_h.dreceived', '>', $endDateTime)
                 ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
@@ -3178,10 +3279,10 @@ class InventoryController extends Controller
             'mpos_sales_h.dtransaction',
             DB::raw("COALESCE(u_pos.cname, u_direct.cname, 'System') as user_name")
         )
-        ->orderBy('mpos_sales_h.dtransaction', 'desc')
-        ->get()
-        ->groupBy('nid_product')
-        ->map(fn($g) => $g->first());
+            ->orderBy('mpos_sales_h.dtransaction', 'desc')
+            ->get()
+            ->groupBy('nid_product')
+            ->map(fn($g) => $g->first());
 
         $productMovements = [];
         $ingredientMovements = [];
@@ -3303,8 +3404,8 @@ class InventoryController extends Controller
             'dmutation',
             DB::raw("COALESCE(muser.cname, 'System') as user_name")
         )
-        ->orderBy('dmutation', 'desc')
-        ->get();
+            ->orderBy('dmutation', 'desc')
+            ->get();
 
         $latestMutationByProd = $latestMutations->whereNotNull('nid_product')->groupBy('nid_product')->map(fn($g) => $g->first());
         $latestMutationByIng = $latestMutations->whereNull('nid_product')->whereNotNull('nid_ingredient')->groupBy('nid_ingredient')->map(fn($g) => $g->first());
@@ -3388,7 +3489,7 @@ class InventoryController extends Controller
             ->join('mpos_purchase_h', 'mpos_purchase_d.nid_purchase', '=', 'mpos_purchase_h.nid')
             ->where(function ($q) {
                 $q->where('mpos_purchase_h.cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE)
-                  ->orWhereNull('mpos_purchase_h.cdoc_type');
+                    ->orWhereNull('mpos_purchase_h.cdoc_type');
             })
             ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
             ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
@@ -3418,7 +3519,7 @@ class InventoryController extends Controller
             ->leftJoin('muser', 'mpos_purchase_h.nid_user', '=', 'muser.nid')
             ->where(function ($q) {
                 $q->where('mpos_purchase_h.cdoc_type', MposPurchaseH::DOC_TYPE_PURCHASE)
-                  ->orWhereNull('mpos_purchase_h.cdoc_type');
+                    ->orWhereNull('mpos_purchase_h.cdoc_type');
             })
             ->whereBetween('mpos_purchase_h.dreceived', [$startDateTime, $endDateTime])
             ->where('mpos_purchase_h.cstatus', MposPurchaseH::STATUS_RECEIVED)
@@ -3441,8 +3542,8 @@ class InventoryController extends Controller
             'mpos_purchase_h.dreceived',
             DB::raw("COALESCE(muser.cname, 'System') as user_name")
         )
-        ->orderBy('mpos_purchase_h.dreceived', 'desc')
-        ->get();
+            ->orderBy('mpos_purchase_h.dreceived', 'desc')
+            ->get();
 
         $latestPoByProd = $latestPos->whereNotNull('nid_product')->groupBy('nid_product')->map(fn($g) => $g->first());
         $latestPoByIng = $latestPos->whereNull('nid_product')->whereNotNull('nid_ingredient')->groupBy('nid_ingredient')->map(fn($g) => $g->first());
@@ -3664,8 +3765,8 @@ class InventoryController extends Controller
             foreach ($validated['products'] as $pData) {
                 $pQty = (float) $pData['nqty'];
                 $pModel = MposProduct::find($pData['nid_product']);
-                $costUnit = isset($pData['ncost_unit']) && $pData['ncost_unit'] !== '' 
-                    ? (float) $pData['ncost_unit'] 
+                $costUnit = isset($pData['ncost_unit']) && $pData['ncost_unit'] !== ''
+                    ? (float) $pData['ncost_unit']
                     : (float) ($pModel?->nprice_buy ?? 0);
 
                 $prodRecord = MposProductionProduct::create([
@@ -3749,9 +3850,9 @@ class InventoryController extends Controller
             'materials.product',
             'materials.ingredient',
         ])
-        ->where('nid', $id)
-        ->orWhere('cno_production', $id)
-        ->firstOrFail();
+            ->where('nid', $id)
+            ->orWhere('cno_production', $id)
+            ->firstOrFail();
 
         // Ambil daftar produk dan bahan baku untuk autocomplete
         $outletId = $production->nid_outlet;
@@ -3766,8 +3867,8 @@ class InventoryController extends Controller
         $allProducts = MposProduct::where(function ($q) {
             $q->where('cstatus', 'ACTIVE')->orWhere('cstatus', '1')->orWhereNull('cstatus');
         })
-        ->orderBy('cname', 'asc')
-        ->get($prodCols);
+            ->orderBy('cname', 'asc')
+            ->get($prodCols);
 
         // Grouping per nama produk agar unik dan menampilkan stok pada outlet produksi ini
         $byName = [];
@@ -3803,8 +3904,8 @@ class InventoryController extends Controller
         $availableIngredients = MposIngredients::where(function ($q) use ($outletId) {
             $q->where('nid_outlet', $outletId)->orWhereNull('nid_outlet');
         })
-        ->orderBy('cname', 'asc')
-        ->get();
+            ->orderBy('cname', 'asc')
+            ->get();
 
         return view('inventory.production_show', compact(
             'production',
@@ -4404,9 +4505,9 @@ class InventoryController extends Controller
             'materials.product',
             'materials.ingredient',
         ])
-        ->where('nid', $id)
-        ->orWhere('cno_production', $id)
-        ->firstOrFail();
+            ->where('nid', $id)
+            ->orWhere('cno_production', $id)
+            ->firstOrFail();
 
         $pdf = Pdf::loadView('inventory.production_print', compact('production'))
             ->setPaper('a4', 'portrait');

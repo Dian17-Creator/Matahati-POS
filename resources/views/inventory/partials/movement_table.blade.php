@@ -1,15 +1,52 @@
 <div class="table-responsive">
+    @php
+        $mvSortCol = $sortCol ?? request('sort_col', 'cname');
+        $mvSortDir = $sortDir ?? request('sort_dir', 'asc');
+        $mvSortUrl = function (string $col, string $defaultDir = 'asc') use ($mvSortCol, $mvSortDir): string {
+            $nextDir = $mvSortCol === $col ? ($mvSortDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
+            return request()->fullUrlWithQuery(['tab' => 'pergerakan_stok', 'sort_col' => $col, 'sort_dir' => $nextDir, 'page' => 1]);
+        };
+        $mvSortIcon = function (string $col, bool $isNumeric = false) use ($mvSortCol, $mvSortDir): string {
+            if ($mvSortCol === $col) {
+                if ($isNumeric) {
+                    return $mvSortDir === 'asc'
+                        ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                        : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                }
+                return $mvSortDir === 'asc'
+                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+            }
+            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-50" style="font-size: 0.75rem;"></i>';
+        };
+    @endphp
     <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
-                <th class="px-3 py-3" style="width: 15%;">Grup / Kategori</th>
-                <th class="px-3 py-3" style="width: 35%;">Produk</th>
-                <th class="px-3 py-3 text-center" style="width: 8%;">Awal</th>
-                <th class="px-3 py-3 text-center" style="width: 8%;">Masuk</th>
-                <th class="px-3 py-3 text-center" style="width: 9%;">Pengembalian</th>
-                <th class="px-3 py-3 text-center" style="width: 8%;">Penjualan</th>
-                <th class="px-3 py-3 text-center" style="width: 8%;">Keluar</th>
-                <th class="px-3 py-3 text-center" style="width: 9%;">Sisa</th>
+                <th class="px-3 py-3" style="width: 15%;">
+                    <a href="{{ $mvSortUrl('category_name', 'asc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center">Grup / Kategori {!! $mvSortIcon('category_name') !!}</a>
+                </th>
+                <th class="px-3 py-3" style="width: 35%;">
+                    <a href="{{ $mvSortUrl('cname', 'asc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center">Produk {!! $mvSortIcon('cname') !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">
+                    <a href="{{ $mvSortUrl('qty_awal', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Awal {!! $mvSortIcon('qty_awal', true) !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">
+                    <a href="{{ $mvSortUrl('qty_masuk', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Masuk {!! $mvSortIcon('qty_masuk', true) !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 9%;">
+                    <a href="{{ $mvSortUrl('qty_pengembalian', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Pengembalian {!! $mvSortIcon('qty_pengembalian', true) !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">
+                    <a href="{{ $mvSortUrl('qty_penjualan', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Penjualan {!! $mvSortIcon('qty_penjualan', true) !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 8%;">
+                    <a href="{{ $mvSortUrl('qty_keluar', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Keluar {!! $mvSortIcon('qty_keluar', true) !!}</a>
+                </th>
+                <th class="px-3 py-3 text-center" style="width: 9%;">
+                    <a href="{{ $mvSortUrl('qty_sisa', 'desc') }}" class="movement-sort-link text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Sisa {!! $mvSortIcon('qty_sisa', true) !!}</a>
+                </th>
             </tr>
         </thead>
         <tbody>

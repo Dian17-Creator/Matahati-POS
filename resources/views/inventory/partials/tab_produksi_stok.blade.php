@@ -116,14 +116,45 @@
 
 <!-- Tabel Daftar Produksi Stok Olsera Style -->
 <div class="table-responsive">
+    @php
+        $prSortCol = ($activeTab ?? '') === 'produksi_stok' ? ($sortCol ?? 'dproduction') : 'dproduction';
+        $prSortDir = ($activeTab ?? '') === 'produksi_stok' ? ($sortDir ?? 'desc') : 'desc';
+        $prSortUrl = function (string $col, string $defaultDir = 'asc') use ($prSortCol, $prSortDir): string {
+            $nextDir = $prSortCol === $col ? ($prSortDir === 'asc' ? 'desc' : 'asc') : $defaultDir;
+            return request()->fullUrlWithQuery(['tab' => 'produksi_stok', 'sort_col' => $col, 'sort_dir' => $nextDir, 'page' => 1]);
+        };
+        $prSortIcon = function (string $col, bool $isNumeric = false) use ($prSortCol, $prSortDir): string {
+            if ($prSortCol === $col) {
+                if ($isNumeric) {
+                    return $prSortDir === 'asc'
+                        ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                        : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                }
+                return $prSortDir === 'asc'
+                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+            }
+            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-50" style="font-size: 0.75rem;"></i>';
+        };
+    @endphp
     <table class="table table-bordered table-hover align-middle mb-0">
         <thead class="table-light">
             <tr class="text-secondary small fw-semibold">
-                <th style="width: 24%;" class="px-3 py-3">No. <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 14%;" class="px-3 py-3 text-center">Tanggal <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 28%;" class="px-3 py-3">Catatan <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 12%;" class="px-3 py-3 text-center">Status <i class="bi bi-arrow-down-up small text-muted"></i></th>
-                <th style="width: 22%;" class="px-3 py-3">Diterima / Dibuat Oleh <i class="bi bi-arrow-down-up small text-muted"></i></th>
+                <th style="width: 24%;" class="px-3 py-3">
+                    <a href="{{ $prSortUrl('cno_production', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">No. {!! $prSortIcon('cno_production') !!}</a>
+                </th>
+                <th style="width: 14%;" class="px-3 py-3 text-center">
+                    <a href="{{ $prSortUrl('dproduction', 'desc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Tanggal {!! $prSortIcon('dproduction', true) !!}</a>
+                </th>
+                <th style="width: 28%;" class="px-3 py-3">
+                    <a href="{{ $prSortUrl('cnote', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Catatan {!! $prSortIcon('cnote') !!}</a>
+                </th>
+                <th style="width: 12%;" class="px-3 py-3 text-center">
+                    <a href="{{ $prSortUrl('cstatus', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center justify-content-center">Status {!! $prSortIcon('cstatus') !!}</a>
+                </th>
+                <th style="width: 22%;" class="px-3 py-3">
+                    <a href="{{ $prSortUrl('dibuat_oleh', 'asc') }}" class="text-decoration-none text-secondary d-inline-flex align-items-center">Diterima / Dibuat Oleh {!! $prSortIcon('dibuat_oleh') !!}</a>
+                </th>
             </tr>
         </thead>
         <tbody class="small">
