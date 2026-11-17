@@ -29,24 +29,31 @@ class ProductsImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows): void
     {
         foreach ($rows as $index => $row) {
-            // Kita skip jika row kosong semua
-            if (!isset($row['name']) && !isset($row['category'])) {
+            // Kita skip jika row kosong semua (mendukung format kita maupun format Olsera)
+            if (
+                !isset($row['name'])
+                && !isset($row['nama_produk'])
+                && !isset($row['category'])
+                && !isset($row['kategori'])
+            ) {
                 continue;
             }
 
             $this->results['total']++;
             $rowNum = $index + 2; // +1 untuk 0-index, +1 untuk header
 
-            // Validasi nama
-            $name = isset($row['name']) ? trim($row['name']) : null;
+            // Validasi nama (mendukung 'nama_produk' dan 'name')
+            $rawName = $row['nama_produk'] ?? $row['name'] ?? null;
+            $name = $rawName !== null ? trim((string) $rawName) : null;
             if (empty($name)) {
                 $this->results['failed']++;
                 $this->results['errors'][] = "Row {$rowNum}: Nama product kosong";
                 continue;
             }
 
-            // Validasi Kategori
-            $categoryName = isset($row['category']) ? trim($row['category']) : null;
+            // Validasi Kategori (mendukung 'kategori' dan 'category')
+            $rawCategory = $row['kategori'] ?? $row['category'] ?? null;
+            $categoryName = $rawCategory !== null ? trim((string) $rawCategory) : null;
             if (empty($categoryName)) {
                 $this->results['failed']++;
                 $this->results['errors'][] = "Row {$rowNum} ({$name}): Category kosong";
@@ -80,17 +87,19 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 ]);
             }
 
-            // Parse Harga Jual POS & Online
-            $posSellPrice = isset($row['pos_sell_price']) && trim((string)$row['pos_sell_price']) !== ''
-                ? floatval(preg_replace('/[^0-9.]/', '', (string)$row['pos_sell_price']))
+            // Parse Harga Jual POS & Online (mendukung format kita: harga_pos, harga_online & format Olsera: pos_sell_price, sell_price)
+            $rawPosPrice = $row['harga_pos'] ?? $row['pos_sell_price'] ?? null;
+            $posSellPrice = $rawPosPrice !== null && trim((string) $rawPosPrice) !== ''
+                ? floatval(preg_replace('/[^0-9.]/', '', (string) $rawPosPrice))
                 : 0;
 
-            $sellPrice = isset($row['sell_price']) && trim((string)$row['sell_price']) !== ''
-                ? floatval(preg_replace('/[^0-9.]/', '', (string)$row['sell_price']))
+            $rawOnlinePrice = $row['harga_online'] ?? $row['sell_price'] ?? null;
+            $sellPrice = $rawOnlinePrice !== null && trim((string) $rawOnlinePrice) !== ''
+                ? floatval(preg_replace('/[^0-9.]/', '', (string) $rawOnlinePrice))
                 : 0;
 
-            // Parse Harga Beli (buy_price)
-            $rawBuyPrice = $row['buy_price'] ?? $row['buyprice'] ?? $row['harga_beli'] ?? null;
+            // Parse Harga Beli (harga_beli / buy_price)
+            $rawBuyPrice = $row['harga_beli'] ?? $row['buy_price'] ?? $row['buyprice'] ?? null;
             $buyPrice = null;
             if ($rawBuyPrice !== null && trim((string)$rawBuyPrice) !== '') {
                 $cleanedBuyPrice = preg_replace('/[^0-9.]/', '', (string)$rawBuyPrice);
@@ -132,12 +141,37 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 }
             }
 
-            // Parse foto
-            // Jika ada foto, kita simpan teksnya. Jika null, null
-            $photo = isset($row['photo_1']) && trim($row['photo_1']) !== '' ? trim($row['photo_1']) : null;
+            // Parse foto (hanya timpa jika kolom photo_1 tersedia)
+            $hasPhotoColumn = array_key_exists('photo_1', $rowArray);
+            $photo = $hasPhotoColumn && trim((string) ($row['photo_1'] ?? '')) !== '' ? trim((string) $row['photo_1']) : null;
 
-            // Set status ke ACTIVE secara default (mengabaikan kolom published)
+            // Parse Tipe Produk, Satuan, Status, dan Kombo jika tersedia di file import
+            $productType = null;
+            if (array_key_exists('tipe_produk', $rowArray) || array_key_exists('product_type', $rowArray)) {
+                $rawType = strtoupper(trim((string) ($row['tipe_produk'] ?? $row['product_type'] ?? '')));
+                $productType = match (true) {
+                    str_contains($rawType, 'SETENGAH') => 'SETENGAH_JADI',
+                    str_contains($rawType, 'BAHAN') => 'BAHAN_BAKU',
+                    $rawType !== '' => 'PRODUK',
+                    default => null,
+                };
+            }
+
+            $satuan = null;
+            if (array_key_exists('satuan', $rowArray) && trim((string) ($row['satuan'] ?? '')) !== '') {
+                $satuan = strtoupper(trim((string) $row['satuan']));
+            }
+
             $status = 'ACTIVE';
+            if (array_key_exists('status', $rowArray) && trim((string) ($row['status'] ?? '')) !== '') {
+                $status = trim((string) $row['status']);
+            }
+
+            $isCombo = null;
+            if (array_key_exists('kombo', $rowArray) && trim((string) ($row['kombo'] ?? '')) !== '') {
+                $rawCombo = strtolower(trim((string) $row['kombo']));
+                $isCombo = in_array($rawCombo, ['ya', 'yes', '1', 'true'], true) ? 1 : 0;
+            }
 
             // Cek Produk Berdasarkan cname dan nid_outlet
             $existing = MposProduct::where('cname', $cname)
@@ -147,15 +181,30 @@ class ProductsImport implements ToCollection, WithHeadingRow
             // Insert atau Update Database menggunakan Transaction per baris
             try {
                 DB::beginTransaction();
-                
+
                 if ($existing) {
                     $updateData = [
                         'nid_category' => $category->nid,
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
-                        'cphotos' => $photo,
                         'cstatus' => $status,
                     ];
+
+                    if ($hasPhotoColumn) {
+                        $updateData['cphotos'] = $photo;
+                    }
+
+                    if ($productType !== null && MposProduct::hasProductTypeColumn()) {
+                        $updateData['cproduct_type'] = $productType;
+                    }
+
+                    if ($satuan !== null && MposProduct::hasSatuanColumn()) {
+                        $updateData['csatuan'] = $satuan;
+                    }
+
+                    if ($isCombo !== null) {
+                        $updateData['fcombo'] = $isCombo;
+                    }
 
                     // Perbarui harga beli (nprice_buy) jika tersedia di baris import
                     if ($buyPrice !== null) {
@@ -170,7 +219,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     $existing->update($updateData);
                     $this->results['updated']++;
                 } else {
-                    MposProduct::create([
+                    $createData = [
                         'cname' => $cname,
                         'nid_category' => $category->nid,
                         'nid_outlet' => $this->outletId,
@@ -180,8 +229,18 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nqty' => $stockQty ?? 0,
                         'cphotos' => $photo,
                         'cstatus' => $status,
-                        'fcombo' => 0,
-                    ]);
+                        'fcombo' => $isCombo ?? 0,
+                    ];
+
+                    if (MposProduct::hasProductTypeColumn()) {
+                        $createData['cproduct_type'] = $productType ?? 'PRODUK';
+                    }
+
+                    if (MposProduct::hasSatuanColumn()) {
+                        $createData['csatuan'] = $satuan ?? 'PCS';
+                    }
+
+                    MposProduct::create($createData);
                     $this->results['success']++;
                 }
                 
