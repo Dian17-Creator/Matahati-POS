@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Master;
 
+use App\Exports\CustomersExport;
 use App\Http\Controllers\Controller;
 use App\Models\MposCust;
 use App\Models\MposCustType;
 use App\Models\MposOutlet;
 use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\CustomersImport;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CustomerController extends Controller
 {
@@ -226,8 +229,43 @@ class CustomerController extends Controller
               ->groupBy('cname');
         })->orderBy('cname')->get();
         
+        $uniqueCustomerIds = $this->resolveUniqueCustomerIds($request, $selectedOutletId, $allowedOutletIds);
+
+        $customers = MposCust::with(['type', 'outlet'])
+                             ->withMax('sales', 'dtransaction')
+                             ->whereIn('nid', $uniqueCustomerIds)
+                             ->orderBy('cname')
+                             ->paginate(10)
+                             ->withQueryString();
+
+        return view('customers.index', compact('customers', 'customerTypes', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        $uniqueCustomerIds = $this->resolveUniqueCustomerIds($request, $selectedOutletId, $allowedOutletIds);
+
+        $customers = MposCust::with(['type', 'outlet'])
+            ->withMax('sales', 'dtransaction')
+            ->whereIn('nid', $uniqueCustomerIds)
+            ->orderBy('cname')
+            ->get();
+
+        $filename = 'daftar_pelanggan_' . date('Y-m-d_His') . '.xlsx';
+
+        return Excel::download(new CustomersExport($customers), $filename);
+    }
+
+    /**
+     * @param array<int, int> $allowedOutletIds
+     * @return Collection<int, int>
+     */
+    private function resolveUniqueCustomerIds(Request $request, mixed $selectedOutletId, array $allowedOutletIds): Collection
+    {
         $query = MposCust::query();
-        
+
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
         } elseif (!$this->isSuperAdminUser()) {
@@ -237,7 +275,7 @@ class CustomerController extends Controller
         if ($request->has('nid_type') && $request->nid_type != '') {
             $type = MposCustType::find($request->nid_type);
             if ($type) {
-                $query->whereHas('type', function($q) use ($type) {
+                $query->whereHas('type', function ($q) use ($type) {
                     $q->where('cname', $type->cname);
                 });
             }
@@ -252,19 +290,10 @@ class CustomerController extends Controller
                   ->orWhere('cemail', 'like', "%{$search}%");
             });
         }
-        
-        $uniqueCustomerIds = $query->select(DB::raw('MIN(nid) as nid'))
-                                   ->groupBy('cname', 'cphone')
-                                   ->pluck('nid');
-                                   
-        $customers = MposCust::with(['type', 'outlet'])
-                             ->withMax('sales', 'dtransaction')
-                             ->whereIn('nid', $uniqueCustomerIds)
-                             ->orderBy('cname')
-                             ->paginate(10)
-                             ->withQueryString();
-                             
-        return view('customers.index', compact('customers', 'customerTypes', 'outlets', 'selectedOutletId', 'isCashierOnly', 'isSuperAdmin', 'isOutletLocked', 'allowedOutletIds'));
+
+        return $query->select(DB::raw('MIN(nid) as nid'))
+            ->groupBy('cname', 'cphone')
+            ->pluck('nid');
     }
 
     public function import(Request $request)
