@@ -161,184 +161,6 @@
                             </div>
                         </td>
                     </tr>
-
-                    <!-- Edit Modal -->
-                    <div class="modal fade" id="editModal{{ $product->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $product->nid }}" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-lg">
-                            <div class="modal-content border-0 shadow">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="editModalLabel{{ $product->nid }}">Edit Produk</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <form action="{{ route('products.update', $product->nid) }}" method="POST" enctype="multipart/form-data">
-                                    @csrf
-                                    @method('PUT')
-                                    <input type="hidden" name="modal_id" value="{{ $product->nid }}">
-                                    <div class="modal-body text-start row">
-                                        @if ($errors->any() && old('modal_id') == $product->nid)
-                                            <div class="col-12">
-                                                <div class="alert alert-danger">
-                                                    <ul class="mb-0">
-                                                        @foreach ($errors->all() as $error)
-                                                            <li>{{ $error }}</li>
-                                                        @endforeach
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                        @endif
-                                        <div class="col-md-4 mb-3">
-                                            <label for="cname_{{ $product->nid }}" class="form-label">Nama Produk <span class="text-danger">*</span></label>
-                                            <input type="text" class="form-control @if(old('modal_id') == $product->nid) @error('cname') is-invalid @enderror @endif" id="cname_{{ $product->nid }}" name="cname" value="{{ old('modal_id') == $product->nid ? old('cname') : $product->cname }}" required>
-                                            @if(old('modal_id') == $product->nid) @error('cname') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label for="cproduct_type_{{ $product->nid }}" class="form-label">Tipe Produk <span class="text-danger">*</span></label>
-                                            @php
-                                                $currType = old('modal_id') == $product->nid ? old('cproduct_type') : ($product->cproduct_type ?? 'PRODUK');
-                                            @endphp
-                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('cproduct_type') is-invalid @enderror @endif" id="cproduct_type_{{ $product->nid }}" name="cproduct_type" required>
-                                                <option value="PRODUK" {{ $currType == 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
-                                                <option value="SETENGAH_JADI" {{ $currType == 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
-                                                <option value="BAHAN_BAKU" {{ $currType == 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
-                                            </select>
-                                            @if(old('modal_id') == $product->nid) @error('cproduct_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label for="nid_category_{{ $product->nid }}" class="form-label">Kategori <span class="text-danger">*</span></label>
-                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('nid_category') is-invalid @enderror @endif" id="nid_category_{{ $product->nid }}" name="nid_category" required>
-                                                <option value="">Pilih Kategori</option>
-                                                @foreach($categories as $category)
-                                                    <option value="{{ $category->nid }}" {{ (old('modal_id') == $product->nid ? old('nid_category') == $category->nid : (optional($product->category)->cname == $category->cname)) ? 'selected' : '' }}>
-                                                        {{ $category->cname }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            @if(old('modal_id') == $product->nid) @error('nid_category') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-
-                                        <div class="col-md-12 mb-3">
-                                            <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
-                                            <div class="dropdown @if(old('modal_id') == $product->nid) @error('outlet_ids') is-invalid @enderror @endif">
-                                                <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_{{ $product->nid }}">
-                                                    <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
-                                                </button>
-                                                <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
-                                                    @php
-                                                        $productOutletIds = \App\Models\MposProduct::where('cname', $product->cname)->pluck('nid_outlet')->toArray();
-                                                    @endphp
-                                                    @foreach($outlets as $outlet)
-                                                        @php
-                                                            $isChecked = false;
-                                                            if (old('modal_id') == $product->nid) {
-                                                                $isChecked = is_array(old('outlet_ids')) ? in_array($outlet->nid, old('outlet_ids')) : false;
-                                                            } else {
-                                                                $isChecked = in_array($outlet->nid, $productOutletIds);
-                                                            }
-                                                        @endphp
-                                                        <li>
-                                                            <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                                                <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $product->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
-                                                                <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $product->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
-                                                                    {{ $outlet->cname }}
-                                                                    @if($product->nid_outlet == $outlet->nid)
-                                                                        <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
-                                                                    @endif
-                                                                </label>
-                                                            </div>
-                                                        </li>
-                                                    @endforeach
-                                                </ul>
-                                            </div>
-                                            @if(old('modal_id') == $product->nid) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label for="nprice_buy_{{ $product->nid }}" class="form-label">Harga Beli</label>
-                                            <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_buy') is-invalid @enderror @endif" id="nprice_buy_{{ $product->nid }}" name="nprice_buy" value="{{ old('modal_id') == $product->nid ? old('nprice_buy') : ($product->nprice_buy ?? 0) }}" placeholder="0">
-                                            @if(old('modal_id') == $product->nid) @error('nprice_buy') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label for="nprice_{{ $product->nid }}" class="form-label">Harga POS</label>
-                                            <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice') is-invalid @enderror @endif" id="nprice_{{ $product->nid }}" name="nprice" value="{{ old('modal_id') == $product->nid ? old('nprice') : $product->nprice }}" required>
-                                            @if(old('modal_id') == $product->nid) @error('nprice') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-4 mb-3">
-                                            <label for="nprice_online_{{ $product->nid }}" class="form-label">Harga Online</label>
-                                            <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_online') is-invalid @enderror @endif" id="nprice_online_{{ $product->nid }}" name="nprice_online" value="{{ old('modal_id') == $product->nid ? old('nprice_online') : $product->nprice_online }}">
-                                            @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-
-                                        <div class="col-md-6 mb-3">
-                                            <label for="csatuan_{{ $product->nid }}" class="form-label">Satuan</label>
-                                            @php
-                                                $currSat = old('modal_id') == $product->nid ? old('csatuan') : ($product->csatuan ?? 'PCS');
-                                            @endphp
-                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('csatuan') is-invalid @enderror @endif" id="csatuan_{{ $product->nid }}" name="csatuan">
-                                                @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
-                                                    <option value="{{ $sat }}" {{ strtoupper($currSat ?: 'PCS') === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
-                                                @endforeach
-                                            </select>
-                                            @if(old('modal_id') == $product->nid) @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
-                                            <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
-                                                <option value="Active" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'active' ? 'selected' : '' }}>Aktif</option>
-                                                <option value="Inactive" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'inactive' ? 'selected' : '' }}>Non-Aktif</option>
-                                            </select>
-                                            @if(old('modal_id') == $product->nid) @error('cstatus') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                        </div>
-                                        <div class="col-md-12 mb-3">
-                                            <label for="photo_{{ $product->nid }}" class="form-label">Foto Produk (Kosongkan jika tidak ingin mengubah)</label>
-                                            <input type="file" class="form-control @if(old('modal_id') == $product->nid) @error('photo') is-invalid @enderror @endif" id="photo_{{ $product->nid }}" name="photo" accept="image/*">
-                                            @if(old('modal_id') == $product->nid) @error('photo') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
-                                            @if($product->cphotos)
-                                                <div class="mt-2">
-                                                    <img src="{{ asset($product->cphotos) }}" class="img-thumbnail" style="height: 100px;">
-                                                </div>
-                                            @endif
-                                        </div>
-                                        
-                                        <!-- Switches -->
-                                        <div class="col-md-12 mb-3">
-                                            <div class="form-check form-switch mt-2">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="fcombo_{{ $product->nid }}" name="fcombo" value="1" {{ (old('modal_id') == $product->nid ? old('fcombo') : $product->fcombo) ? 'checked' : '' }}>
-                                                <label class="form-check-label" for="fcombo_{{ $product->nid }}">Produk Kombo?</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer mt-3">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Delete Modal -->
-                    <div class="modal fade" id="deleteModal{{ $product->nid }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ $product->nid }}" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content border-0 shadow">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title" id="deleteModalLabel{{ $product->nid }}">Konfirmasi Hapus</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body text-center py-4">
-                                    <i class="bi bi-exclamation-circle text-danger mb-3" style="font-size: 3rem;"></i>
-                                    <h5 class="mb-3">Apakah anda ingin menghapus produk <strong>{{ $product->cname }}</strong>?</h5>
-                                    <p class="text-muted mb-0">Tindakan ini tidak dapat dibatalkan dan akan menghapus foto serta resep terkait.</p>
-                                </div>
-                                <div class="modal-footer bg-light justify-content-center">
-                                    <form action="{{ route('products.destroy', $product->nid) }}" method="POST">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                        <button type="submit" class="btn btn-danger px-4">Ya, Hapus</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     @empty
                     <tr>
                         <td colspan="{{ 7 + ($hasAnyCombo ? 1 : 0) }}" class="text-center text-muted py-4">Tidak ada data produk.</td>
@@ -347,6 +169,186 @@
                 </tbody>
             </table>
         </div>
+
+        @foreach ($products as $product)
+            <!-- Edit Modal -->
+            <div class="modal fade" id="editModal{{ $product->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $product->nid }}" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editModalLabel{{ $product->nid }}">Edit Produk</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('products.update', $product->nid) }}" method="POST" enctype="multipart/form-data">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="modal_id" value="{{ $product->nid }}">
+                            <div class="modal-body text-start row">
+                                @if ($errors->any() && old('modal_id') == $product->nid)
+                                    <div class="col-12">
+                                        <div class="alert alert-danger">
+                                            <ul class="mb-0">
+                                                @foreach ($errors->all() as $error)
+                                                    <li>{{ $error }}</li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    </div>
+                                @endif
+                                <div class="col-md-4 mb-3">
+                                    <label for="cname_{{ $product->nid }}" class="form-label">Nama Produk <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control @if(old('modal_id') == $product->nid) @error('cname') is-invalid @enderror @endif" id="cname_{{ $product->nid }}" name="cname" value="{{ old('modal_id') == $product->nid ? old('cname') : $product->cname }}" required>
+                                    @if(old('modal_id') == $product->nid) @error('cname') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="cproduct_type_{{ $product->nid }}" class="form-label">Tipe Produk <span class="text-danger">*</span></label>
+                                    @php
+                                        $currType = old('modal_id') == $product->nid ? old('cproduct_type') : ($product->cproduct_type ?? 'PRODUK');
+                                    @endphp
+                                    <select class="form-select @if(old('modal_id') == $product->nid) @error('cproduct_type') is-invalid @enderror @endif" id="cproduct_type_{{ $product->nid }}" name="cproduct_type" required>
+                                        <option value="PRODUK" {{ $currType == 'PRODUK' ? 'selected' : '' }}>Produk (Barang Jadi)</option>
+                                        <option value="SETENGAH_JADI" {{ $currType == 'SETENGAH_JADI' ? 'selected' : '' }}>Setengah Jadi</option>
+                                        <option value="BAHAN_BAKU" {{ $currType == 'BAHAN_BAKU' ? 'selected' : '' }}>Bahan Baku</option>
+                                    </select>
+                                    @if(old('modal_id') == $product->nid) @error('cproduct_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="nid_category_{{ $product->nid }}" class="form-label">Kategori <span class="text-danger">*</span></label>
+                                    <select class="form-select @if(old('modal_id') == $product->nid) @error('nid_category') is-invalid @enderror @endif" id="nid_category_{{ $product->nid }}" name="nid_category" required>
+                                        <option value="">Pilih Kategori</option>
+                                        @foreach($categories as $category)
+                                            <option value="{{ $category->nid }}" {{ (old('modal_id') == $product->nid ? old('nid_category') == $category->nid : (optional($product->category)->cname == $category->cname)) ? 'selected' : '' }}>
+                                                {{ $category->cname }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @if(old('modal_id') == $product->nid) @error('nid_category') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-bold text-muted small text-uppercase">Pilih Outlet <span class="text-danger">*</span></label>
+                                    <div class="dropdown @if(old('modal_id') == $product->nid) @error('outlet_ids') is-invalid @enderror @endif">
+                                        <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_{{ $product->nid }}">
+                                            <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                                        </button>
+                                        <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                            @php
+                                                $productOutletIds = \App\Models\MposProduct::where('cname', $product->cname)->pluck('nid_outlet')->toArray();
+                                            @endphp
+                                            @foreach($outlets as $outlet)
+                                                @php
+                                                    $isChecked = false;
+                                                    if (old('modal_id') == $product->nid) {
+                                                        $isChecked = is_array(old('outlet_ids')) ? in_array($outlet->nid, old('outlet_ids')) : false;
+                                                    } else {
+                                                        $isChecked = in_array($outlet->nid, $productOutletIds);
+                                                    }
+                                                @endphp
+                                                <li>
+                                                    <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                        <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $product->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }}>
+                                                        <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $product->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                            {{ $outlet->cname }}
+                                                            @if($product->nid_outlet == $outlet->nid)
+                                                                <span class="badge bg-light text-primary border border-primary ms-1" style="font-size: 0.65rem;">Asal</span>
+                                                            @endif
+                                                        </label>
+                                                    </div>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                    @if(old('modal_id') == $product->nid) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="nprice_buy_{{ $product->nid }}" class="form-label">Harga Beli</label>
+                                    <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_buy') is-invalid @enderror @endif" id="nprice_buy_{{ $product->nid }}" name="nprice_buy" value="{{ old('modal_id') == $product->nid ? old('nprice_buy') : ($product->nprice_buy ?? 0) }}" placeholder="0">
+                                    @if(old('modal_id') == $product->nid) @error('nprice_buy') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="nprice_{{ $product->nid }}" class="form-label">Harga POS</label>
+                                    <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice') is-invalid @enderror @endif" id="nprice_{{ $product->nid }}" name="nprice" value="{{ old('modal_id') == $product->nid ? old('nprice') : $product->nprice }}" required>
+                                    @if(old('modal_id') == $product->nid) @error('nprice') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="nprice_online_{{ $product->nid }}" class="form-label">Harga Online</label>
+                                    <input type="number" step="any" min="0" class="form-control @if(old('modal_id') == $product->nid) @error('nprice_online') is-invalid @enderror @endif" id="nprice_online_{{ $product->nid }}" name="nprice_online" value="{{ old('modal_id') == $product->nid ? old('nprice_online') : $product->nprice_online }}">
+                                    @if(old('modal_id') == $product->nid) @error('nprice_online') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label for="csatuan_{{ $product->nid }}" class="form-label">Satuan</label>
+                                    @php
+                                        $currSat = old('modal_id') == $product->nid ? old('csatuan') : ($product->csatuan ?? 'PCS');
+                                    @endphp
+                                    <select class="form-select @if(old('modal_id') == $product->nid) @error('csatuan') is-invalid @enderror @endif" id="csatuan_{{ $product->nid }}" name="csatuan">
+                                        @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                            <option value="{{ $sat }}" {{ strtoupper($currSat ?: 'PCS') === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if(old('modal_id') == $product->nid) @error('csatuan') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="cstatus_{{ $product->nid }}" class="form-label">Status</label>
+                                    <select class="form-select @if(old('modal_id') == $product->nid) @error('cstatus') is-invalid @enderror @endif" id="cstatus_{{ $product->nid }}" name="cstatus" required>
+                                        <option value="Active" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'active' ? 'selected' : '' }}>Aktif</option>
+                                        <option value="Inactive" {{ (old('modal_id') == $product->nid ? strtolower(old('cstatus')) : strtolower($product->cstatus)) == 'inactive' ? 'selected' : '' }}>Non-Aktif</option>
+                                    </select>
+                                    @if(old('modal_id') == $product->nid) @error('cstatus') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label for="photo_{{ $product->nid }}" class="form-label">Foto Produk (Kosongkan jika tidak ingin mengubah)</label>
+                                    <input type="file" class="form-control @if(old('modal_id') == $product->nid) @error('photo') is-invalid @enderror @endif" id="photo_{{ $product->nid }}" name="photo" accept="image/*">
+                                    @if(old('modal_id') == $product->nid) @error('photo') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                    @if($product->cphotos)
+                                        <div class="mt-2">
+                                            <img src="{{ asset($product->cphotos) }}" class="img-thumbnail" style="height: 100px;">
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <!-- Switches -->
+                                <div class="col-md-12 mb-3">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="fcombo_{{ $product->nid }}" name="fcombo" value="1" {{ (old('modal_id') == $product->nid ? old('fcombo') : $product->fcombo) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="fcombo_{{ $product->nid }}">Produk Kombo?</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer mt-3">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Modal -->
+            <div class="modal fade" id="deleteModal{{ $product->nid }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ $product->nid }}" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteModalLabel{{ $product->nid }}">Konfirmasi Hapus</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body text-center py-4">
+                            <i class="bi bi-exclamation-circle text-danger mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="mb-3">Apakah anda ingin menghapus produk <strong>{{ $product->cname }}</strong>?</h5>
+                            <p class="text-muted mb-0">Tindakan ini tidak dapat dibatalkan dan akan menghapus foto serta resep terkait.</p>
+                        </div>
+                        <div class="modal-footer bg-light justify-content-center">
+                            <form action="{{ route('products.destroy', $product->nid) }}" method="POST">
+                                @csrf
+                                @method('DELETE')
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                <button type="submit" class="btn btn-danger px-4">Ya, Hapus</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
         @if($products->hasPages())
         <div class="d-flex justify-content-end mt-3">
             {{ $products->links('pagination::bootstrap-5') }}
