@@ -400,19 +400,62 @@
 
                 <!-- Table Area -->
                 <div class="table-responsive p-3 order-3 order-print-2">
+                    @php
+                        $sortUrl = function (string $col, string $defaultDir) use ($sortCol, $sortDir): string {
+                            $nextDir = $defaultDir;
+                            if ($sortCol === $col) {
+                                $nextDir = $sortDir === 'asc' ? 'desc' : 'asc';
+                            }
+                            return request()->fullUrlWithQuery(['sort_col' => $col, 'sort_dir' => $nextDir]);
+                        };
+                        $sortIcon = function (string $col) use ($sortCol, $sortDir): string {
+                            if ($sortCol === $col) {
+                                return $sortDir === 'asc'
+                                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+                            }
+                            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-25" style="font-size: 0.7rem;"></i>';
+                        };
+                        $sortIconNum = function (string $col) use ($sortCol, $sortDir): string {
+                            if ($sortCol === $col) {
+                                return $sortDir === 'asc'
+                                    ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                                    : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                            }
+                            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-25" style="font-size: 0.7rem;"></i>';
+                        };
+                    @endphp
                     <table class="table table-bordered table-hover align-middle mb-0 text-nowrap" style="min-width: 1200px;">
                         <thead class="table-light text-secondary">
                             <tr>
-                                <th class="py-3 text-center">NO. PESANAN</th>
-                                <th class="py-3 text-center">TANGGAL</th>
-                                <th class="py-3 text-center">PENJUALAN OLEH</th>
-                                <th class="py-3 text-start">ITEM</th>
-                                <th class="py-3 text-center">PELANGGAN</th>
-                                <th class="py-3 text-center">QTY</th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('cnotransaction', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">NO. PESANAN {!! $sortIcon('cnotransaction') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('dtransaction', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">TANGGAL {!! $sortIconNum('dtransaction') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('cashier_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PENJUALAN OLEH {!! $sortIcon('cashier_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-start">
+                                    <a href="{{ $sortUrl('item_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-start">ITEM {!! $sortIcon('item_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('customer_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PELANGGAN {!! $sortIcon('customer_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('net_qty', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">QTY {!! $sortIconNum('net_qty') !!}</a>
+                                </th>
                                 <th class="py-3 text-center">DISKON</th>
-                                <th class="py-3 text-center fw-bold text-primary">TOTAL PENJUALAN</th>
-                                <th class="py-3 text-center">MODAL PRODUK</th>
-                                <th class="py-3 text-center fw-bold text-success">LABA</th>
+                                <th class="py-3 text-center fw-bold text-primary">
+                                    <a href="{{ $sortUrl('total_penjualan', 'desc') }}" class="text-decoration-none text-primary d-flex align-items-center justify-content-center">TOTAL PENJUALAN {!! $sortIconNum('total_penjualan') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('total_modal', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">MODAL PRODUK {!! $sortIconNum('total_modal') !!}</a>
+                                </th>
+                                <th class="py-3 text-center fw-bold text-success">
+                                    <a href="{{ $sortUrl('laba', 'desc') }}" class="text-decoration-none text-success d-flex align-items-center justify-content-center">LABA {!! $sortIconNum('laba') !!}</a>
+                                </th>
                                 <th class="py-3 text-center">KOMISI</th>
                             </tr>
                         </thead>

@@ -31,6 +31,19 @@ class SalesDetailReportController extends Controller
         
         $status = $request->input('status', '');
         $paymentId = $request->input('payment_id', '');
+        $sortCol = $request->input('sort_col', 'dtransaction');
+        $sortDir = $request->input('sort_dir', 'desc');
+        $validSortCols = [
+            'dtransaction', 'cnotransaction', 'payment_name', 'display_status',
+            'cashier_name', 'final_customer_name', 'gross_sales', 'total_void_refund',
+            'ndiscount', 'ntax', 'nservice_charge', 'nrounding', 'net_sales',
+            'total_cost', 'laba',
+        ];
+        if (!in_array($sortCol, $validSortCols, true)) {
+            $sortCol = 'dtransaction';
+        }
+        $sortDir = strtolower((string) $sortDir) === 'asc' ? 'asc' : 'desc';
+
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
         $isCashierOnly = $this->isCashierOnlyUser();
         $isSuperAdmin = $this->isSuperAdminUser();
@@ -39,7 +52,7 @@ class SalesDetailReportController extends Controller
         $allowedOutletIds = $this->getUserAllowedOutletIds();
         $payments = MposPayment::orderBy('cname')->get();
 
-        $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId);
+        $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId, $sortCol, $sortDir);
         $transactions = $query->paginate(10)->withQueryString();
 
         $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status, $paymentId)->first();
@@ -59,7 +72,9 @@ class SalesDetailReportController extends Controller
             'isOutletLocked',
             'allowedOutletIds',
             'summary',
-            'netSales'
+            'netSales',
+            'sortCol',
+            'sortDir'
         ));
     }
 
@@ -71,6 +86,19 @@ class SalesDetailReportController extends Controller
         
         $status = $request->input('status', '');
         $paymentId = $request->input('payment_id', '');
+        $sortCol = $request->input('sort_col', 'dtransaction');
+        $sortDir = $request->input('sort_dir', 'desc');
+        $validSortCols = [
+            'dtransaction', 'cnotransaction', 'payment_name', 'display_status',
+            'cashier_name', 'final_customer_name', 'gross_sales', 'total_void_refund',
+            'ndiscount', 'ntax', 'nservice_charge', 'nrounding', 'net_sales',
+            'total_cost', 'laba',
+        ];
+        if (!in_array($sortCol, $validSortCols, true)) {
+            $sortCol = 'dtransaction';
+        }
+        $sortDir = strtolower((string) $sortDir) === 'asc' ? 'asc' : 'desc';
+
         $outletId = $this->resolveOutletIdFromRequest($request, 'outlet_id');
 
         $outletName = 'Semua Outlet';
@@ -81,7 +109,7 @@ class SalesDetailReportController extends Controller
             }
         }
 
-        $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId)->get();
+        $transactions = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId, $sortCol, $sortDir)->get();
         $summary = $this->buildSummaryQuery($startDate, $endDateParsed, $outletId, $status, $paymentId)->first();
         $dateSuffix = $startDate === $endDate
             ? Carbon::parse($startDate)->format('d-m-Y')
@@ -90,7 +118,7 @@ class SalesDetailReportController extends Controller
         return Excel::download(new SalesDetailExport($transactions, $summary, $startDate, $endDate, $outletName), "laporan_penjualan_{$dateSuffix}.xlsx");
     }
 
-    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId = '')
+    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId = '', string $sortCol = 'dtransaction', string $sortDir = 'desc')
     {
         $query = DB::table('mpos_sales_h')
             ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
@@ -162,7 +190,7 @@ class SalesDetailReportController extends Controller
             'mpos_payment.cname as payment_name',
             'p_dual.cname as payment_dual_name',
             'muser.cname as cashier_name',
-            DB::raw('COALESCE(mpos_sales_h.cname_customer, mpos_cust.cname, \'Umum\') as final_customer_name'),
+            DB::raw("COALESCE(NULLIF(NULLIF(TRIM(mpos_sales_h.cname_customer), ''), 'Umum'), NULLIF(NULLIF(TRIM(mpos_cust.cname), ''), 'Umum'), '-') as final_customer_name"),
             DB::raw("CASE 
                 WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 
                 WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN ABS(mpos_sales_h.ngrandtotal)
@@ -185,7 +213,28 @@ class SalesDetailReportController extends Controller
             END as display_status")
         );
 
-        $query->orderBy('mpos_sales_h.dtransaction', 'desc');
+        $sortExpression = match ($sortCol) {
+            'cnotransaction' => 'mpos_sales_h.cnotransaction',
+            'payment_name' => 'mpos_payment.cname',
+            'display_status' => 'display_status',
+            'cashier_name' => 'muser.cname',
+            'final_customer_name' => 'final_customer_name',
+            'gross_sales' => DB::raw("CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.nsubtotal ELSE mpos_sales_h.ngrandtotal END"),
+            'total_void_refund' => 'total_void_refund',
+            'ndiscount' => 'mpos_sales_h.ndiscount',
+            'ntax' => 'mpos_sales_h.ntax',
+            'nservice_charge' => 'mpos_sales_h.nservice_charge',
+            'nrounding' => 'mpos_sales_h.nrounding',
+            'net_sales' => DB::raw("CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') OR (COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0) THEN 0 ELSE GREATEST(0, mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) END"),
+            'total_cost' => 'total_cost',
+            'laba' => DB::raw("CASE WHEN mpos_sales_h.csource = 'OLSERA' THEN COALESCE(mpos_sales_h.ntotal_profit, 0) WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') OR (COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0) THEN 0 ELSE GREATEST(0, mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) - (CASE WHEN items.min_cost >= 0 THEN items.total_cost ELSE 0 END) END"),
+            default => 'mpos_sales_h.dtransaction',
+        };
+
+        $query->orderBy($sortExpression, $sortDir);
+        if ($sortCol !== 'dtransaction') {
+            $query->orderBy('mpos_sales_h.dtransaction', 'desc');
+        }
 
         return $query;
     }
