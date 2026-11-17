@@ -469,25 +469,82 @@
                 </div>
 
                 <div class="table-responsive p-3 order-3 order-print-2">
+                    @php
+                        $sortUrl = function (string $col, string $defaultDir) use ($sortCol, $sortDir): string {
+                            $nextDir = $defaultDir;
+                            if ($sortCol === $col) {
+                                $nextDir = $sortDir === 'asc' ? 'desc' : 'asc';
+                            }
+                            return request()->fullUrlWithQuery(['sort_col' => $col, 'sort_dir' => $nextDir]);
+                        };
+                        $sortIcon = function (string $col) use ($sortCol, $sortDir): string {
+                            if ($sortCol === $col) {
+                                return $sortDir === 'asc'
+                                    ? '<i class="bi bi-sort-alpha-down ms-1 text-dark"></i>'
+                                    : '<i class="bi bi-sort-alpha-down-alt ms-1 text-dark"></i>';
+                            }
+                            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-25" style="font-size: 0.7rem;"></i>';
+                        };
+                        $sortIconNum = function (string $col) use ($sortCol, $sortDir): string {
+                            if ($sortCol === $col) {
+                                return $sortDir === 'asc'
+                                    ? '<i class="bi bi-sort-numeric-down ms-1 text-dark"></i>'
+                                    : '<i class="bi bi-sort-numeric-down-alt ms-1 text-dark"></i>';
+                            }
+                            return '<i class="bi bi-arrow-down-up ms-1 text-muted opacity-25" style="font-size: 0.7rem;"></i>';
+                        };
+                    @endphp
                     <table class="table table-bordered table-hover align-middle mb-0 text-nowrap" style="min-width: 1500px;">
                         <thead class="table-light text-secondary">
                             <tr>
-                                <th class="py-3 text-center">TANGGAL TRANSAKSI</th>
-                                <th class="py-3 text-center">WAKTU TRANSAKSI</th>
-                                <th class="py-3 text-center">NO. PESANAN</th>
-                                <th class="py-3 text-center">PAYMENT METHOD</th>
-                                <th class="py-3 text-center">STATUS</th>
-                                <th class="py-3 text-center">KASIR</th>
-                                <th class="py-3 text-center">PELANGGAN</th>
-                                <th class="py-3 text-center">TOTAL PENJUALAN</th>
-                                <th class="py-3 text-center">VOID/REFUND</th>
-                                <th class="py-3 text-center">DISKON</th>
-                                <th class="py-3 text-center">PAJAK</th>
-                                <th class="py-3 text-center">SERVICE</th>
-                                <th class="py-3 text-center">PEMBULATAN</th>
-                                <th class="py-3 text-center fw-bold text-primary">PENJUALAN NETT</th>
-                                <th class="py-3 text-center">MODAL</th>
-                                <th class="py-3 text-center fw-bold text-success">LABA</th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('dtransaction', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">TANGGAL TRANSAKSI {!! $sortIconNum('dtransaction') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('dtransaction', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">WAKTU TRANSAKSI {!! $sortIconNum('dtransaction') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('cnotransaction', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">NO. PESANAN {!! $sortIcon('cnotransaction') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('payment_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PAYMENT METHOD {!! $sortIcon('payment_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('display_status', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">STATUS {!! $sortIcon('display_status') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('cashier_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">KASIR {!! $sortIcon('cashier_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('final_customer_name', 'asc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PELANGGAN {!! $sortIcon('final_customer_name') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('gross_sales', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">TOTAL PENJUALAN {!! $sortIconNum('gross_sales') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('total_void_refund', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">VOID/REFUND {!! $sortIconNum('total_void_refund') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('ndiscount', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">DISKON {!! $sortIconNum('ndiscount') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('ntax', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PAJAK {!! $sortIconNum('ntax') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('nservice_charge', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">SERVICE {!! $sortIconNum('nservice_charge') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('nrounding', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">PEMBULATAN {!! $sortIconNum('nrounding') !!}</a>
+                                </th>
+                                <th class="py-3 text-center fw-bold text-primary">
+                                    <a href="{{ $sortUrl('net_sales', 'desc') }}" class="text-decoration-none text-primary d-flex align-items-center justify-content-center">PENJUALAN NETT {!! $sortIconNum('net_sales') !!}</a>
+                                </th>
+                                <th class="py-3 text-center">
+                                    <a href="{{ $sortUrl('total_cost', 'desc') }}" class="text-decoration-none text-secondary d-flex align-items-center justify-content-center">MODAL {!! $sortIconNum('total_cost') !!}</a>
+                                </th>
+                                <th class="py-3 text-center fw-bold text-success">
+                                    <a href="{{ $sortUrl('laba', 'desc') }}" class="text-decoration-none text-success d-flex align-items-center justify-content-center">LABA {!! $sortIconNum('laba') !!}</a>
+                                </th>
                                 <th class="py-3 text-center">DEPOSIT</th>
                             </tr>
                         </thead>
