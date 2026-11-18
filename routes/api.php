@@ -22,10 +22,8 @@ Route::get('/user/outlets', [AuthController::class, 'outlets']);
 // API khusus APK Web Office (Tablet)
 Route::prefix('office')->group(function () {
     Route::post('/login', [OfficeAuthController::class, 'login']);
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::get('/me', [OfficeAuthController::class, 'me']);
-        Route::post('/logout', [OfficeAuthController::class, 'logout']);
-    });
+    Route::get('/me', [OfficeAuthController::class, 'me']);
+    Route::post('/logout', [OfficeAuthController::class, 'logout']);
 });
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
