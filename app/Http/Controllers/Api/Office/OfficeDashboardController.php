@@ -22,6 +22,14 @@ class OfficeDashboardController extends Controller
     {
         $user = $request->user();
         if (!$user) {
+            $bearer = $request->bearerToken();
+            if ($bearer && str_starts_with($bearer, 'logged_in_office_')) {
+                $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                $user = \App\Models\Muser::find($userId);
+            }
+        }
+
+        if (!$user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pengguna tidak terautentikasi.',
