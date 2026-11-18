@@ -731,7 +731,7 @@
                     $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*', 'inventory.*']);
                     $isMarketingActive = request()->routeIs(['vouchers.*']);
                     $isCustomerSupplierActive = request()->routeIs(['customer-types.*', 'customers.*', 'suppliers.*']);
-                    $isTransactionsActive = request()->routeIs(['purchases.*', 'payments.*']);
+                    $isTransactionsActive = request()->routeIs(['purchases.*', 'sales.*', 'payments.*']);
                     $isReportsActive = request()->routeIs(['reports.*']);
                     $isPegawaiActive = request()->routeIs(['outlets.*', 'pos-users.*']);
                     @endphp
@@ -845,6 +845,9 @@
                         <div class="nav-sub-menu">
                             <a href="{{ route('purchases.index') }}" class="sidebar-sub-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
                                 <span>Pembelian</span>
+                            </a>
+                            <a href="{{ route('sales.index') }}" class="sidebar-sub-item {{ request()->routeIs('sales.*') ? 'active' : '' }}">
+                                <span>Penjualan</span>
                             </a>
                             <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
                                 <span>Metode Pembayaran</span>
