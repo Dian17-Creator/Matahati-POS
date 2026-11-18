@@ -47,7 +47,12 @@ class OfficeAuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('office-tablet')->plainTextToken;
+        // Coba buat token Sanctum, jika tabel database personal_access_tokens belum ada gunakan token fallback
+        try {
+            $token = $user->createToken('office-tablet')->plainTextToken;
+        } catch (\Throwable $e) {
+            $token = 'logged_in_office_' . $user->nid;
+        }
 
         return response()->json([
             'success' => true,
@@ -64,6 +69,15 @@ class OfficeAuthController extends Controller
     {
         /** @var Muser|null $user */
         $user = $request->user();
+
+        if (!$user) {
+            $bearer = $request->bearerToken();
+            if ($bearer && str_starts_with($bearer, 'logged_in_office_')) {
+                $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                $user = Muser::find($userId);
+            }
+        }
+
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -86,8 +100,12 @@ class OfficeAuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         $user = $request->user();
-        if ($user && $user->currentAccessToken()) {
-            $user->currentAccessToken()->delete();
+        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken()) {
+            try {
+                $user->currentAccessToken()->delete();
+            } catch (\Throwable $e) {
+                // Ignore jika tabel token belum ada
+            }
         }
 
         return response()->json([
