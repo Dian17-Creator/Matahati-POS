@@ -59,21 +59,32 @@ class PosUserController extends Controller
     public function store(Request $request)
     {
         $isSpv = $request->has('fspv');
+        $isCashier = $request->has('fcashier');
+        $isMultiOutlet = $isSpv || $isCashier;
 
-        if ($isSpv) {
+        if ($isMultiOutlet) {
             $request->validate([
                 'nid_user' => 'required|exists:muser,nid',
                 'outlet_ids' => 'required|array|min:1',
                 'outlet_ids.*' => 'exists:mpos_outlet,nid',
             ], [
-                'outlet_ids.required' => 'Pilih minimal satu outlet untuk SPV.',
-                'outlet_ids.min' => 'Pilih minimal satu outlet untuk SPV.',
+                'outlet_ids.required' => 'Pilih minimal satu outlet.',
+                'outlet_ids.min' => 'Pilih minimal satu outlet.',
             ]);
 
-            $existingSpv = MposUser::where('nid_user', $request->nid_user)->where('fspv', 1)->first();
-            if ($existingSpv) {
+            $existingMultiUser = MposUser::where('nid_user', $request->nid_user)
+                ->where(function ($q) use ($isSpv, $isCashier) {
+                    if ($isSpv) {
+                        $q->orWhere('fspv', 1);
+                    }
+                    if ($isCashier) {
+                        $q->orWhere('fcashier', 1);
+                    }
+                })
+                ->first();
+            if ($existingMultiUser) {
                 return redirect()->back()
-                    ->withErrors(['nid_user' => 'Pengguna ini sudah terdaftar sebagai SPV. Silakan edit data tersebut.'])
+                    ->withErrors(['nid_user' => 'Pengguna ini sudah terdaftar sebagai SPV/Kasir. Silakan edit data tersebut.'])
                     ->withInput();
             }
 
@@ -97,19 +108,19 @@ class PosUserController extends Controller
                 ->withInput();
         }
 
-        DB::transaction(function () use ($request, $isSpv, $primaryOutletId) {
+        DB::transaction(function () use ($request, $isSpv, $isCashier, $isMultiOutlet, $primaryOutletId) {
             $data = [
                 'nid_user' => $request->nid_user,
                 'nid_outlet' => $primaryOutletId,
                 'fowner' => $request->has('fowner') ? 1 : 0,
                 'fspv' => $isSpv ? 1 : 0,
-                'fcashier' => $request->has('fcashier') ? 1 : 0,
+                'fcashier' => $isCashier ? 1 : 0,
                 'fcaptain' => $request->has('fcaptain') ? 1 : 0,
             ];
 
             $posUser = MposUser::create($data);
 
-            if ($isSpv && is_array($request->outlet_ids)) {
+            if ($isMultiOutlet && is_array($request->outlet_ids)) {
                 foreach ($request->outlet_ids as $outletId) {
                     MposUserSpv::firstOrCreate([
                         'nid_user' => $posUser->nid_user,
@@ -127,24 +138,33 @@ class PosUserController extends Controller
     {
         $posUser = MposUser::findOrFail($id);
         $isSpv = $request->has('fspv');
+        $isCashier = $request->has('fcashier');
+        $isMultiOutlet = $isSpv || $isCashier;
 
-        if ($isSpv) {
+        if ($isMultiOutlet) {
             $request->validate([
                 'nid_user' => 'required|exists:muser,nid',
                 'outlet_ids' => 'required|array|min:1',
                 'outlet_ids.*' => 'exists:mpos_outlet,nid',
             ], [
-                'outlet_ids.required' => 'Pilih minimal satu outlet untuk SPV.',
-                'outlet_ids.min' => 'Pilih minimal satu outlet untuk SPV.',
+                'outlet_ids.required' => 'Pilih minimal satu outlet.',
+                'outlet_ids.min' => 'Pilih minimal satu outlet.',
             ]);
 
-            $existingSpv = MposUser::where('nid_user', $request->nid_user)
-                ->where('fspv', 1)
+            $existingMultiUser = MposUser::where('nid_user', $request->nid_user)
+                ->where(function ($q) use ($isSpv, $isCashier) {
+                    if ($isSpv) {
+                        $q->orWhere('fspv', 1);
+                    }
+                    if ($isCashier) {
+                        $q->orWhere('fcashier', 1);
+                    }
+                })
                 ->where('nid', '!=', $posUser->nid)
                 ->first();
-            if ($existingSpv) {
+            if ($existingMultiUser) {
                 return redirect()->back()
-                    ->withErrors(['nid_user' => 'Pengguna ini sudah terdaftar sebagai SPV di baris lain.'])
+                    ->withErrors(['nid_user' => 'Pengguna ini sudah terdaftar sebagai SPV/Kasir di baris lain.'])
                     ->withInput();
             }
 
@@ -169,7 +189,7 @@ class PosUserController extends Controller
                 ->withInput();
         }
 
-        DB::transaction(function () use ($request, $posUser, $isSpv, $primaryOutletId) {
+        DB::transaction(function () use ($request, $posUser, $isSpv, $isCashier, $isMultiOutlet, $primaryOutletId) {
             $oldNidUser = $posUser->nid_user;
 
             $data = [
@@ -177,19 +197,19 @@ class PosUserController extends Controller
                 'nid_outlet' => $primaryOutletId,
                 'fowner' => $request->has('fowner') ? 1 : 0,
                 'fspv' => $isSpv ? 1 : 0,
-                'fcashier' => $request->has('fcashier') ? 1 : 0,
+                'fcashier' => $isCashier ? 1 : 0,
                 'fcaptain' => $request->has('fcaptain') ? 1 : 0,
             ];
 
             $posUser->update($data);
 
-            // Clean previous SPV outlets for this user
+            // Clean previous multi-outlet assignments for this user
             MposUserSpv::where('nid_user', $oldNidUser)->delete();
             if ($oldNidUser != $posUser->nid_user) {
                 MposUserSpv::where('nid_user', $posUser->nid_user)->delete();
             }
 
-            if ($isSpv && is_array($request->outlet_ids)) {
+            if ($isMultiOutlet && is_array($request->outlet_ids)) {
                 foreach ($request->outlet_ids as $outletId) {
                     MposUserSpv::firstOrCreate([
                         'nid_user' => $posUser->nid_user,

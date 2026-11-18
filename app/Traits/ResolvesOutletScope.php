@@ -156,8 +156,8 @@ trait ResolvesOutletScope
 
         $mposUser = $this->getAuthenticatedMposUser();
 
-        // 1. If user is Captain or Cashier (strictly assigned to 1 outlet in mpos_user)
-        if ($mposUser && !$mposUser->fowner && !$mposUser->fspv && ($mposUser->fcaptain || $mposUser->fcashier)) {
+        // 1. If user is Captain only (strictly assigned to 1 outlet in mpos_user)
+        if ($mposUser && !$mposUser->fowner && !$mposUser->fspv && !$mposUser->fcashier && $mposUser->fcaptain) {
             return !empty($mposUser->nid_outlet) ? [(int) $mposUser->nid_outlet] : [];
         }
 
@@ -205,7 +205,7 @@ trait ResolvesOutletScope
         }
 
         $mposUser = $this->getAuthenticatedMposUser();
-        if ($mposUser && ((int) $mposUser->fcaptain === 1 || (int) $mposUser->fcashier === 1)) {
+        if ($mposUser && (int) $mposUser->fcaptain === 1 && !(int) $mposUser->fspv && !(int) $mposUser->fcashier) {
             return true;
         }
 
@@ -227,7 +227,7 @@ trait ResolvesOutletScope
         }
 
         $mposUser = $this->getAuthenticatedMposUser();
-        if ($mposUser && ((int) $mposUser->fcaptain === 1 || (int) $mposUser->fcashier === 1)) {
+        if ($mposUser && (int) $mposUser->fcaptain === 1 && !(int) $mposUser->fspv && !(int) $mposUser->fcashier) {
             return true;
         }
 
