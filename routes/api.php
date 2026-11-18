@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Office\OfficeAuthController;
 use App\Http\Controllers\Api\ShiftController;
 use App\Http\Controllers\Master\CategoryController;
 use App\Http\Controllers\Master\CustomerController;
@@ -17,6 +18,15 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/user/outlets', [AuthController::class, 'outlets']);
+
+// API khusus APK Web Office (Tablet)
+Route::prefix('office')->group(function () {
+    Route::post('/login', [OfficeAuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [OfficeAuthController::class, 'me']);
+        Route::post('/logout', [OfficeAuthController::class, 'logout']);
+    });
+});
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
 Route::get('/products', [ProductController::class, 'apiIndex']);

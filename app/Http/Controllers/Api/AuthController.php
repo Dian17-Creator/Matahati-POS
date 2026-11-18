@@ -30,7 +30,7 @@ class AuthController extends Controller
             $hasSpvAccess = MposUserSpv::where('nid_user', $user->nid)->exists();
 
             if (($mposUser && ($mposUser->fowner || $mposUser->fspv || $mposUser->fcashier || $mposUser->fcaptain)) || $hasSpvAccess) {
-                $isSpv = ($mposUser && $mposUser->fspv) || $hasSpvAccess;
+                $isSpv = $mposUser ? (bool) $mposUser->fspv : $hasSpvAccess;
 
                 // Ambil semua outlet yang berhak diakses oleh user ini
                 $allowedOutletIds = $this->getUserAllowedOutletIds();
