@@ -17,6 +17,8 @@ use App\Models\MposSalesH;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Api\Office\OfficePurchaseController;
+
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/user/outlets', [AuthController::class, 'outlets']);
 
@@ -26,6 +28,8 @@ Route::prefix('office')->group(function () {
     Route::get('/me', [OfficeAuthController::class, 'me']);
     Route::post('/logout', [OfficeAuthController::class, 'logout']);
     Route::get('/dashboard', [OfficeDashboardController::class, 'index']);
+    Route::get('/purchases', [OfficePurchaseController::class, 'index']);
+    Route::get('/purchases/{id}', [OfficePurchaseController::class, 'show']);
 });
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
