@@ -20,6 +20,7 @@ use App\Http\Controllers\Master\SupplierController;
 use App\Http\Controllers\Master\InventoryController;
 use App\Http\Controllers\Purchase\PurchaseController;
 use App\Http\Controllers\Purchase\PurchaseReturnController;
+use App\Http\Controllers\Transaction\SalesController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 
@@ -197,6 +198,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/{id}/cancel', [PurchaseController::class, 'cancel'])->name('cancel');
         Route::post('/{id}/payment', [PurchaseController::class, 'updatePayment'])->name('update-payment');
         Route::get('/{id}/print', [PurchaseController::class, 'print'])->name('print');
+    });
+
+    Route::prefix('sales')->name('sales.')->group(function () {
+        Route::get('/', [SalesController::class, 'index'])->name('index');
+        Route::get('/{id}', [SalesController::class, 'show'])->name('show');
     });
 
     // Routes khusus level Owner / Super Admin
