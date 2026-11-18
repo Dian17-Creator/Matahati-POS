@@ -36,7 +36,7 @@
                             </div>
                         </td>
                         <td>
-                            @if($pu->fspv && $pu->spvOutlets->isNotEmpty())
+                            @if(($pu->fspv || $pu->fcashier) && $pu->spvOutlets->isNotEmpty())
                                 <div class="d-flex flex-wrap gap-1">
                                     @foreach($pu->spvOutlets as $spvOutlet)
                                         @if($spvOutlet->outlet)
@@ -125,15 +125,16 @@
                                                 <label class="form-check-label" for="fowner_{{ $pu->nid }}">Owner (Pemilik)</label>
                                             </div>
                                             <div class="form-check form-switch mb-2">
-                                                <input class="form-check-input fspv-switch" type="checkbox" role="switch" id="fspv_{{ $pu->nid }}" name="fspv" value="1" data-modal="{{ $pu->nid }}" {{ (old('modal_id') == $pu->nid ? old('fspv') : $pu->fspv) ? 'checked' : '' }}>
+                                                <input class="form-check-input fspv-switch multi-outlet-switch" type="checkbox" role="switch" id="fspv_{{ $pu->nid }}" name="fspv" value="1" data-modal="{{ $pu->nid }}" {{ (old('modal_id') == $pu->nid ? old('fspv') : $pu->fspv) ? 'checked' : '' }}>
                                                 <label class="form-check-label fw-bold text-primary" for="fspv_{{ $pu->nid }}">
                                                     Supervisor (SPV)
                                                 </label>
                                                 <div class="text-muted small">Aktifkan untuk akses multi-outlet supervisi.</div>
                                             </div>
                                             <div class="form-check form-switch mb-2">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="fcashier_{{ $pu->nid }}" name="fcashier" value="1" {{ (old('modal_id') == $pu->nid ? old('fcashier') : $pu->fcashier) ? 'checked' : '' }}>
+                                                <input class="form-check-input fcashier-switch multi-outlet-switch" type="checkbox" role="switch" id="fcashier_{{ $pu->nid }}" name="fcashier" value="1" data-modal="{{ $pu->nid }}" {{ (old('modal_id') == $pu->nid ? old('fcashier') : $pu->fcashier) ? 'checked' : '' }}>
                                                 <label class="form-check-label" for="fcashier_{{ $pu->nid }}">Cashier (Kasir)</label>
+                                                <div class="text-muted small">Mendukung akses multi-outlet kasir.</div>
                                             </div>
                                             <div class="form-check form-switch mb-0">
                                                 <input class="form-check-input" type="checkbox" role="switch" id="fcaptain_{{ $pu->nid }}" name="fcaptain" value="1" {{ (old('modal_id') == $pu->nid ? old('fcaptain') : $pu->fcaptain) ? 'checked' : '' }}>
@@ -144,6 +145,8 @@
                                         <!-- 3. Outlet -->
                                         @php
                                             $isSpv = old('modal_id') == $pu->nid ? (bool) old('fspv') : (bool) $pu->fspv;
+                                            $isCashier = old('modal_id') == $pu->nid ? (bool) old('fcashier') : (bool) $pu->fcashier;
+                                            $isMultiOutlet = $isSpv || $isCashier;
                                             $userSpvOutletIds = old('modal_id') == $pu->nid && is_array(old('outlet_ids'))
                                                 ? old('outlet_ids')
                                                 : $pu->spvOutlets->pluck('nid_outlet')->toArray();
@@ -152,10 +155,10 @@
                                             }
                                         @endphp
 
-                                        <!-- Single Outlet (Non-SPV) -->
-                                        <div class="mb-3 single-outlet-group" id="single_outlet_group_{{ $pu->nid }}" style="{{ $isSpv ? 'display: none;' : '' }}">
+                                        <!-- Single Outlet (Non-SPV/Kasir) -->
+                                        <div class="mb-3 single-outlet-group" id="single_outlet_group_{{ $pu->nid }}" style="{{ $isMultiOutlet ? 'display: none;' : '' }}">
                                             <label for="nid_outlet_{{ $pu->nid }}" class="form-label fw-bold">Outlet <span class="text-danger">*</span></label>
-                                            <select class="form-select @if(old('modal_id') == $pu->nid) @error('nid_outlet') is-invalid @enderror @endif" id="nid_outlet_{{ $pu->nid }}" name="nid_outlet" {{ $isSpv ? 'disabled' : 'required' }}>
+                                            <select class="form-select @if(old('modal_id') == $pu->nid) @error('nid_outlet') is-invalid @enderror @endif" id="nid_outlet_{{ $pu->nid }}" name="nid_outlet" {{ $isMultiOutlet ? 'disabled' : 'required' }}>
                                                 <option value="">Pilih Outlet</option>
                                                 @foreach($outlets as $outlet)
                                                     <option value="{{ $outlet->nid }}" {{ (old('modal_id') == $pu->nid ? old('nid_outlet') : $pu->nid_outlet) == $outlet->nid ? 'selected' : '' }}>
@@ -166,8 +169,8 @@
                                             @if(old('modal_id') == $pu->nid) @error('nid_outlet') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
 
-                                        <!-- Multi Outlet (SPV) -->
-                                        <div class="mb-3 multi-outlet-group" id="multi_outlet_group_{{ $pu->nid }}" style="{{ $isSpv ? '' : 'display: none;' }}">
+                                        <!-- Multi Outlet (SPV / Kasir) -->
+                                        <div class="mb-3 multi-outlet-group" id="multi_outlet_group_{{ $pu->nid }}" style="{{ $isMultiOutlet ? '' : 'display: none;' }}">
                                             <label class="form-label fw-bold">Pilih Outlet (Multi Outlet) <span class="text-danger">*</span></label>
                                             <div class="dropdown @if(old('modal_id') == $pu->nid) @error('outlet_ids') is-invalid @enderror @endif">
                                                 <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_{{ $pu->nid }}">
@@ -180,7 +183,7 @@
                                                     @endphp
                                                     <li>
                                                         <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $pu->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }} {{ $isSpv ? '' : 'disabled' }}>
+                                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $pu->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ $isChecked ? 'checked' : '' }} {{ $isMultiOutlet ? '' : 'disabled' }}>
                                                             <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $pu->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
                                                                 {{ $outlet->cname }}
                                                             </label>
@@ -278,17 +281,20 @@
                         <div class="form-check form-switch mb-2">
                             @php
                                 $isCreateSpv = old('modal_id') == 'create' && old('fspv');
+                                $isCreateCashier = old('modal_id') == 'create' && old('fcashier');
+                                $isCreateMultiOutlet = $isCreateSpv || $isCreateCashier;
                                 $createOutletIds = (old('modal_id') == 'create' && is_array(old('outlet_ids'))) ? old('outlet_ids') : [];
                             @endphp
-                            <input class="form-check-input fspv-switch" type="checkbox" role="switch" id="fspv" name="fspv" value="1" data-modal="create" {{ $isCreateSpv ? 'checked' : '' }}>
+                            <input class="form-check-input fspv-switch multi-outlet-switch" type="checkbox" role="switch" id="fspv" name="fspv" value="1" data-modal="create" {{ $isCreateSpv ? 'checked' : '' }}>
                             <label class="form-check-label fw-bold text-primary" for="fspv">
                                 Supervisor (SPV)
                             </label>
                             <div class="text-muted small">Aktifkan untuk supervisi multi-outlet.</div>
                         </div>
                         <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" role="switch" id="fcashier" name="fcashier" value="1" {{ old('modal_id') == 'create' && old('fcashier') ? 'checked' : '' }}>
+                            <input class="form-check-input fcashier-switch multi-outlet-switch" type="checkbox" role="switch" id="fcashier" name="fcashier" value="1" data-modal="create" {{ $isCreateCashier ? 'checked' : '' }}>
                             <label class="form-check-label" for="fcashier">Cashier (Kasir)</label>
+                            <div class="text-muted small">Mendukung akses multi-outlet kasir.</div>
                         </div>
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="fcaptain" name="fcaptain" value="1" {{ old('modal_id') == 'create' && old('fcaptain') ? 'checked' : '' }}>
@@ -297,10 +303,10 @@
                     </div>
 
                     <!-- 3. Outlet -->
-                    <!-- Single Outlet (Non-SPV) -->
-                    <div class="mb-3 single-outlet-group" id="single_outlet_group_create" style="{{ $isCreateSpv ? 'display: none;' : '' }}">
+                    <!-- Single Outlet (Non-SPV/Kasir) -->
+                    <div class="mb-3 single-outlet-group" id="single_outlet_group_create" style="{{ $isCreateMultiOutlet ? 'display: none;' : '' }}">
                         <label for="nid_outlet" class="form-label fw-bold">Outlet <span class="text-danger">*</span></label>
-                        <select class="form-select @if(old('modal_id') == 'create') @error('nid_outlet') is-invalid @enderror @endif" id="nid_outlet" name="nid_outlet" {{ $isCreateSpv ? 'disabled' : 'required' }}>
+                        <select class="form-select @if(old('modal_id') == 'create') @error('nid_outlet') is-invalid @enderror @endif" id="nid_outlet" name="nid_outlet" {{ $isCreateMultiOutlet ? 'disabled' : 'required' }}>
                             <option value="">Pilih Outlet</option>
                             @foreach($outlets as $outlet)
                                 <option value="{{ $outlet->nid }}" {{ (old('modal_id') == 'create' ? old('nid_outlet') : '') == $outlet->nid ? 'selected' : '' }}>
@@ -311,8 +317,8 @@
                         @if(old('modal_id') == 'create') @error('nid_outlet') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
 
-                    <!-- Multi Outlet (SPV) -->
-                    <div class="mb-3 multi-outlet-group" id="multi_outlet_group_create" style="{{ $isCreateSpv ? '' : 'display: none;' }}">
+                    <!-- Multi Outlet (SPV / Kasir) -->
+                    <div class="mb-3 multi-outlet-group" id="multi_outlet_group_create" style="{{ $isCreateMultiOutlet ? '' : 'display: none;' }}">
                         <label class="form-label fw-bold">Pilih Outlet (Multi Outlet) <span class="text-danger">*</span></label>
                         <div class="dropdown @if(old('modal_id') == 'create') @error('outlet_ids') is-invalid @enderror @endif">
                             <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="dropdownBtn_create">
@@ -322,7 +328,7 @@
                                 @foreach($outlets as $outlet)
                                 <li>
                                     <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
-                                        <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array($outlet->nid, $createOutletIds) ? 'checked' : '' }} {{ $isCreateSpv ? '' : 'disabled' }}>
+                                        <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array($outlet->nid, $createOutletIds) ? 'checked' : '' }} {{ $isCreateMultiOutlet ? '' : 'disabled' }}>
                                         <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
                                             {{ $outlet->cname }}
                                         </label>
@@ -332,7 +338,7 @@
                             </ul>
                         </div>
                         @if(old('modal_id') == 'create') @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
-                        <div class="form-text small text-muted">Centang outlet yang dapat diakses oleh SPV ini.</div>
+                        <div class="form-text small text-muted">Centang outlet yang dapat diakses oleh SPV/Kasir ini.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -390,10 +396,10 @@
             checkbox.addEventListener('change', updateDropdownText);
         });
 
-        // Toggle Single vs Multi Outlet based on SPV Switch
-        function handleSpvToggle(switchEl) {
-            const modalId = switchEl.getAttribute('data-modal');
-            const isSpv = switchEl.checked;
+        // Toggle Single vs Multi Outlet based on SPV / Kasir Switch
+        function handleMultiOutletToggle(modalId) {
+            const modalSwitches = document.querySelectorAll(`.multi-outlet-switch[data-modal="${modalId}"]`);
+            const isMultiOutlet = Array.from(modalSwitches).some(sw => sw.checked);
             
             const singleGroup = document.getElementById('single_outlet_group_' + modalId);
             const multiGroup = document.getElementById('multi_outlet_group_' + modalId);
@@ -403,7 +409,7 @@
             const singleSelect = singleGroup.querySelector('select[name="nid_outlet"]');
             const multiCheckboxes = multiGroup.querySelectorAll('input[name="outlet_ids[]"]');
 
-            if (isSpv) {
+            if (isMultiOutlet) {
                 singleGroup.style.display = 'none';
                 multiGroup.style.display = 'block';
 
@@ -451,15 +457,16 @@
             updateDropdownText();
         }
 
-        document.querySelectorAll('.fspv-switch').forEach(switchEl => {
+        const processedModals = new Set();
+        document.querySelectorAll('.multi-outlet-switch').forEach(switchEl => {
+            const modalId = switchEl.getAttribute('data-modal');
             switchEl.addEventListener('change', function() {
-                handleSpvToggle(this);
+                handleMultiOutletToggle(modalId);
             });
-        });
-
-        // Run initial setup for all modals
-        document.querySelectorAll('.fspv-switch').forEach(switchEl => {
-            handleSpvToggle(switchEl);
+            if (!processedModals.has(modalId)) {
+                processedModals.add(modalId);
+                handleMultiOutletToggle(modalId);
+            }
         });
 
         updateDropdownText();
