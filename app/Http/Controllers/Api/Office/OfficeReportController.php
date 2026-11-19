@@ -62,7 +62,7 @@ class OfficeReportController extends Controller
 
     private function getSalesDetailReport(Request $request, string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin): JsonResponse
     {
-        $perPage = (int) $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 50);
 
         // 1. Items Deductions & Reversals Subqueries
         $itemDeductions = DB::table('mpos_sales_d')
@@ -229,7 +229,7 @@ class OfficeReportController extends Controller
 
     private function getSalesItemReport(Request $request, string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin): JsonResponse
     {
-        $perPage = (int) $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 50);
 
         $baseQuery = DB::table('mpos_sales_d')
             ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
@@ -348,7 +348,7 @@ class OfficeReportController extends Controller
 
     private function getCustomerReport(Request $request, string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin): JsonResponse
     {
-        $perPage = (int) $request->input('per_page', 15);
+        $perPage = (int) $request->input('per_page', 50);
         $customerNameExpr = "COALESCE(NULLIF(TRIM(mpos_cust.cname), ''), NULLIF(TRIM(mpos_sales_h.cname_customer), ''), 'Pelanggan Umum')";
 
         $baseQuery = DB::table('mpos_sales_d')
