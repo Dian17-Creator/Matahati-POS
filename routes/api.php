@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\Office\OfficePurchaseController;
+use App\Http\Controllers\Api\Office\OfficeReportController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/user/outlets', [AuthController::class, 'outlets']);
@@ -30,6 +31,7 @@ Route::prefix('office')->group(function () {
     Route::get('/dashboard', [OfficeDashboardController::class, 'index']);
     Route::get('/purchases', [OfficePurchaseController::class, 'index']);
     Route::get('/purchases/{id}', [OfficePurchaseController::class, 'show']);
+    Route::get('/reports', [OfficeReportController::class, 'index']);
 });
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
