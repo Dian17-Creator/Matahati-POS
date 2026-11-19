@@ -17,6 +17,7 @@ use App\Models\MposSalesH;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Api\Office\OfficeInventoryController;
 use App\Http\Controllers\Api\Office\OfficePurchaseController;
 use App\Http\Controllers\Api\Office\OfficeReportController;
 
@@ -32,6 +33,7 @@ Route::prefix('office')->group(function () {
     Route::get('/purchases', [OfficePurchaseController::class, 'index']);
     Route::get('/purchases/{id}', [OfficePurchaseController::class, 'show']);
     Route::get('/reports', [OfficeReportController::class, 'index']);
+    Route::get('/inventory', [OfficeInventoryController::class, 'index']);
 });
 
 Route::get('/categories', [CategoryController::class, 'apiIndex']);
