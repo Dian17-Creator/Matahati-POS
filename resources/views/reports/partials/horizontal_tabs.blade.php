@@ -2,30 +2,6 @@
 $currentCategory = $currentCategory ?? 'penjualan';
 @endphp
 
-<div class="report-headbar-tabs bg-white border-bottom px-3 px-md-4">
-    <div class="d-flex align-items-center flex-nowrap report-horizontal-nav">
-        <!-- <a href="{{ route('reports.customer-product') }}"
-            class="report-category-tab {{ $currentCategory === 'produk' || request()->routeIs('reports.customer-product*') ? 'active' : '' }}">
-            <i class="bi bi-box-seam me-1"></i> Laporan Produk & Pelanggan
-        </a>
-        <span class="report-category-tab text-muted opacity-60" style="cursor: not-allowed;" title="Segera Hadir">
-            <i class="bi bi-cart-check me-1"></i> Laporan Pembelian
-        </span> -->
-        <a href="{{ route('reports.sales-detail') }}"
-            class="report-category-tab {{ $currentCategory === 'penjualan' || request()->routeIs('reports.sales-detail*', 'reports.sales-item*') ? 'active' : '' }}">
-            <i class="bi bi-receipt me-1"></i> Laporan Penjualan
-        </a>
-        <!-- <span class="report-category-tab text-muted opacity-60" style="cursor: not-allowed;" title="Segera Hadir">
-            <i class="bi bi-clock-history me-1"></i> Laporan Penjualan Per Shift
-        </span>
-        <span class="report-category-tab text-muted opacity-60" style="cursor: not-allowed;" title="Segera Hadir">
-            <i class="bi bi-credit-card me-1"></i> Laporan Pembayaran
-        </span>
-        <span class="report-category-tab text-muted opacity-60" style="cursor: not-allowed;" title="Segera Hadir">
-            <i class="bi bi-buildings me-1"></i> Laporan Multi Outlet
-        </span> -->
-    </div>
-</div>
 
 <style>
     .report-headbar-tabs {
