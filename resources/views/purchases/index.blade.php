@@ -338,6 +338,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
 <div class="card olsera-panel-card mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0 fw-bold">{{ $currentPurchaseSubTitle }}</h5>
+        @if($canModifyData)
         <div class="d-flex gap-2">
             @if($statusTab === 'return')
             <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createReturnModal">
@@ -352,6 +353,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
             </button>
             @endif
         </div>
+        @endif
     </div>
 
     @php
@@ -518,6 +520,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Modal Import Pembelian dari PDF -->
 <div class="modal fade" id="importPdfModal" tabindex="-1" aria-labelledby="importPdfModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -831,6 +834,7 @@ $currentPurchaseSubTitle = $purchaseSubTitles[$statusTab] ?? 'Pembelian Butuh Di
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

@@ -108,7 +108,7 @@
         <a href="{{ route('purchases.print', $purchase->nid) }}" target="_blank" class="btn btn-outline-dark btn-sm px-3">
             <i class="bi bi-printer me-1"></i> Cetak PO
         </a>
-        @if($purchase->cstatus === 'PENDING')
+        @if($canModifyData && $purchase->cstatus === 'PENDING')
         <button type="button" class="btn btn-success btn-sm px-3" data-bs-toggle="modal" data-bs-target="#receiveModal">
             <i class="bi bi-box-seam me-1"></i> Konfirmasi Barang Diterima
         </button>
@@ -143,11 +143,13 @@
             <i class="bi bi-exclamation-circle-fill me-1"></i> Belum Bayar
             @endif
         </div>
+        @if($canModifyData)
         <div>
             <button type="button" class="btn btn-sm {{ $purchase->cpayment_status === 'PAID' ? 'btn-light text-success' : 'btn-light text-danger' }} py-0 px-2 fw-bold" data-bs-toggle="modal" data-bs-target="#paymentModal" style="font-size: 0.78rem;">
                 <i class="bi bi-cash-stack me-1"></i> Ubah Status Bayar
             </button>
         </div>
+        @endif
     </div>
     <div class="card-body bg-white py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3">
@@ -277,7 +279,7 @@
             <h6 class="mb-0 fw-bold">Daftar Item Pesanan</h6>
             <span class="badge bg-light text-dark border">{{ $purchase->details->count() }} Item</span>
         </div>
-        @if($purchase->cstatus === 'PENDING')
+        @if($canModifyData && $purchase->cstatus === 'PENDING')
         <button type="button" class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addProductModal">
             <i class="bi bi-plus-lg me-1"></i> Tambah Item
         </button>
@@ -296,7 +298,7 @@
                         <th class="py-3 text-center">KUANTITAS BELI</th>
                         <th class="py-3 text-end">HARGA BELI SATUAN</th>
                         <th class="py-3 text-end">TOTAL HARGA</th>
-                        @if($purchase->cstatus === 'PENDING')
+                        @if($canModifyData && $purchase->cstatus === 'PENDING')
                         <th class="py-3 text-center" style="width: 80px;">AKSI</th>
                         @endif
                     </tr>
@@ -380,7 +382,7 @@
                         <td class="text-end fw-bold text-dark">
                             Rp {{ rtrim(rtrim(number_format((float) $item->nsubtotal, 2, ',', '.'), '0'), ',') }}
                         </td>
-                        @if($purchase->cstatus === 'PENDING')
+                        @if($canModifyData && $purchase->cstatus === 'PENDING')
                         <td class="text-center">
                             <form action="{{ route('purchases.remove-item', [$purchase->nid, $item->nid]) }}" method="POST" onsubmit="return confirm('Hapus item ini dari pesanan?')">
                                 @csrf
@@ -394,10 +396,10 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 8 : 7 }}" class="text-center py-5 text-muted">
+                        <td colspan="{{ $canModifyData && $purchase->cstatus === 'PENDING' ? 8 : 7 }}" class="text-center py-5 text-muted">
                             <i class="bi bi-box-arrow-in-down fs-2 d-block text-secondary opacity-50 mb-2"></i>
                             Belum ada item dalam pesanan pembelian ini.
-                            @if($purchase->cstatus === 'PENDING')
+                            @if($canModifyData && $purchase->cstatus === 'PENDING')
                             <div class="mt-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addProductModal">
                                     <i class="bi bi-plus-lg me-1"></i> Tambah Item Sekarang
@@ -411,13 +413,13 @@
                 @if($purchase->details->isNotEmpty())
                 <tfoot class="bg-light">
                     <tr>
-                        <td colspan="{{ $purchase->cstatus === 'PENDING' ? 6 : 5 }}" class="text-end fw-bold py-3">
+                        <td colspan="{{ $canModifyData && $purchase->cstatus === 'PENDING' ? 6 : 5 }}" class="text-end fw-bold py-3">
                             GRAND TOTAL PEMBELIAN:
                         </td>
                         <td class="text-end fw-bold fs-5 text-primary py-3">
                             Rp {{ rtrim(rtrim(number_format((float) $purchase->ntotal_amount, 2, ',', '.'), '0'), ',') }}
                         </td>
-                        @if($purchase->cstatus === 'PENDING')
+                        @if($canModifyData && $purchase->cstatus === 'PENDING')
                         <td></td>
                         @endif
                     </tr>
@@ -429,7 +431,7 @@
 </div>
 
 <!-- Modal Tambah Item (Produk / Bahan Baku) -->
-@if($purchase->cstatus === 'PENDING')
+@if($canModifyData && $purchase->cstatus === 'PENDING')
 <div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -502,7 +504,7 @@
 @endif
 
 <!-- Modal Konfirmasi Terima Barang -->
-@if($purchase->cstatus === 'PENDING')
+@if($canModifyData && $purchase->cstatus === 'PENDING')
 <div class="modal fade" id="receiveModal" tabindex="-1" aria-labelledby="receiveModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -570,6 +572,7 @@
 @endif
 
 <!-- Modal Update Status Bayar -->
+@if($canModifyData)
 <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -601,6 +604,7 @@
         </div>
     </div>
 </div>
+@endif
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>

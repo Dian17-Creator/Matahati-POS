@@ -8,9 +8,11 @@
         <div class="d-flex align-items-center">
             <h5 class="mb-0">Daftar Kategori Pelanggan</h5>
         </div>
+        @if($canModifyData)
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
+        @endif
     </div>
     <div class="card-body p-3">
 
@@ -28,7 +30,9 @@
                         <!-- <th width="10%">ID</th> -->
                         <th class="py-3 ps-4">Nama Kategori</th>
                         <th class="py-3 ps-4">Outlet</th>
+                        @if($canModifyData)
                         <th width="20%" class="text-center py-3 ps-4">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -51,6 +55,7 @@
                             <span class="text-muted">-</span>
                             @endif
                         </td>
+                        @if($canModifyData)
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#editModal{{ $customerType->nid }}">
                                 <i class="bi bi-pencil"></i> Edit
@@ -59,8 +64,10 @@
                                 <i class="bi bi-trash"></i> Delete
                             </button>
                         </td>
+                        @endif
                     </tr>
 
+                    @if($canModifyData)
                     <!-- Edit Modal -->
                     <div class="modal fade" id="editModal{{ $customerType->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $customerType->nid }}" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -152,9 +159,10 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                     @empty
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-4">Belum ada data kategori pelanggan.</td>
+                        <td colspan="{{ $canModifyData ? 3 : 2 }}" class="text-center text-muted py-4">Belum ada data kategori pelanggan.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -168,6 +176,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -221,6 +230,7 @@
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

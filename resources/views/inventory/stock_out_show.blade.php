@@ -337,7 +337,7 @@
                         <i class="bi bi-printer me-1"></i> Cetak
                     </a>
 
-                    @if($stockOut->isDraft)
+                    @if($canModifyData && $stockOut->isDraft)
                     <form action="{{ route('inventory.stock-out.cancel', $stockOut->cno_stock_out) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan draf Stok Keluar ini?');">
                         @csrf
                         <button type="submit" class="btn btn-danger btn-sm px-3 shadow-sm">
@@ -361,7 +361,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Tanggal Keluar</div>
-                        @if($stockOut->isDraft)
+                        @if($canModifyData && $stockOut->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -398,7 +398,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Catatan</div>
-                        @if($stockOut->isDraft)
+                        @if($canModifyData && $stockOut->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -415,7 +415,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Alasan</div>
-                        @if($stockOut->isDraft)
+                        @if($canModifyData && $stockOut->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -433,7 +433,7 @@
             <h6 class="fw-bold mb-0 text-white">
                 Item Barang Keluar (<span id="totalDetailItemCount">{{ $stockOut->details->count() }}</span>)
             </h6>
-            @if($stockOut->isDraft)
+            @if($canModifyData && $stockOut->isDraft)
             <button type="button" class="btn btn-light btn-sm fw-semibold shadow-sm text-primary" onclick="addNewDetailRow()">
                 <i class="bi bi-plus-lg me-1"></i> Tambah Item
             </button>
@@ -443,7 +443,7 @@
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table table-hover align-middle mb-0" id="stockOutDetailsTable" style="table-layout: fixed; width: 100%;">
                 <thead class="bg-light">
-                    @if($stockOut->isDraft)
+                    @if($canModifyData && $stockOut->isDraft)
                     <tr class="text-muted small text-uppercase">
                         <th style="width: 4%;" class="text-center py-2.5 text-nowrap">No</th>
                         <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Tipe</th>
@@ -509,7 +509,7 @@
                             </span>
                         </td>
                         <td class="text-center">
-                            @if($stockOut->isDraft)
+                            @if($canModifyData && $stockOut->isDraft)
                             <div class="d-inline-flex justify-content-center">
                                 <div class="qty-stepper mx-auto" data-item-id="{{ $detail->nid }}" data-cost="{{ (float) $detail->ncost }}">
                                     <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepDetailQty('{{ $detail->nid }}', -1)" title="Kurangi">−</button>
@@ -543,7 +543,7 @@
                         <td class="text-end text-dark fw-bold pe-3" id="subtotal-cell-{{ $detail->nid }}">
                             Rp {{ number_format((float) $detail->nsubtotal, 0, ',', '.') }}
                         </td>
-                        @if($stockOut->isDraft)
+                        @if($canModifyData && $stockOut->isDraft)
                         <td class="text-center">
                             <form action="{{ route('inventory.stock-out.items.destroy', [$stockOut->cno_stock_out, $detail->nid]) }}" method="POST" onsubmit="return confirm('Hapus item ini dari dokumen draf?');" class="d-inline">
                                 @csrf
@@ -557,7 +557,7 @@
                     </tr>
                     @empty
                     <tr id="empty-row">
-                        <td colspan="{{ $stockOut->isDraft ? '8' : '7' }}" class="text-center py-4 text-muted">
+                        <td colspan="{{ ($canModifyData && $stockOut->isDraft) ? '8' : '7' }}" class="text-center py-4 text-muted">
                             Belum ada item detail pada dokumen stok keluar ini.
                         </td>
                     </tr>
@@ -574,7 +574,7 @@
                         <td class="text-end text-primary py-2.5 fs-6 pe-3" id="totalCostDisplay">
                             Rp {{ number_format((float) $stockOut->ntotal_cost, 0, ',', '.') }}
                         </td>
-                        @if($stockOut->isDraft)
+                        @if($canModifyData && $stockOut->isDraft)
                         <td></td>
                         @endif
                     </tr>
@@ -586,7 +586,7 @@
 </div>
 
 {{-- ==================== MODAL KONFIRMASI POSTING ==================== --}}
-@if($stockOut->isDraft)
+@if($canModifyData && $stockOut->isDraft)
 <div class="modal fade" id="modalPostingConfirm" tabindex="-1" aria-labelledby="modalPostingConfirmLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">

@@ -59,15 +59,17 @@
             </form>
         </div>
         <div class="d-flex align-items-center">
-            <a href="{{ route('products.export', request()->only(['nid_category', 'search', 'nid_outlet', 'hide_empty'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm me-2">
+            <a href="{{ route('products.export', request()->only(['nid_category', 'search', 'nid_outlet', 'hide_empty'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm {{ $canModifyData ? 'me-2' : '' }}">
                 <i class="bi bi-file-earmark-arrow-down"></i> Export Excel
             </a>
+            @if($canModifyData)
             <button type="button" class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-file-earmark-excel"></i> Import Data
             </button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
                 <i class="bi bi-plus-lg"></i> Tambah Baru
             </button>
+            @endif
         </div>
     </div>
     <div class="card-body p-3" id="table-container">
@@ -152,12 +154,14 @@
                                 <a href="{{ route('products.show', $product->nid) }}" class="btn btn-outline-info" title="Detail Produk">
                                     <i class="bi bi-eye"></i>
                                 </a>
+                                @if($canModifyData)
                                 <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ $product->nid }}" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $product->nid }}" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </button>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -170,6 +174,7 @@
             </table>
         </div>
 
+        @if($canModifyData)
         @foreach ($products as $product)
             <!-- Edit Modal -->
             <div class="modal fade" id="editModal{{ $product->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $product->nid }}" aria-hidden="true">
@@ -349,6 +354,7 @@
                 </div>
             </div>
         @endforeach
+        @endif
         @if($products->hasPages())
         <div class="d-flex justify-content-end mt-3">
             {{ $products->links('pagination::bootstrap-5') }}
@@ -357,6 +363,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -528,6 +535,7 @@
         </div>
     </div>
 </div>
+@endif
 
 @endsection
 
@@ -567,8 +575,11 @@
         
         if (hasErrors && modalId) {
             if (modalId === 'create') {
-                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
-                myModal.show();
+                var createModalEl = document.getElementById('createModal');
+                if (createModalEl) {
+                    var myModal = new bootstrap.Modal(createModalEl);
+                    myModal.show();
+                }
             } else {
                 var editModal = document.getElementById('editModal' + modalId);
                 if(editModal) {

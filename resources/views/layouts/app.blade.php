@@ -661,7 +661,7 @@
             box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
         }
 
-        .olsera-panel-card > .card-header {
+        .olsera-panel-card>.card-header {
             border-bottom: 1px solid #eef2f6;
         }
 
@@ -846,9 +846,9 @@
                             <a href="{{ route('purchases.index') }}" class="sidebar-sub-item {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
                                 <span>Pembelian</span>
                             </a>
-                            <a href="{{ route('sales.index') }}" class="sidebar-sub-item {{ request()->routeIs('sales.*') ? 'active' : '' }}">
+                            <!-- <a href="{{ route('sales.index') }}" class="sidebar-sub-item {{ request()->routeIs('sales.*') ? 'active' : '' }}">
                                 <span>Penjualan</span>
-                            </a>
+                            </a> -->
                             <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
                                 <span>Metode Pembayaran</span>
                             </a>

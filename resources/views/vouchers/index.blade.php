@@ -6,9 +6,11 @@
 <div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0">Daftar Voucher</h5>
+        @if($canModifyData)
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
+        @endif
     </div>
     <div class="card-body p-3">
         <div class="table-responsive">
@@ -21,7 +23,9 @@
                         <th class="text-center py-3 ps-4">Kuota / Terpakai</th>
                         <th class="text-center py-3 ps-4">Diskon</th>
                         <th class="text-center py-3 ps-4">Status</th>
+                        @if($canModifyData)
                         <th width="12%" class="text-center py-3 pe-4">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -63,6 +67,7 @@
                             <span class="badge bg-secondary">{{ $voucher->cstatus }}</span>
                             @endif
                         </td>
+                        @if($canModifyData)
                         <td class="text-center pe-4">
                             <div class="d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 32px; height: 32px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $voucher->nid }}" title="Edit">
@@ -73,8 +78,10 @@
                                 </button>
                             </div>
                         </td>
+                        @endif
                     </tr>
 
+                    @if($canModifyData)
                     <!-- Edit Modal -->
                     <div class="modal fade" id="editModal{{ $voucher->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $voucher->nid }}" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -175,9 +182,10 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Tidak ada data voucher.</td>
+                        <td colspan="{{ $canModifyData ? 7 : 6 }}" class="text-center text-muted py-4">Tidak ada data voucher.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -191,6 +199,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -261,6 +270,7 @@
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

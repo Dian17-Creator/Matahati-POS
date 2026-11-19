@@ -301,6 +301,7 @@
 <div class="container-fluid py-2">
     <div class="row g-4 justify-content-center align-items-start">
 
+        @if($canModifyData)
         <!-- CARD KIRI: Tambah Kategori Produk -->
         <div class="col-12 col-lg-5 col-xl-5">
             <div class="olsera-panel-card">
@@ -461,9 +462,10 @@
                 </form>
             </div>
         </div>
+        @endif
 
         <!-- CARD KANAN: Daftar Kategori Produk -->
-        <div class="col-12 col-lg-5 col-xl-5">
+        <div class="{{ $canModifyData ? 'col-12 col-lg-5 col-xl-5' : 'col-12' }}">
             <div class="olsera-panel-card">
                 <div class="olsera-card-header border-0 pb-2">
                     <h6 class="olsera-card-title">Daftar Kategori</h6>
@@ -547,7 +549,7 @@
                 <div class="modal-header border-bottom py-3 px-4">
                     <div>
                         <h6 class="modal-title fw-bold text-dark mb-0" id="detailModalLabel{{ $category->nid }}">Detail Kategori Produk</h6>
-                        <div class="text-muted" style="font-size: 0.74rem;">Lihat informasi atau perbarui pengaturan kategori</div>
+                        <div class="text-muted" style="font-size: 0.74rem;">{{ $canModifyData ? 'Lihat informasi atau perbarui pengaturan kategori' : 'Informasi detail pengaturan kategori' }}</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -591,6 +593,7 @@
                                 id="cname_{{ $category->nid }}"
                                 name="cname"
                                 value="{{ old('modal_id') == $category->nid ? old('cname') : $category->cname }}"
+                                {{ !$canModifyData ? 'disabled' : '' }}
                                 required>
                             @if(old('modal_id') == $category->nid)
                                 @error('cname')
@@ -610,14 +613,15 @@
                                     data-bs-toggle="dropdown"
                                     data-bs-auto-close="outside"
                                     aria-expanded="false"
-                                    id="dropdownBtn_{{ $category->nid }}">
+                                    id="dropdownBtn_{{ $category->nid }}"
+                                    {{ !$canModifyData ? 'disabled' : '' }}>
                                     <span class="text-truncate"><i class="bi bi-shop me-2 text-muted"></i><span class="selected-text">Pilih Outlet...</span></span>
                                 </button>
                                 <ul class="dropdown-menu w-100 p-2 shadow border-0" style="max-height: 240px; overflow-y: auto; border: 1px solid #e2e8f0 !important;">
                                     @if(count($outlets) > 1)
                                     <li class="border-bottom pb-1 mb-1">
                                         <div class="form-check dropdown-item rounded py-1 px-3 d-flex align-items-center">
-                                            <input class="form-check-input me-2 select-all-outlets" style="margin-left: 0; margin-top: 0;" type="checkbox" id="edit_select_all_{{ $category->nid }}">
+                                            <input class="form-check-input me-2 select-all-outlets" style="margin-left: 0; margin-top: 0;" type="checkbox" id="edit_select_all_{{ $category->nid }}" {{ !$canModifyData ? 'disabled' : '' }}>
                                             <label class="form-check-label w-100 ms-2 fw-semibold small text-dark" for="edit_select_all_{{ $category->nid }}" style="cursor:pointer;">
                                                 Pilih Semua Outlet
                                             </label>
@@ -641,7 +645,8 @@
                                                     value="{{ $outlet->nid }}"
                                                     id="edit_outlet_{{ $category->nid }}_{{ $outlet->nid }}"
                                                     data-name="{{ $outlet->cname }}"
-                                                    {{ $isChecked ? 'checked' : '' }}>
+                                                    {{ $isChecked ? 'checked' : '' }}
+                                                    {{ !$canModifyData ? 'disabled' : '' }}>
                                                 <label class="form-check-label w-100 ms-2 small" for="edit_outlet_{{ $category->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
                                                     {{ $outlet->cname }}
                                                     @if($category->nid_outlet == $outlet->nid)
@@ -673,7 +678,8 @@
                                         id="ftrack_stock_{{ $category->nid }}"
                                         name="ftrack_stock"
                                         value="1"
-                                        {{ old('modal_id') == $category->nid ? (old('ftrack_stock') ? 'checked' : '') : ($category->ftrack_stock ? 'checked' : '') }}>
+                                        {{ old('modal_id') == $category->nid ? (old('ftrack_stock') ? 'checked' : '') : ($category->ftrack_stock ? 'checked' : '') }}
+                                        {{ !$canModifyData ? 'disabled' : '' }}>
                                 </div>
                             </div>
                             <div class="text-muted" style="font-size: 0.74rem; line-height: 1.4;">
@@ -694,7 +700,8 @@
                                         id="fshow_pos_{{ $category->nid }}"
                                         name="fshow_pos"
                                         value="1"
-                                        {{ old('modal_id') == $category->nid ? (old('fshow_pos') ? 'checked' : '') : (!isset($category->fshow_pos) || $category->fshow_pos ? 'checked' : '') }}>
+                                        {{ old('modal_id') == $category->nid ? (old('fshow_pos') ? 'checked' : '') : (!isset($category->fshow_pos) || $category->fshow_pos ? 'checked' : '') }}
+                                        {{ !$canModifyData ? 'disabled' : '' }}>
                                 </div>
                             </div>
                             <div class="text-muted" style="font-size: 0.74rem; line-height: 1.4;">
@@ -703,16 +710,20 @@
                         </div>
                     </div>
 
-                    <div class="modal-footer justify-content-between bg-light px-4 py-2">
+                    <div class="modal-footer {{ $canModifyData ? 'justify-content-between' : 'justify-content-end' }} bg-light px-4 py-2">
+                        @if($canModifyData)
                         <button type="button"
                             class="btn btn-outline-danger btn-sm px-3"
                             data-bs-toggle="modal"
                             data-bs-target="#deleteModal{{ $category->nid }}">
                             <i class="bi bi-trash me-1"></i> Hapus
                         </button>
+                        @endif
                         <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                            <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">{{ $canModifyData ? 'Batal' : 'Tutup' }}</button>
+                            @if($canModifyData)
                             <button type="submit" class="btn btn-maroon btn-sm px-4">Simpan Perubahan</button>
+                            @endif
                         </div>
                     </div>
                 </form>
@@ -720,6 +731,7 @@
         </div>
     </div>
 
+    @if($canModifyData)
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteModal{{ $category->nid }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ $category->nid }}" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -744,6 +756,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endforeach
 @endsection
 

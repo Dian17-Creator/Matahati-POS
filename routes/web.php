@@ -75,7 +75,7 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.post')->mid
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Protected Routes
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::match(['get', 'post'], '/switch-outlet', [\App\Http\Controllers\OutletSwitchController::class, 'switch'])->name('switch-outlet');
 

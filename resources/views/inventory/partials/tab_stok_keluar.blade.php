@@ -76,6 +76,7 @@
                     <i class="bi bi-box-arrow-in-down me-1"></i> Import
                 </button> -->
 
+        @if($canModifyData)
         <!-- Tombol Import PDF -->
         <button type="button" class="btn btn-outline-danger btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importStockOutPdfModal">
             <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
@@ -99,6 +100,7 @@
                 </li>
             </ul>
         </div>
+        @endif
     </div>
 </div>
 
@@ -253,6 +255,7 @@
 </div>
 @endif
 
+@if($canModifyData)
 <!-- ==================== MODAL IMPORT STOK KELUAR DARI PDF ==================== -->
 <div class="modal fade" id="importStockOutPdfModal" tabindex="-1" aria-labelledby="importStockOutPdfModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -452,6 +455,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script type="application/json" id="stockOutProductsData">
     @json($modalProducts)

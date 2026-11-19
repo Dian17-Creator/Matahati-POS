@@ -27,6 +27,16 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
+        View::composer('*', function ($view) {
+            $user = Auth::user();
+            $isCashierReadOnly = (bool) ($user && method_exists($user, 'isCashierLevel') && $user->isCashierLevel());
+
+            $view->with([
+                'isCashierReadOnly' => $isCashierReadOnly,
+                'canModifyData' => ! $isCashierReadOnly,
+            ]);
+        });
+
         View::composer('layouts.app', function ($view) {
             if (!Auth::check()) {
                 return;
