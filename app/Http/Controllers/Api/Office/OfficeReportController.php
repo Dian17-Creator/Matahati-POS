@@ -84,9 +84,9 @@ class OfficeReportController extends Controller
 
         // 2. Summary Query
         $summaryQuery = DB::table('mpos_sales_h')
-            ->where('dtransaction', '>=', $startDate)
-            ->where('dtransaction', '<=', $endDateParsed)
-            ->whereNull('nid_parent_transaction')
+            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction')
             ->leftJoinSub($itemDeductions, 'items', 'mpos_sales_h.nid', '=', 'items.nid_transaction')
             ->leftJoinSub($reversals, 'rev', 'mpos_sales_h.nid', '=', 'rev.nid_parent_transaction')
             ->where(function ($q) {
