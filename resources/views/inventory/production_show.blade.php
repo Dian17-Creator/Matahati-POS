@@ -347,7 +347,7 @@
                     <span>Cetak</span>
                 </a>
 
-                @if($production->isPosted())
+                @if($canModifyData && $production->isPosted())
                 {{-- Tombol Sinkronkan Stok Fisik ke Master Produk --}}
                 <form action="{{ route('inventory.production.sync-stock', $production->nid) }}" method="POST" onsubmit="return confirm('Perbarui / sinkronkan stok fisik produk dan bahan baku ke Master Produk?')">
                     @csrf
@@ -358,7 +358,7 @@
                 </form>
                 @endif
 
-                @if($production->isDraft())
+                @if($canModifyData && $production->isDraft())
                 {{-- Tombol Batalkan --}}
                 <button type="button" class="btn btn-sm btn-outline-danger px-3 d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalCancelConfirm">
                     <i class="bi bi-x-circle"></i>
@@ -381,7 +381,7 @@
             <div class="card prod-panel-card p-3 h-100 position-relative">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <span class="text-muted small fw-semibold">Tanggal</span>
-                    @if($production->isDraft())
+                    @if($canModifyData && $production->isDraft())
                     <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.78rem;" data-bs-toggle="modal" data-bs-target="#modalUbahHeader">
                         <i class="bi bi-pencil me-1"></i>Ubah
                     </button>
@@ -395,7 +395,7 @@
             <div class="card prod-panel-card p-3 h-100 position-relative">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <span class="text-muted small fw-semibold">Catatan</span>
-                    @if($production->isDraft())
+                    @if($canModifyData && $production->isDraft())
                     <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.78rem;" data-bs-toggle="modal" data-bs-target="#modalUbahHeader">
                         <i class="bi bi-pencil me-1"></i>Ubah
                     </button>
@@ -410,7 +410,7 @@
     <div class="card prod-panel-card mb-3">
         <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
             <h6 class="fw-bold text-dark mb-0">Detail Stok Produksi</h6>
-            @if($production->isDraft())
+            @if($canModifyData && $production->isDraft())
             <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm d-inline-flex align-items-center gap-1" onclick="showInlineProductRow()">
                 <i class="bi bi-plus-lg"></i>
                 <span>Tambah Produk</span>
@@ -443,7 +443,7 @@
                             </div>
                         </td>
                         <td class="px-2 py-2 text-center align-middle" style="min-width: 130px;">
-                            @if($production->isDraft())
+                            @if($canModifyData && $production->isDraft())
                             <div id="prodQtyDisplay_{{ $pItem->nid }}">
                                 <span class="fw-bold text-dark fs-6">{{ number_format($pItem->nqty, 2, ',', '.') }}</span>
                             </div>
@@ -481,7 +481,7 @@
                             </button>
                         </td>
                         <td class="px-3 py-3 text-center text-nowrap">
-                            @if($production->isDraft())
+                            @if($canModifyData && $production->isDraft())
                             <div id="prodAksiDisplay_{{ $pItem->nid }}" class="d-inline-flex align-items-center gap-2">
                                 <form action="{{ route('inventory.production.products.destroy', [$production->nid, $pItem->nid]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus produk ini beserta bahan yang terkait?')">
                                     @csrf
@@ -515,7 +515,7 @@
                                         <i class="bi bi-arrow-return-right text-primary fs-6"></i>
                                         <span>Bahan Baku yang Digunakan:</span>
                                     </div>
-                                    @if($production->isDraft())
+                                    @if($canModifyData && $production->isDraft())
                                     <button type="button" class="btn btn-sm btn-outline-primary py-1 px-3 rounded shadow-sm d-inline-flex align-items-center gap-1" style="font-size: 0.78rem;" data-action="show-inline-mat" data-prod-id="{{ $pItem->nid }}">
                                         <i class="bi bi-plus-circle"></i>
                                         <span>Tambah Bahan</span>
@@ -534,7 +534,7 @@
                                                     <th class="px-3 py-2.5 text-center" style="width: 15%;">QTY DIPOTONG</th>
                                                     <th class="px-3 py-2.5 text-center" style="width: 9%;">SATUAN</th>
                                                     <th class="px-3 py-2.5 text-end" style="width: 14%;">SUBTOTAL BIAYA</th>
-                                                    @if($production->isDraft())
+                                                    @if($canModifyData && $production->isDraft())
                                                     <th class="px-3 py-2.5 text-center text-nowrap" style="width: 10%;">AKSI</th>
                                                     @endif
                                                 </tr>
@@ -561,7 +561,7 @@
                                                         Rp {{ number_format($mat->ncost, $matCostDecimals, ',', '.') }}
                                                     </td>
                                                     <td class="px-3 py-2.5 text-center align-middle" style="min-width: 130px;">
-                                                        @if($production->isDraft())
+                                                        @if($canModifyData && $production->isDraft())
                                                         <div id="matQtyDisplay_{{ $mat->nid }}">
                                                             <span class="fw-semibold text-danger">-{{ number_format($mat->nqty, 2, ',', '.') }}</span>
                                                         </div>
@@ -587,7 +587,7 @@
                                                     <td class="px-3 py-2.5 text-end fw-medium text-dark text-nowrap" id="mat_subtotal_{{ $mat->nid }}">
                                                         Rp {{ number_format($mat->nsubtotal, $matSubDecimals, ',', '.') }}
                                                     </td>
-                                                    @if($production->isDraft())
+                                                    @if($canModifyData && $production->isDraft())
                                                     <td class="px-3 py-2.5 text-center text-nowrap">
                                                         <div id="matAksiDisplay_{{ $mat->nid }}" class="d-inline-flex align-items-center gap-2">
                                                             <form action="{{ route('inventory.production.materials.destroy', [$production->nid, $mat->nid]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus bahan ini?')">
@@ -614,7 +614,7 @@
                                                 </tr>
                                                 @endforeach
 
-                                                @if($production->isDraft())
+                                                @if($canModifyData && $production->isDraft())
                                                 {{-- Baris Tambah Bahan Inline (Pola Final dengan Tombol Batal X & Simpan Centang) --}}
                                                 <tr id="inlineAddMatRow_{{ $pItem->nid }}" class="d-none bg-primary-subtle border-bottom border-primary-subtle">
                                                     <td class="px-3 py-2.5">
@@ -675,7 +675,7 @@
                                 @if($linkedMaterials->isEmpty())
                                 <div class="text-center py-4 text-muted small bg-white rounded border my-2" style="font-size: 0.82rem;" id="emptyMatNotice_{{ $pItem->nid }}">
                                     <i class="bi bi-info-circle me-1 text-primary"></i> Belum ada bahan baku untuk produk ini.
-                                    @if($production->isDraft())
+                                    @if($canModifyData && $production->isDraft())
                                     <div class="mt-2">
                                         <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded shadow-xs" data-action="show-inline-mat" data-prod-id="{{ $pItem->nid }}">
                                             <i class="bi bi-plus-circle me-1"></i> Tambah Bahan Sekarang
@@ -692,7 +692,7 @@
                         <td colspan="5" class="text-center py-5 text-muted">
                             <i class="bi bi-box fs-2 d-block mb-2 text-secondary opacity-50"></i>
                             <div>Belum ada produk hasil produksi yang ditambahkan.</div>
-                            @if($production->isDraft())
+                            @if($canModifyData && $production->isDraft())
                             <div class="mt-2">
                                 <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm" onclick="showInlineProductRow()">
                                     <i class="bi bi-plus-lg me-1"></i> Tambah Produk Sekarang
@@ -703,7 +703,7 @@
                     </tr>
                     @endforelse
 
-                    @if($production->isDraft())
+                    @if($canModifyData && $production->isDraft())
                     {{-- Baris Tambah Produk Jadi Inline --}}
                     <tr id="inlineAddProductRow" class="d-none bg-primary-subtle border-bottom border-primary-subtle">
                         <td class="px-3 py-2.5">
@@ -760,7 +760,7 @@
 </div>
 
 {{-- Modal Ubah Tanggal & Catatan --}}
-@if($production->isDraft())
+@if($canModifyData && $production->isDraft())
 <div class="modal fade" id="modalUbahHeader" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -792,6 +792,7 @@
 @endif
 
 {{-- Modal Tambah Bahan Baku Manual --}}
+@if($canModifyData && $production->isDraft())
 <div class="modal fade" id="modalAddMaterial" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -844,7 +845,6 @@
     </div>
 </div>
 
-@if($production->isDraft())
 {{-- Hidden Form Submit Produk Inline --}}
 <form id="hiddenAddProductForm" action="{{ route('inventory.production.products.store', $production->nid) }}" method="POST" style="display: none;">
     @csrf
@@ -853,7 +853,6 @@
     <input type="hidden" name="dexpired" id="hiddenProdExpired">
     <input type="hidden" name="crack" id="hiddenProdRack">
 </form>
-@endif
 
 {{-- Hidden Form Submit Bahan Inline --}}
 <form id="hiddenAddMaterialForm" action="{{ route('inventory.production.materials.store', $production->nid) }}" method="POST" style="display: none;">
@@ -863,7 +862,6 @@
     <input type="hidden" name="nqty" id="hiddenMatFinalQty">
 </form>
 
-@if($production->isDraft())
 {{-- Form Native Update Qty Produk & Bahan (Submit saat klik tombol Centang) --}}
 @foreach($production->products as $pItem)
 <form id="editProdForm_{{ $pItem->nid }}" action="{{ route('inventory.production.products.update', [$production->nid, $pItem->nid]) }}" method="POST" class="d-none">
@@ -877,10 +875,8 @@
     @method('PUT')
 </form>
 @endforeach
-@endif
 
 {{-- Modal Ubah Qty & Informasi Produk Hasil Produksi --}}
-@if($production->isDraft())
 <div class="modal fade" id="modalEditProduct" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">

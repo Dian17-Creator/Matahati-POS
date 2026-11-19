@@ -304,9 +304,11 @@
                     <h5 class="mb-0 me-3 fw-bold text-dark" style="font-size: 1.1rem;">Rincian Penjualan</h5>
                 </div>
                 <div class="d-flex gap-2">
+                    @if($canModifyData)
                     <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#importOlseraModal">
                         <i class="bi bi-cloud-arrow-up"></i> Import Olsera
                     </button>
+                    @endif
                     @php
                     $isAnyFilterActive = !empty($outletId) || !empty($status) || !empty($paymentId);
                     @endphp
@@ -745,6 +747,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Import Modal Olsera -->
 <div class="modal fade" id="importOlseraModal" tabindex="-1" aria-labelledby="importOlseraModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -789,6 +792,7 @@
         </div>
     </div>
 </div>
+@endif
 
 
 

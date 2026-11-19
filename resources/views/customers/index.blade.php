@@ -36,15 +36,17 @@
             </form>
         </div>
         <div class="d-flex align-items-center">
-            <a href="{{ route('customers.export', request()->only(['nid_type', 'search', 'nid_outlet'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm me-2">
+            <a href="{{ route('customers.export', request()->only(['nid_type', 'search', 'nid_outlet'])) }}" id="exportExcelBtn" class="btn btn-outline-success btn-sm {{ $canModifyData ? 'me-2' : '' }}">
                 <i class="bi bi-file-earmark-arrow-down"></i> Export Excel
             </a>
+            @if($canModifyData)
             <button type="button" class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importModal">
                 <i class="bi bi-file-earmark-excel"></i> Import Data
             </button>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
                 <i class="bi bi-plus-lg"></i> Tambah Baru
             </button>
+            @endif
         </div>
     </div>
     <div class="card-body p-3" id="table-container">
@@ -71,7 +73,9 @@
                         <th class="py-3">Catatan</th>
                         <th class="py-3">Transaksi Terakhir</th>
                         <th class="py-3">Total Transaksi</th>
+                        @if($canModifyData)
                         <th class="text-center py-3 pe-4 sticky-end bg-light">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -140,6 +144,7 @@
                             @endif
                         </td>
                         <td class="text-center fw-semibold">{{ number_format($customer->sales_count ?? 0, 0, ',', '.') }}</td>
+                        @if($canModifyData)
                         <td class="text-center pe-4 sticky-end bg-white">
                             <div class="d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 36px; height: 36px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $customer->nid }}" title="Edit">
@@ -150,8 +155,10 @@
                                 </button>
                             </div>
                         </td>
+                        @endif
                     </tr>
 
+                    @if($canModifyData)
                     <!-- Edit Modal -->
                     <div class="modal fade" id="editModal{{ $customer->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $customer->nid }}" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -334,9 +341,10 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                     @empty
                     <tr>
-                        <td colspan="19" class="text-center text-muted py-4">Tidak ada data pelanggan.</td>
+                        <td colspan="{{ $canModifyData ? 19 : 18 }}" class="text-center text-muted py-4">Tidak ada data pelanggan.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -350,6 +358,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -525,6 +534,7 @@
         </div>
     </div>
 </div>
+@endif
 
 @endsection
 

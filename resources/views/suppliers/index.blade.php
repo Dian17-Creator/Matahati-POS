@@ -53,11 +53,13 @@
                 @endif
             </form>
         </div>
+        @if($canModifyData)
         <div>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createSupplierModal">
                 <i class="bi bi-plus-lg"></i> Tambah Supplier
             </button>
         </div>
+        @endif
     </div>
 
     <div class="card-body p-3">
@@ -136,16 +138,19 @@
                                 <a href="{{ route('suppliers.show', $supplier->nid) }}" class="btn btn-outline-info" title="Detail Supplier">
                                     <i class="bi bi-eye"></i>
                                 </a>
+                                @if($canModifyData)
                                 <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editSupplierModal{{ $supplier->nid }}" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteSupplierModal{{ $supplier->nid }}" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </button>
+                                @endif
                             </div>
                         </td>
                     </tr>
 
+                    @if($canModifyData)
                     <!-- Modal Edit Supplier -->
                     <div class="modal fade" id="editSupplierModal{{ $supplier->nid }}" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -284,6 +289,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                     @empty
                     <tr>
                         <td colspan="9" class="text-center py-4 text-muted">
@@ -303,6 +309,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Modal Tambah Supplier -->
 <div class="modal fade" id="createSupplierModal" tabindex="-1" aria-labelledby="createSupplierModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -397,6 +404,7 @@
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'owner' => \App\Http\Middleware\EnsureOwnerLevel::class,
+            'prevent.cashier.write' => \App\Http\Middleware\PreventCashierWrite::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

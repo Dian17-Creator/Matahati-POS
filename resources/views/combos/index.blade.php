@@ -6,9 +6,11 @@
 <div class="card olsera-panel-card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0">Daftar Produk Kombo</h5>
+        @if($canModifyData)
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
             <i class="bi bi-plus-lg"></i> Tambah Baru
         </button>
+        @endif
     </div>
     <div class="card-body p-3">
         <div class="table-responsive">
@@ -17,7 +19,9 @@
                     <tr>
                         <th width="35%" class="text-center py-3 ps-4">Produk Kombo Utama</th>
                         <th class="text-center py-3 ps-4">Daftar Isi & Kuantitas</th>
+                        @if($canModifyData)
                         <th width="15%" class="text-center py-3 pe-4">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -38,6 +42,7 @@
                                 @endforeach
                             </ul>
                         </td>
+                        @if($canModifyData)
                         <td class="text-center pe-4">
                             <div class="d-flex justify-content-center gap-2">
                                 <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 32px; height: 32px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $nid_combo_product }}" title="Edit">
@@ -48,12 +53,13 @@
                                 </button>
                             </div>
                         </td>
+                        @endif
                     </tr>
 
 
                     @empty
                     <tr>
-                        <td colspan="3" class="text-center text-muted py-5">
+                        <td colspan="{{ $canModifyData ? 3 : 2 }}" class="text-center text-muted py-5">
                             <i class="bi bi-inboxes fs-1 d-block mb-3 opacity-50"></i>
                             Tidak ada data produk kombo.
                         </td>
@@ -70,6 +76,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 @foreach ($combos as $nid_combo_product => $comboGroup)
 @php $mainProduct = $comboGroup->first()->comboProduct; @endphp
 <!-- Edit Modal -->
@@ -213,6 +220,7 @@
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')
@@ -252,8 +260,11 @@
 
         if (hasErrors && modalId) {
             if (modalId === 'create') {
-                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
-                myModal.show();
+                var createModalEl = document.getElementById('createModal');
+                if (createModalEl) {
+                    var myModal = new bootstrap.Modal(createModalEl);
+                    myModal.show();
+                }
             } else {
                 var editModal = document.getElementById('editModal' + modalId);
                 if (editModal) {

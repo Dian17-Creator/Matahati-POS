@@ -77,6 +77,7 @@
                     <i class="bi bi-cloud-arrow-up me-1"></i> Import
                 </button> -->
 
+                @if($canModifyData)
                 <!-- Tombol Import PDF (Persis Pembelian) -->
                 <button type="button" class="btn btn-outline-danger btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importStockInPdfModal">
                     <i class="bi bi-file-earmark-pdf me-1"></i> Import PDF
@@ -86,6 +87,7 @@
                 <button type="button" class="btn btn-success btn-sm px-3 shadow-sm fw-semibold" onclick="openStockInModal()">
                     <i class="bi bi-plus-lg me-1"></i> Tambah
                 </button>
+                @endif
 
                 {{-- Terima dari Pembelian di-comment karena pembelian otomatis masuk ke stok masuk
                 <div class="dropdown">
@@ -263,6 +265,7 @@
             </div>
         </div>
 
+        @if($canModifyData)
         <!-- ==================== MODAL IMPORT STOK MASUK DARI PDF ==================== -->
         <div class="modal fade" id="importStockInPdfModal" tabindex="-1" aria-labelledby="importStockInPdfModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -341,6 +344,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         {{-- MODAL: Terima dari Pembelian di-comment sementara karena pembelian otomatis masuk ke stok masuk
         <div class="modal fade" id="modalTerimaPembelian" tabindex="-1" aria-labelledby="modalTerimaPembelianLabel" aria-hidden="true">
@@ -428,6 +432,7 @@
         </script>
         --}}
 
+        @if($canModifyData)
         <!-- ==================== MODAL TAMBAH STOK MASUK MANUAL ==================== -->
         <div class="modal fade" id="createStockInModal" tabindex="-1" aria-labelledby="createStockInModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1040px;">
@@ -543,6 +548,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         <script type="application/json" id="stockInProductsData">
             @json($modalProducts)

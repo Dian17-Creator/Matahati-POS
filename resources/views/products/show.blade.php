@@ -794,6 +794,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
             <div class="card product-detail-card mb-4">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                     <h5 class="mb-0">Info Umum</h5>
+                    @if($canModifyData)
                     <div>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditInfo">
                             <i class="bi bi-pencil"></i> Ubah
@@ -805,6 +806,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                             Simpan
                         </button>
                     </div>
+                    @endif
                 </div>
                 <div class="card-body p-3 p-md-4">
                     <form action="{{ route('products.update', $product->nid) }}" method="POST" enctype="multipart/form-data" id="formUpdateInfo">
@@ -993,6 +995,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
             <div class="card product-detail-card mb-4">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center pt-3 pb-2 border-bottom">
                     <h5 class="mb-0">Harga</h5>
+                    @if($canModifyData)
                     <div>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditHarga">
                             <i class="bi bi-pencil"></i> Ubah
@@ -1004,6 +1007,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                             Simpan
                         </button>
                     </div>
+                    @endif
                 </div>
                 <div class="card-body">
                     <form action="{{ route('products.update', $product->nid) }}" method="POST" id="formUpdateHarga">
@@ -1107,9 +1111,11 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                         <h5 class="olsera-price-title">Daftar Tingkat Harga</h5>
                         <div class="olsera-price-subtitle">{{ $sortedPrices->count() }} Tingkatan Harga</div>
                     </div>
+                    @if($canModifyData)
                     <button type="button" class="btn btn-olsera-add" data-bs-toggle="modal" data-bs-target="#createPriceModal">
                         Tambah
                     </button>
+                    @endif
                 </div>
 
                 <!-- Body Card: Filter Baris, Tabel Tingkatan Harga & Pagination -->
@@ -1122,7 +1128,9 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                                     <th style="width: 22%;">Variant</th>
                                     <th style="width: 21%;">Qty Mulai</th>
                                     <th style="width: 22%;">Harga Jual</th>
+                                    @if($canModifyData)
                                     <th style="width: 12%;"></th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody id="olseraPriceTbody">
@@ -1140,6 +1148,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                                     <td>
                                         <div class="olsera-tier-box">IDR {{ number_format($price->nprice, 0, ',', '.') }}</div>
                                     </td>
+                                    @if($canModifyData)
                                     <td>
                                         <div class="d-flex align-items-center justify-content-end gap-2">
                                             <button type="button" class="btn-olsera-edit" data-bs-toggle="modal" data-bs-target="#editPriceModal{{ $price->nid }}">
@@ -1150,10 +1159,11 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                                             </button>
                                         </div>
                                     </td>
+                                    @endif
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">Belum ada tingkatan harga.</td>
+                                    <td colspan="{{ $canModifyData ? 5 : 4 }}" class="text-center text-muted py-4">Belum ada tingkatan harga.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
@@ -1180,6 +1190,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                 </div>
             </div>
 
+            @if($canModifyData)
             <!-- Edit & Delete Price Modals -->
             @foreach($sortedPrices as $price)
             <div class="modal fade" id="editPriceModal{{ $price->nid }}" tabindex="-1" aria-hidden="true">
@@ -1250,6 +1261,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                 </div>
             </div>
             @endforeach
+            @endif
         </div>
 
         <!-- Bahan/Resep Tab (Desain Olsera - Tersimpan di mpos_recipe) -->
@@ -1268,6 +1280,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                             <span id="recipeItemCountText">{{ $product->recipes->count() }}</span> Item Bahan/Resep
                         </div>
                     </div>
+                    @if($canModifyData)
                     <div class="d-flex align-items-center gap-2">
                         <button type="button" class="btn btn-olsera-add d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#importRecipeModal">
                             <i class="bi bi-cloud-arrow-up-fill"></i>
@@ -1277,6 +1290,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                             Tambah
                         </button>
                     </div>
+                    @endif
                 </div>
 
                 <!-- Alert Feedback Resep -->
@@ -1299,7 +1313,9 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                     <div id="recipeEmptyState" class="text-center text-muted py-5 d-none">
                         <i class="bi bi-journal-plus fs-2 d-block mb-2 opacity-50"></i>
                         <div class="fw-semibold text-dark small mb-1">Belum ada bahan atau resep</div>
+                        @if($canModifyData)
                         <div class="small">Klik tombol <strong>Tambah</strong> di kanan atas untuk menambahkan bahan baku produk ini.</div>
+                        @endif
                     </div>
 
                     <!-- Pagination Bar (Centered sesuai Olsera) -->
@@ -1324,6 +1340,7 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Modal Tambah Bahan atau Resep (Gaya Olsera Gambar 2) -->
 @php
 $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)->with('outlet')->get();
@@ -1526,6 +1543,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')
@@ -1537,8 +1555,11 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
 
         if (hasErrors && modalId) {
             if (modalId === 'create_price') {
-                var myModal = new bootstrap.Modal(document.getElementById('createPriceModal'));
-                myModal.show();
+                var createPriceModalEl = document.getElementById('createPriceModal');
+                if (createPriceModalEl) {
+                    var myModal = new bootstrap.Modal(createPriceModalEl);
+                    myModal.show();
+                }
             } else if (modalId) {
                 // Ignore if the error is from the inline Harga form (which has the product nid as modal_id)
                 // because it doesn't use a Bootstrap Modal
@@ -1782,6 +1803,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
         // ============================================================
         // Bahan / Resep (Tersimpan Permanen ke mpos_recipe)
         // ============================================================
+        const canModifyData = @json($canModifyData);
         const csrfToken = "{{ csrf_token() }}";
         const recipeStoreUrl = "{{ route('products.recipes.store', $product->nid) }}";
         const recipeBaseUrl = "{{ url('products/' . $product->nid . '/recipes') }}";
@@ -1935,17 +1957,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
                     'Unit Pengukuran: (1 ' + escapeHtml(item.unit) + ' - ' + escapeHtml(String(item.conversion || 1)) + ')' :
                     'Unit Pengukuran: (-)';
 
-                return `
-                    <div class="col-12 col-md-6" data-recipe-id="${escapeHtml(String(item.id))}">
-                        <div class="olsera-recipe-card-item">
-                            <div class="d-flex align-items-center gap-3 overflow-hidden">
-                                <span class="olsera-recipe-avatar">
-                                    <i class="bi bi-box2-fill"></i>
-                                </span>
-                                <div class="overflow-hidden">
-                                    <div class="olsera-recipe-name text-truncate">${escapeHtml(item.name)}</div>
-                                    <div class="olsera-qty-row">
-                                        <span class="olsera-qty-label">Qty</span>
+                const qtyControlHtml = canModifyData ? `
                                         <div class="olsera-qty-stepper">
                                             <input type="number"
                                                 class="olsera-qty-input"
@@ -1962,18 +1974,35 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
                                                     <i class="bi bi-chevron-down"></i>
                                                 </button>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div class="olsera-recipe-unit">${unitText}</div>
-                                </div>
-                            </div>
+                                        </div>` : `
+                                        <span class="fw-bold text-dark" style="font-size: 0.85rem;">${escapeHtml(String(item.qty))}</span>`;
+
+                const deleteBtnHtml = canModifyData ? `
                             <button type="button"
                                 class="olsera-recipe-del-btn"
                                 data-action="delete-recipe"
                                 data-id="${escapeHtml(String(item.id))}"
                                 title="Hapus bahan dari resep">
                                 <i class="bi bi-trash"></i>
-                            </button>
+                            </button>` : '';
+
+                return `
+                    <div class="col-12 col-md-6" data-recipe-id="${escapeHtml(String(item.id))}">
+                        <div class="olsera-recipe-card-item">
+                            <div class="d-flex align-items-center gap-3 overflow-hidden">
+                                <span class="olsera-recipe-avatar">
+                                    <i class="bi bi-box2-fill"></i>
+                                </span>
+                                <div class="overflow-hidden">
+                                    <div class="olsera-recipe-name text-truncate">${escapeHtml(item.name)}</div>
+                                    <div class="olsera-qty-row">
+                                        <span class="olsera-qty-label">Qty</span>
+                                        ${qtyControlHtml}
+                                    </div>
+                                    <div class="olsera-recipe-unit">${unitText}</div>
+                                </div>
+                            </div>
+                            ${deleteBtnHtml}
                         </div>
                     </div>
                 `;
@@ -2004,6 +2033,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
 
         if (recipeContainer) {
             recipeContainer.addEventListener('click', function(e) {
+                if (!canModifyData) return;
                 const btn = e.target.closest('button[data-action]');
                 if (!btn) return;
                 const action = btn.getAttribute('data-action');
@@ -2025,6 +2055,7 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
             });
 
             recipeContainer.addEventListener('change', function(e) {
+                if (!canModifyData) return;
                 const input = e.target.closest('input[data-action="input-qty"]');
                 if (!input) return;
                 const id = input.getAttribute('data-id');

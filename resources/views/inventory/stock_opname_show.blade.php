@@ -244,7 +244,7 @@
                     <i class="bi bi-download me-1"></i> Download Excel
                 </a>
 
-                @if($opname->isDraft())
+                @if($canModifyData && $opname->isDraft())
                 <button type="button" class="btn btn-warning btn-sm px-3 text-white fw-medium" title="Data tersimpan sebagai Draf">
                     <i class="bi bi-save me-1"></i> Draf
                 </button>
@@ -275,7 +275,7 @@
                         @endphp
                         <div class="text-muted small text-truncate mt-1" title="{{ $opnameUserDisplay }}">{{ $opnameUserDisplay }}</div>
                     </div>
-                    @if($opname->isDraft())
+                    @if($canModifyData && $opname->isDraft())
                     <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                         <i class="bi bi-pencil me-1"></i> Ubah
                     </button>
@@ -290,7 +290,7 @@
                         <div class="text-muted small mb-1">Catatan</div>
                         <div class="fw-medium text-dark">{{ $opname->cnote ?: 'Tidak ada catatan' }}</div>
                     </div>
-                    @if($opname->isDraft())
+                    @if($canModifyData && $opname->isDraft())
                     <button type="button" class="btn btn-outline-primary btn-sm px-2 py-1" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                         <i class="bi bi-pencil me-1"></i> Ubah
                     </button>
@@ -308,7 +308,7 @@
                     Produk Stok Opname ( {{ $opname->details->count() }} )
                 </h6>
             </div>
-            @if($opname->isDraft())
+            @if($canModifyData && $opname->isDraft())
             <div class="d-flex align-items-center gap-2">
                 <form action="{{ route('inventory.stock-opname.sync-system-stock', $opname->nid) }}" method="POST" class="d-inline">
                     @csrf
@@ -331,7 +331,7 @@
                         <th class="text-center" style="width: 140px;">Qty System</th>
                         <th class="text-center" style="width: 140px;">Qty Aktual</th>
                         <th class="text-center" style="width: 140px;">Qty Selisih</th>
-                        @if($opname->isDraft())
+                        @if($canModifyData && $opname->isDraft())
                         <th class="text-center" style="width: 70px;">Aksi</th>
                         @endif
                     </tr>
@@ -391,7 +391,7 @@
                             {{ number_format($d->nqty_system, 0, ',', '.') }}
                         </td>
                         <td class="text-center">
-                            @if($opname->isDraft())
+                            @if($canModifyData && $opname->isDraft())
                             <div class="d-inline-flex justify-content-center">
                                 <div class="qty-stepper mx-auto" style="max-width: 110px; height: 31px;" data-item-id="{{ $d->nid }}" data-system-qty="{{ (float) $d->nqty_system }}">
                                     <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepOpnameItemQty('{{ $d->nid }}', -1)" title="Kurangi 1">−</button>
@@ -418,7 +418,7 @@
                                 <span class="badge bg-light text-secondary border px-2 py-1">0</span>
                                 @endif
                         </td>
-                        @if($opname->isDraft())
+                        @if($canModifyData && $opname->isDraft())
                         <td class="text-center">
                             <form action="{{ route('inventory.stock-opname.items.destroy', [$opname->nid, $d->nid]) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus {{ addslashes($d->item_name) }} dari stok opname?');">
                                 @csrf
@@ -432,10 +432,10 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $opname->isDraft() ? 5 : 4 }}" class="text-center py-5 text-muted">
+                        <td colspan="{{ ($canModifyData && $opname->isDraft()) ? 5 : 4 }}" class="text-center py-5 text-muted">
                             <i class="bi bi-box-seam display-6 d-block mb-2 text-secondary"></i>
                             <p class="mb-2">Belum ada produk yang dimasukkan ke dalam dokumen Stok Opname ini.</p>
-                            @if($opname->isDraft())
+                            @if($canModifyData && $opname->isDraft())
                             <button type="button" class="btn btn-primary btn-sm px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalTambahProduk">
                                 <i class="bi bi-plus-lg me-1"></i> Tambah Produk Sekarang
                             </button>
@@ -459,7 +459,7 @@
                                 <span class="text-secondary">0</span>
                                 @endif
                         </td>
-                        @if($opname->isDraft())
+                        @if($canModifyData && $opname->isDraft())
                         <td></td>
                         @endif
                     </tr>
@@ -471,7 +471,7 @@
 </div>
 
 {{-- ==================== MODAL TAMBAH PRODUK (GAMBAR 4 OLSERA) ==================== --}}
-@if($opname->isDraft())
+@if($canModifyData && $opname->isDraft())
 <div class="modal fade" id="modalTambahProduk" tabindex="-1" aria-labelledby="modalTambahProdukLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">

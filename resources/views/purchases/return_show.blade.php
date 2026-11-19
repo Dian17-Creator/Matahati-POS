@@ -107,7 +107,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
         <a href="{{ route('purchases.returns.print', $return->nid) }}" target="_blank" class="btn btn-outline-dark btn-sm px-3">
             <i class="bi bi-printer me-1"></i> Print
         </a>
-        @if($isPending)
+        @if($canModifyData && $isPending)
         <form action="{{ route('purchases.returns.destroy', $return->nid) }}" method="POST" onsubmit="return confirm('Hapus permanen draft retur {{ $return->cno_purchase }}?')">
             @csrf
             @method('DELETE')
@@ -162,7 +162,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
             <i class="bi bi-exclamation-circle-fill me-1"></i> Pengembalian / Refund Belum Selesai
             @endif
         </div>
-        @if(!$isCancelled)
+        @if($canModifyData && !$isCancelled)
         <div>
             <button type="button" class="btn btn-sm {{ $return->cpayment_status === 'PAID' ? 'btn-light text-success' : 'btn-light text-danger' }} py-0 px-2 fw-bold" data-bs-toggle="modal" data-bs-target="#returnPaymentModal" style="font-size: 0.78rem;">
                 <i class="bi bi-cash-stack me-1"></i> Ubah Status Pembayaran
@@ -277,7 +277,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
         <div class="detail-card">
             <div class="detail-card-title">
                 <span><i class="bi bi-chat-left-text me-1 text-secondary"></i> Catatan</span>
-                @if($isPending)
+                @if($canModifyData && $isPending)
                 <button type="button" class="btn btn-link btn-sm p-0 text-primary" data-bs-toggle="modal" data-bs-target="#editNoteModal" title="Edit Catatan">
                     <i class="bi bi-pencil"></i>
                 </button>
@@ -300,7 +300,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
             <h6 class="mb-0 fw-bold">Produk yang dikembalikan</h6>
             <span class="badge bg-white text-primary">{{ $return->details->count() }} Item</span>
         </div>
-        @if($isPending && $hasReturnableLeft)
+        @if($canModifyData && $isPending && $hasReturnableLeft)
         <button type="button" class="btn btn-light btn-sm text-primary fw-semibold px-3" data-bs-toggle="modal" data-bs-target="#addReturnItemModal">
             <i class="bi bi-plus-lg me-1"></i> Tambah Produk
         </button>
@@ -320,7 +320,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
                         <th class="py-3 text-end">HARGA BELI</th>
                         <th class="py-3">ALASAN & CATATAN</th>
                         <th class="py-3 text-end">SUBTOTAL</th>
-                        @if($isPending)
+                        @if($canModifyData && $isPending)
                         <th class="py-3 text-center" style="width: 110px;">AKSI</th>
                         @endif
                     </tr>
@@ -374,7 +374,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
                             @endif
                         </td>
                         <td class="text-end fw-bold text-dark">Rp {{ rtrim(rtrim(number_format((float) $item->nsubtotal, 2, ',', '.'), '0'), ',') }}</td>
-                        @if($isPending)
+                        @if($canModifyData && $isPending)
                         <td class="text-center">
                             <div class="d-inline-flex gap-1">
                                 <button type="button"
@@ -403,7 +403,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $isPending ? 9 : 8 }}" class="text-center py-5 text-muted">
+                        <td colspan="{{ $canModifyData && $isPending ? 9 : 8 }}" class="text-center py-5 text-muted">
                             <i class="bi bi-inbox fs-2 d-block text-secondary opacity-50 mb-2"></i>
                             Tidak ada produk yang dikembalikan.
                         </td>
@@ -418,7 +418,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
                         <td class="text-end fw-bold fs-6 text-primary py-3">
                             Rp {{ rtrim(rtrim(number_format((float) $return->ntotal_amount, 2, ',', '.'), '0'), ',') }}
                         </td>
-                        @if($isPending)
+                        @if($canModifyData && $isPending)
                         <td></td>
                         @endif
                     </tr>
@@ -429,7 +429,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
 </div>
 
 <!-- Modal Edit Catatan -->
-@if($isPending)
+@if($canModifyData && $isPending)
 <div class="modal fade" id="editNoteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
@@ -593,7 +593,7 @@ $hasReturnableLeft = collect($availablePoItems)->contains(fn ($it) => (int) ($it
 @endif
 
 <!-- Modal Update Status Pembayaran / Pengembalian -->
-@if(!$isCancelled)
+@if($canModifyData && !$isCancelled)
 <div class="modal fade" id="returnPaymentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">

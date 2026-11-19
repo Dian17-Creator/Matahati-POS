@@ -70,10 +70,12 @@
             </div>
         </div>
 
+        @if($canModifyData)
         <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTambahOpname">
             <i class="bi bi-plus-lg"></i>
             <span>Tambah</span>
         </button>
+        @endif
     </div>
 </div>
 
@@ -176,6 +178,7 @@
 </div>
 @endif
 
+@if($canModifyData)
 <!-- Modal Stok Opname Baru (Fit & Clean Layout seperti Pembelian Baru) -->
 <div class="modal fade" id="modalTambahOpname" tabindex="-1" aria-labelledby="modalTambahOpnameLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" style="max-width: 980px;">
@@ -282,6 +285,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script type="application/json" id="opnameProductsData">

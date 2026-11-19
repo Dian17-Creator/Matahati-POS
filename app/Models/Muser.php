@@ -12,6 +12,8 @@ class Muser extends Authenticatable
     protected $table = 'muser';
     protected $primaryKey = 'nid';
     public $timestamps = false;
+
+    private ?bool $cachedIsCashierLevel = null;
     protected $fillable = [
         'cemail',
         'cmailaddress',
@@ -140,6 +142,40 @@ class Muser extends Authenticatable
 
         // 3. Super Admin or Admin from muser
         return (bool) ($this->isSuperAdmin() || $this->isAdmin());
+    }
+
+    /**
+     * Determine whether this user is strictly at the Cashier level in POS
+     * (has fcashier = 1 and no higher POS role such as Owner, SPV, or Captain).
+     */
+    public function isCashierLevel(): bool
+    {
+        if ($this->cachedIsCashierLevel !== null) {
+            return $this->cachedIsCashierLevel;
+        }
+
+        if ($this->isOwner() || $this->isSpv()) {
+            return $this->cachedIsCashierLevel = false;
+        }
+
+        $hasCaptainRole = $this->posUsers()->where('fcaptain', 1)->exists();
+        if ($hasCaptainRole) {
+            return $this->cachedIsCashierLevel = false;
+        }
+
+        $hasCashierRole = ($this->posUser && (bool) $this->posUser->fcashier)
+            || $this->posUsers()->where('fcashier', 1)->exists();
+
+        return $this->cachedIsCashierLevel = $hasCashierRole;
+    }
+
+    /**
+     * Determine whether this user is allowed to perform Create/Update/Delete
+     * operations in the web back-office.
+     */
+    public function canModifyWebData(): bool
+    {
+        return ! $this->isCashierLevel();
     }
 
     public function getRoleNameAttribute(): string

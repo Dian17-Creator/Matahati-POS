@@ -6,9 +6,11 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
+        @if($canModifyData)
         <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm fw-semibold" data-bs-toggle="modal" data-bs-target="#importOlseraMovementModal">
             <i class="bi bi-cloud-arrow-up me-1"></i> Import Excel Olsera
         </button>
+        @endif
         <button type="button" id="btnExportStockMovement" class="btn btn-success btn-sm px-3 shadow-sm fw-semibold" style="background-color: #0ea5e9; border-color: #0ea5e9;">
             <i class="bi bi-download me-1"></i> Download Excel
         </button>
@@ -110,6 +112,7 @@
     @include('inventory.partials.movement_table', ['products' => $products, 'sortCol' => $sortCol ?? 'cname', 'sortDir' => $sortDir ?? 'asc'])
 </div>
 
+@if($canModifyData)
 <!-- ==================== MODAL IMPORT & SINKRONISASI STOK OLSERA ==================== -->
 <div class="modal fade" id="importOlseraMovementModal" tabindex="-1" aria-labelledby="importOlseraMovementModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -171,6 +174,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

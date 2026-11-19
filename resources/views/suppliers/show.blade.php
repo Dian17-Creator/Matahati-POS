@@ -58,9 +58,11 @@
         <a href="{{ route('suppliers.index') }}" class="btn btn-outline-secondary btn-sm px-3">
             <i class="bi bi-arrow-left me-1"></i> Kembali
         </a>
+        @if($canModifyData)
         <button type="button" class="btn btn-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#editSupplierModal">
             <i class="bi bi-pencil me-1"></i> Ubah
         </button>
+        @endif
     </div>
 </div>
 
@@ -158,9 +160,11 @@
                     <span class="text-muted small">
                         Didaftarkan pada: {{ \Carbon\Carbon::parse($supplier->dcreated)->format('d F Y, H:i') }}
                     </span>
+                    @if($canModifyData)
                     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteSupplierModal">
                         <i class="bi bi-trash me-1"></i> Hapus Supplier
                     </button>
+                    @endif
                 </div>
             </div>
 
@@ -230,6 +234,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Modal Edit Supplier -->
 <div class="modal fade" id="editSupplierModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -362,6 +367,7 @@
         </div>
     </div>
 </div>
+@endif
 @endsection
 
 @push('scripts')

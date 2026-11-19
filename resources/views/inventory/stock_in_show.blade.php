@@ -349,7 +349,7 @@
                         <i class="bi bi-printer me-1"></i> Cetak
                     </a>
 
-                    @if($stockIn->isDraft)
+                    @if($canModifyData && $stockIn->isDraft)
                     <form action="{{ route('inventory.stock-in.cancel', $stockIn->cno_stock_in) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan draf Stok Masuk ini?');">
                         @csrf
                         <button type="submit" class="btn btn-danger btn-sm px-3 shadow-sm">
@@ -373,7 +373,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Tanggal Masuk</div>
-                        @if($stockIn->isDraft)
+                        @if($canModifyData && $stockIn->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -410,7 +410,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Catatan</div>
-                        @if($stockIn->isDraft)
+                        @if($canModifyData && $stockIn->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -427,7 +427,7 @@
                 <div class="card-body p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="text-muted small fw-semibold">Alasan Penerimaan</div>
-                        @if($stockIn->isDraft)
+                        @if($canModifyData && $stockIn->isDraft)
                         <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-primary" data-bs-toggle="modal" data-bs-target="#modalEditHeader">
                             <i class="bi bi-pencil-square"></i> Ubah
                         </button>
@@ -445,7 +445,7 @@
             <h6 class="fw-bold mb-0 text-white">
                 Item Barang Masuk (<span id="totalDetailItemCount">{{ $stockIn->details->count() }}</span>)
             </h6>
-            @if($stockIn->isDraft)
+            @if($canModifyData && $stockIn->isDraft)
             <button type="button" class="btn btn-light btn-sm fw-semibold shadow-sm text-primary" onclick="addNewDetailRow()">
                 <i class="bi bi-plus-lg me-1"></i> Tambah Item
             </button>
@@ -455,7 +455,7 @@
         <div class="table-responsive" style="overflow-x: auto;">
             <table class="table table-hover align-middle mb-0" id="stockInDetailsTable" style="table-layout: fixed; width: 100%;">
                 <thead class="bg-light">
-                    @if($stockIn->isDraft)
+                    @if($canModifyData && $stockIn->isDraft)
                     <tr class="text-muted small text-uppercase">
                         <th style="width: 4%;" class="text-center py-2.5 text-nowrap">No</th>
                         <th style="width: 12%;" class="text-center py-2.5 text-nowrap">Tipe</th>
@@ -526,7 +526,7 @@
                             </span>
                         </td>
                         <td class="text-center">
-                            @if($stockIn->isDraft)
+                            @if($canModifyData && $stockIn->isDraft)
                             <div class="d-inline-flex justify-content-center">
                                 <div class="qty-stepper mx-auto" data-item-id="{{ $detail->nid }}">
                                     <button type="button" class="qty-stepper-btn qty-stepper-minus" onclick="stepDetailQty('{{ $detail->nid }}', -1)" title="Kurangi">−</button>
@@ -548,7 +548,7 @@
                             @endif
                         </td>
                         <td class="text-end text-secondary fw-semibold pe-3">
-                            @if($stockIn->isDraft)
+                            @if($canModifyData && $stockIn->isDraft)
                             <div class="input-group input-group-sm ms-auto" style="max-width: 130px;">
                                 <span class="input-group-text bg-light text-muted">Rp</span>
                                 <input type="number"
@@ -573,7 +573,7 @@
                         <td class="text-end text-dark fw-bold pe-3" id="subtotal-cell-{{ $detail->nid }}">
                             Rp {{ number_format((float) $detail->nsubtotal, 0, ',', '.') }}
                         </td>
-                        @if($stockIn->isDraft)
+                        @if($canModifyData && $stockIn->isDraft)
                         <td class="text-center">
                             <form action="{{ route('inventory.stock-in.items.destroy', [$stockIn->cno_stock_in, $detail->nid]) }}" method="POST" onsubmit="return confirm('Hapus item ini dari dokumen draf?');" class="d-inline">
                                 @csrf
@@ -587,7 +587,7 @@
                     </tr>
                     @empty
                     <tr id="empty-row">
-                        <td colspan="{{ $stockIn->isDraft ? '8' : '7' }}" class="text-center py-4 text-muted">
+                        <td colspan="{{ ($canModifyData && $stockIn->isDraft) ? '8' : '7' }}" class="text-center py-4 text-muted">
                             Belum ada item detail pada dokumen stok masuk ini.
                         </td>
                     </tr>
@@ -604,7 +604,7 @@
                         <td class="text-end text-success py-2.5 fs-6 pe-3" id="totalCostDisplay">
                             Rp {{ number_format((float) $stockIn->ntotal_cost, 0, ',', '.') }}
                         </td>
-                        @if($stockIn->isDraft)
+                        @if($canModifyData && $stockIn->isDraft)
                         <td></td>
                         @endif
                     </tr>
@@ -616,7 +616,7 @@
 </div>
 
 {{-- ==================== MODAL KONFIRMASI POSTING ==================== --}}
-@if($stockIn->isDraft)
+@if($canModifyData && $stockIn->isDraft)
 <div class="modal fade" id="modalPostingConfirm" tabindex="-1" aria-labelledby="modalPostingConfirmLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">

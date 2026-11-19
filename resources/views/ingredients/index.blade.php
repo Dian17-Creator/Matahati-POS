@@ -16,11 +16,13 @@
                 </div>
             </form>
         </div>
+        @if($canModifyData)
         <div>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
                 <i class="bi bi-plus-lg"></i> Tambah Bahan Baku
             </button>
         </div>
+        @endif
     </div>
 
     <div class="card-body p-3" id="ingredient-table-container">
@@ -33,7 +35,9 @@
                         <th>Satuan</th>
                         <th class="text-end">Harga</th>
                         <th class="text-center">Stok Saat Ini</th>
+                        @if($canModifyData)
                         <th width="16%" class="text-center">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -74,6 +78,7 @@
                             {{ rtrim(rtrim(number_format((float) $ingredient->nstock, 2, ',', '.'), '0'), ',') }}
                             <span class="text-muted fw-normal small">{{ $ingredient->csatuan ?: 'PCS' }}</span>
                         </td>
+                        @if($canModifyData)
                         <td class="text-center">
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ $ingredient->nid }}" title="Edit">
@@ -84,8 +89,10 @@
                                 </button>
                             </div>
                         </td>
+                        @endif
                     </tr>
 
+                    @if($canModifyData)
                     <!-- Edit Modal -->
                     <div class="modal fade" id="editModal{{ $ingredient->nid }}" tabindex="-1" aria-labelledby="editModalLabel{{ $ingredient->nid }}" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -264,9 +271,10 @@
                             </div>
                         </div>
                     </div>
+                    @endif
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">Tidak ada data bahan baku.</td>
+                        <td colspan="{{ $canModifyData ? 6 : 5 }}" class="text-center text-muted py-4">Tidak ada data bahan baku.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -280,6 +288,7 @@
     </div>
 </div>
 
+@if($canModifyData)
 <!-- Create Modal -->
 <div class="modal fade" id="createModal" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -421,6 +430,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <datalist id="ingredientSatuanOptions">
     @foreach($satuans as $satuan)

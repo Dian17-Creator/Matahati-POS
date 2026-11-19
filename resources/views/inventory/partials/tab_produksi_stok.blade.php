@@ -70,10 +70,12 @@
             </div>
         </div>
 
+        @if($canModifyData)
         <button type="button" class="btn btn-success btn-sm px-3 shadow-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTambahProduksi">
             <i class="bi bi-plus-lg"></i>
             <span>Tambah</span>
         </button>
+        @endif
     </div>
 </div>
 
@@ -212,6 +214,7 @@
 </div>
 @endif
 
+@if($canModifyData)
 <!-- ==================== MODAL TAMBAH PRODUKSI STOK BARU (LENGKAP DENGAN PRODUK & BAHAN) ==================== -->
 <div class="modal fade" id="modalTambahProduksi" tabindex="-1" aria-labelledby="modalTambahProduksiLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1060px;">
@@ -345,6 +348,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <script type="application/json" id="productionProductsData">
     @json($modalProducts ?? [])
