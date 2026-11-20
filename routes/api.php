@@ -34,6 +34,7 @@ Route::prefix('office')->group(function () {
     Route::get('/purchases', [OfficePurchaseController::class, 'index']);
     Route::get('/purchases/{id}', [OfficePurchaseController::class, 'show']);
     Route::get('/reports', [OfficeReportController::class, 'index']);
+    Route::get('/reports/export', [OfficeReportController::class, 'export']);
     Route::get('/inventory', [OfficeInventoryController::class, 'index']);
     Route::get('/products', [OfficeProductController::class, 'getProducts']);
     Route::get('/categories', [OfficeProductController::class, 'getCategories']);

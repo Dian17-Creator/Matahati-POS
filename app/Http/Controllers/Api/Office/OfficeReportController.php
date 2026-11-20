@@ -1,7 +1,6 @@
-<?php
-
-namespace App\Http\Controllers\Api\Office;
-
+use App\Exports\CustomerProductSummarySheet;
+use App\Exports\SalesDetailExport;
+use App\Exports\SalesItemExport;
 use App\Http\Controllers\Controller;
 use App\Models\MposOutlet;
 use App\Models\MposSalesH;
@@ -11,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OfficeReportController extends Controller
 {
@@ -446,5 +446,275 @@ class OfficeReportController extends Controller
                 ],
             ],
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            $bearer = $request->bearerToken() ?: $request->input('token');
+            if ($bearer && str_starts_with($bearer, 'logged_in_office_')) {
+                $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                $user = \App\Models\Muser::find($userId);
+            }
+        }
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengguna tidak terautentikasi.',
+            ], 401);
+        }
+
+        Auth::setUser($user);
+
+        $type = strtolower((string) $request->input('type', 'sales_detail'));
+        if (!in_array($type, ['sales_detail', 'sales_item', 'customer'], true)) {
+            $type = 'sales_detail';
+        }
+
+        $startDate = (string) $request->input('start_date', Carbon::now()->format('Y-m-d'));
+        $endDate = (string) $request->input('end_date', Carbon::now()->format('Y-m-d'));
+
+        if ($startDate > $endDate) {
+            [$startDate, $endDate] = [$endDate, $startDate];
+        }
+
+        $endDateParsed = Carbon::parse($endDate)->endOfDay();
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        $isSuperAdmin = $this->isSuperAdminUser();
+
+        $outletName = 'Semua Outlet';
+        if (!empty($selectedOutletId)) {
+            $outlet = MposOutlet::find($selectedOutletId);
+            if ($outlet) {
+                $outletName = $outlet->cname;
+            }
+        }
+
+        $dateSuffix = ($startDate === $endDate)
+            ? Carbon::parse($startDate)->format('Ymd')
+            : Carbon::parse($startDate)->format('Ymd') . '_' . Carbon::parse($endDate)->format('Ymd');
+
+        return match ($type) {
+            'sales_item' => $this->exportSalesItemExcel($startDate, $endDateParsed, $selectedOutletId, $allowedOutletIds, $isSuperAdmin, $outletName, $dateSuffix),
+            'customer' => $this->exportCustomerExcel($startDate, $endDateParsed, $selectedOutletId, $allowedOutletIds, $isSuperAdmin, $outletName, $dateSuffix),
+            default => $this->exportSalesDetailExcel($startDate, $endDateParsed, $selectedOutletId, $allowedOutletIds, $isSuperAdmin, $outletName, $dateSuffix),
+        };
+    }
+
+    private function exportSalesDetailExcel(string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin, string $outletName, string $dateSuffix)
+    {
+        $itemDeductions = DB::table('mpos_sales_d')
+            ->select(
+                'nid_transaction',
+                DB::raw('SUM(nqty_void + nqty_refund) as total_void_refund_qty'),
+                DB::raw('SUM(nsubtotal_void + nsubtotal_refund) as item_void_refund'),
+                DB::raw('SUM((nqty - nqty_void - nqty_refund) * ncost) as total_cost'),
+                DB::raw('MIN(ncost) as min_cost')
+            )
+            ->groupBy('nid_transaction');
+
+        $reversals = DB::table('mpos_sales_h as rev_h')
+            ->select(
+                'rev_h.nid_parent_transaction',
+                DB::raw('SUM(rev_h.ngrandtotal) as reversal_amount')
+            )
+            ->whereNotNull('rev_h.nid_parent_transaction')
+            ->whereIn('rev_h.cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_REFUND, MposSalesH::STATUS_CANCELLED])
+            ->groupBy('rev_h.nid_parent_transaction');
+
+        $query = DB::table('mpos_sales_h')
+            ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
+            ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
+            ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
+            ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
+            ->leftJoinSub($itemDeductions, 'items', 'mpos_sales_h.nid', '=', 'items.nid_transaction')
+            ->leftJoinSub($reversals, 'rev', 'mpos_sales_h.nid', '=', 'rev.nid_parent_transaction')
+            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction');
+
+        if (!empty($outletId)) {
+            $query->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$isSuperAdmin) {
+            $query->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $query->select(
+            'mpos_sales_h.nid',
+            'mpos_sales_h.cnotransaction',
+            'mpos_sales_h.dtransaction',
+            'mpos_sales_h.cstatus',
+            'mpos_sales_h.csource',
+            'mpos_sales_h.ngrandtotal',
+            'mpos_sales_h.nsubtotal',
+            'mpos_sales_h.ndiscount',
+            'mpos_sales_h.ntax',
+            'mpos_sales_h.nservice_charge',
+            'mpos_sales_h.nrounding',
+            'mpos_sales_h.ntotal_cost',
+            'mpos_sales_h.ntotal_profit',
+            'mpos_sales_h.cdeposit_name',
+            'mpos_sales_h.ndeposit_used',
+            'mpos_payment.cname as payment_name',
+            'muser.cname as cashier_name',
+            DB::raw("COALESCE(NULLIF(TRIM(mpos_cust.cname), ''), NULLIF(TRIM(mpos_sales_h.cname_customer), ''), 'Pelanggan Umum') as final_customer_name"),
+            DB::raw("GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) as total_void_refund"),
+            DB::raw("items.total_cost as total_cost"),
+            'items.min_cost',
+            DB::raw("CASE
+                WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN mpos_sales_h.cstatus
+                WHEN COALESCE(rev.reversal_amount, 0) >= mpos_sales_h.ngrandtotal AND mpos_sales_h.ngrandtotal > 0 THEN 'VOID'
+                ELSE mpos_sales_h.cstatus
+            END as display_status")
+        )->orderBy('mpos_sales_h.dtransaction', 'desc');
+
+        $transactions = $query->get();
+
+        $summaryQuery = DB::table('mpos_sales_h')
+            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereNull('mpos_sales_h.nid_parent_transaction');
+
+        if (!empty($outletId)) {
+            $summaryQuery->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$isSuperAdmin) {
+            $summaryQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $summaryObj = $summaryQuery->select(
+            DB::raw("COALESCE(SUM(mpos_sales_h.ngrandtotal), 0) as gross_sales"),
+            DB::raw("COALESCE(SUM(mpos_sales_h.ndiscount), 0) as total_discount"),
+            DB::raw("COUNT(mpos_sales_h.nid) as total_transactions")
+        )->first();
+
+        $summaryObj->net_sales = $summaryObj->gross_sales - $summaryObj->total_discount;
+        $summaryObj->total_void_refund = 0;
+        $summaryObj->total_cost = 0;
+        $summaryObj->laba = $summaryObj->net_sales;
+
+        return Excel::download(
+            new SalesDetailExport($transactions, $summaryObj, $startDate, $endDateParsed->format('Y-m-d'), $outletName),
+            "Rincian_Penjualan_{$dateSuffix}.xlsx"
+        );
+    }
+
+    private function exportSalesItemExcel(string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin, string $outletName, string $dateSuffix)
+    {
+        $baseQuery = DB::table('mpos_sales_d')
+            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
+            ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
+            ->leftJoin('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
+            ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
+            ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
+            ->leftJoin('mpos_outlet', 'mpos_sales_h.nid_outlet', '=', 'mpos_outlet.nid')
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            })
+            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
+            ->whereRaw('(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0');
+
+        if (!empty($outletId)) {
+            $baseQuery->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$isSuperAdmin) {
+            $baseQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $summaryObj = (clone $baseQuery)->select(
+            DB::raw('COALESCE(SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund), 0) as total_qty'),
+            DB::raw('COALESCE(SUM(((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END), 0) as total_penjualan')
+        )->first();
+
+        $items = (clone $baseQuery)->select(
+            'mpos_sales_h.cnotransaction',
+            'mpos_sales_h.nid as transaction_id',
+            'mpos_sales_h.dtransaction',
+            'mpos_sales_h.nsubtotal as transaction_subtotal',
+            'mpos_sales_h.ndiscount as transaction_discount',
+            'mpos_sales_d.nprice',
+            'mpos_sales_d.ncost',
+            'mpos_sales_d.nqty',
+            'mpos_sales_d.nqty_void',
+            'mpos_sales_d.nqty_refund',
+            DB::raw("COALESCE(mpos_product.cname, mpos_sales_d.cname, 'Produk') as item_name"),
+            DB::raw("COALESCE(muser.cname, 'Admin') as cashier_name"),
+            DB::raw("COALESCE(NULLIF(TRIM(mpos_cust.cname), ''), NULLIF(TRIM(mpos_sales_h.cname_customer), ''), '-') as customer_name")
+        )->orderBy('mpos_sales_h.dtransaction', 'desc')->get();
+
+        return Excel::download(
+            new SalesItemExport($items, $summaryObj, $startDate, $endDateParsed->format('Y-m-d'), $outletName),
+            "Item_Penjualan_{$dateSuffix}.xlsx"
+        );
+    }
+
+    private function exportCustomerExcel(string $startDate, Carbon $endDateParsed, ?int $outletId, array $allowedOutletIds, bool $isSuperAdmin, string $outletName, string $dateSuffix)
+    {
+        $customerNameExpr = "COALESCE(NULLIF(TRIM(mpos_cust.cname), ''), NULLIF(TRIM(mpos_sales_h.cname_customer), ''), 'Pelanggan Umum')";
+
+        $baseQuery = DB::table('mpos_sales_d')
+            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
+            ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
+            ->where(function ($q) {
+                $q->whereIn('mpos_sales_h.cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                });
+            })
+            ->whereRaw('(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0')
+            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
+            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed);
+
+        if (!empty($outletId)) {
+            $baseQuery->where('mpos_sales_h.nid_outlet', $outletId);
+        } elseif (!$isSuperAdmin) {
+            $baseQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        }
+
+        $grandTotals = (clone $baseQuery)->select(
+            DB::raw('COUNT(DISTINCT mpos_sales_h.nid_customer) as total_customers'),
+            DB::raw('SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as total_qty'),
+            DB::raw('SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) as total_penjualan'),
+            DB::raw('ROUND(SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END), 2) as total_diskon'),
+            DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as total_transaksi')
+        )->first();
+
+        $grandTotals->total_modal = 0;
+        $grandTotals->total_penjualan = round((float) ($grandTotals->total_penjualan ?? 0), 2);
+        $grandTotals->total_diskon = round((float) ($grandTotals->total_diskon ?? 0), 2);
+        $grandTotals->total_laba = round($grandTotals->total_penjualan - $grandTotals->total_diskon - $grandTotals->total_modal, 2);
+
+        $summaryData = (clone $baseQuery)->select(
+            DB::raw("{$customerNameExpr} as customer_name"),
+            DB::raw('ROUND(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice), 2) as total_penjualan'),
+            DB::raw('ROUND(SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END), 2) as diskon'),
+            DB::raw('0 as modal'),
+            DB::raw('ROUND((SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - SUM(CASE WHEN mpos_sales_h.nsubtotal > 0 THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END)), 2) as laba'),
+            DB::raw('COUNT(DISTINCT mpos_sales_h.nid) as jml_transaksi')
+        )->groupBy('customer_name')->orderBy('customer_name', 'asc')->get();
+
+        return Excel::download(
+            new CustomerProductSummarySheet($summaryData, $grandTotals, $startDate, $endDateParsed->format('Y-m-d')),
+            "Laporan_Pelanggan_{$dateSuffix}.xlsx"
+        );
     }
 }
