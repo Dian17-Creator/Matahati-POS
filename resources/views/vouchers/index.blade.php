@@ -42,14 +42,23 @@
                         <td>{{ \Illuminate\Support\Str::limit($voucher->cdesc, 30) }}</td>
                         <td>
                             <small class="d-block">{{ \Carbon\Carbon::parse($voucher->dstart)->format('d M Y') }}</small>
-                            <small class="d-block text-muted">s/d {{ \Carbon\Carbon::parse($voucher->dend)->format('d M Y') }}</small>
+                            <small class="d-block text-muted">
+                                s/d {{ $voucher->dend ? \Carbon\Carbon::parse($voucher->dend)->format('d M Y') : 'Tidak ada kadaluarsa' }}
+                            </small>
                         </td>
                         <td>
-                            <div class="progress" style="height: 6px; width: 80px;" title="{{ $voucher->nredeem }} / {{ $voucher->nqty }} Terpakai">
-                                @php $pct = $voucher->nqty > 0 ? ($voucher->nredeem / $voucher->nqty) * 100 : 0; @endphp
+                            @if(is_null($voucher->nqty))
+                            <div class="progress" style="height: 6px; width: 80px;" title="{{ $voucher->nredeem ?? 0 }} / - Terpakai">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 0%;"></div>
+                            </div>
+                            <small class="text-muted">{{ $voucher->nredeem ?? 0 }} / -</small>
+                            @else
+                            <div class="progress" style="height: 6px; width: 80px;" title="{{ $voucher->nredeem ?? 0 }} / {{ $voucher->nqty }} Terpakai">
+                                @php $pct = $voucher->nqty > 0 ? min(100, (($voucher->nredeem ?? 0) / $voucher->nqty) * 100) : 0; @endphp
                                 <div class="progress-bar {{ $pct >= 100 ? 'bg-danger' : 'bg-success' }}" role="progressbar" @style(['width: ' . $pct . '%'])></div>
                             </div>
-                            <small class="text-muted">{{ $voucher->nredeem }} / {{ $voucher->nqty }}</small>
+                            <small class="text-muted">{{ $voucher->nredeem ?? 0 }} / {{ $voucher->nqty }}</small>
+                            @endif
                         </td>
                         <td>
                             @if($voucher->ndisc_percent > 0)
@@ -118,15 +127,28 @@
                                             <input type="date" class="form-control @if(old('modal_id') == $voucher->nid) @error('dstart') is-invalid @enderror @endif" id="dstart_{{ $voucher->nid }}" name="dstart" value="{{ old('modal_id') == $voucher->nid ? old('dstart') : (isset($voucher->dstart) ? \Carbon\Carbon::parse($voucher->dstart)->format('Y-m-d') : '') }}" required>
                                             @if(old('modal_id') == $voucher->nid) @error('dstart') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
+                                        @php
+                                            $isEditOld = old('modal_id') == $voucher->nid;
+                                            $isEditUnlimitedEnd = $isEditOld ? (bool) old('unlimited_dend') : is_null($voucher->dend);
+                                            $isEditUnlimitedQty = $isEditOld ? (bool) old('unlimited_nqty') : is_null($voucher->nqty);
+                                        @endphp
                                         <div class="col-md-6 mb-3">
                                             <label for="dend_{{ $voucher->nid }}" class="form-label">Tanggal Berakhir</label>
-                                            <input type="date" class="form-control @if(old('modal_id') == $voucher->nid) @error('dend') is-invalid @enderror @endif" id="dend_{{ $voucher->nid }}" name="dend" value="{{ old('modal_id') == $voucher->nid ? old('dend') : (isset($voucher->dend) ? \Carbon\Carbon::parse($voucher->dend)->format('Y-m-d') : '') }}" required>
-                                            @if(old('modal_id') == $voucher->nid) @error('dend') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                            <input type="date" class="form-control @if($isEditOld) @error('dend') is-invalid @enderror @endif" id="dend_{{ $voucher->nid }}" name="dend" value="{{ $isEditUnlimitedEnd ? '' : ($isEditOld ? old('dend') : (isset($voucher->dend) ? \Carbon\Carbon::parse($voucher->dend)->format('Y-m-d') : '')) }}" {{ $isEditUnlimitedEnd ? 'disabled' : 'required' }}>
+                                            <div class="form-check form-switch mt-1">
+                                                <input class="form-check-input js-unlimited-toggle" type="checkbox" role="switch" id="unlimited_dend_{{ $voucher->nid }}" name="unlimited_dend" value="1" data-target="#dend_{{ $voucher->nid }}" {{ $isEditUnlimitedEnd ? 'checked' : '' }}>
+                                                <label class="form-check-label small text-muted" for="unlimited_dend_{{ $voucher->nid }}">Tidak ada kadaluarsa (Unlimited)</label>
+                                            </div>
+                                            @if($isEditOld) @error('dend') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label for="nqty_{{ $voucher->nid }}" class="form-label">Total Kuota (Qty)</label>
-                                            <input type="number" min="1" class="form-control @if(old('modal_id') == $voucher->nid) @error('nqty') is-invalid @enderror @endif" id="nqty_{{ $voucher->nid }}" name="nqty" value="{{ old('modal_id') == $voucher->nid ? old('nqty') : $voucher->nqty }}" required>
-                                            @if(old('modal_id') == $voucher->nid) @error('nqty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                            <input type="number" min="1" class="form-control @if($isEditOld) @error('nqty') is-invalid @enderror @endif" id="nqty_{{ $voucher->nid }}" name="nqty" value="{{ $isEditUnlimitedQty ? '' : ($isEditOld ? old('nqty') : $voucher->nqty) }}" {{ $isEditUnlimitedQty ? 'disabled' : 'required' }}>
+                                            <div class="form-check form-switch mt-1">
+                                                <input class="form-check-input js-unlimited-toggle" type="checkbox" role="switch" id="unlimited_nqty_{{ $voucher->nid }}" name="unlimited_nqty" value="1" data-target="#nqty_{{ $voucher->nid }}" {{ $isEditUnlimitedQty ? 'checked' : '' }}>
+                                                <label class="form-check-label small text-muted" for="unlimited_nqty_{{ $voucher->nid }}">Kuota tidak terbatas (-)</label>
+                                            </div>
+                                            @if($isEditOld) @error('nqty') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label for="nredeem_{{ $voucher->nid }}" class="form-label">Total Terpakai (Redeem)</label>
@@ -235,15 +257,28 @@
                         <input type="date" class="form-control @if(old('modal_id') == 'create') @error('dstart') is-invalid @enderror @endif" id="dstart" name="dstart" value="{{ old('modal_id') == 'create' ? old('dstart') : '' }}" required>
                         @if(old('modal_id') == 'create') @error('dstart') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
+                    @php
+                        $isCreateOld = old('modal_id') == 'create';
+                        $isCreateUnlimitedEnd = $isCreateOld ? (bool) old('unlimited_dend') : false;
+                        $isCreateUnlimitedQty = $isCreateOld ? (bool) old('unlimited_nqty') : false;
+                    @endphp
                     <div class="col-md-6 mb-3">
                         <label for="dend" class="form-label">Tanggal Berakhir</label>
-                        <input type="date" class="form-control @if(old('modal_id') == 'create') @error('dend') is-invalid @enderror @endif" id="dend" name="dend" value="{{ old('modal_id') == 'create' ? old('dend') : '' }}" required>
-                        @if(old('modal_id') == 'create') @error('dend') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                        <input type="date" class="form-control @if($isCreateOld) @error('dend') is-invalid @enderror @endif" id="dend" name="dend" value="{{ $isCreateUnlimitedEnd ? '' : ($isCreateOld ? old('dend') : '') }}" {{ $isCreateUnlimitedEnd ? 'disabled' : 'required' }}>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input js-unlimited-toggle" type="checkbox" role="switch" id="unlimited_dend_create" name="unlimited_dend" value="1" data-target="#dend" {{ $isCreateUnlimitedEnd ? 'checked' : '' }}>
+                            <label class="form-check-label small text-muted" for="unlimited_dend_create">Tidak ada kadaluarsa (Unlimited)</label>
+                        </div>
+                        @if($isCreateOld) @error('dend') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="nqty" class="form-label">Total Kuota (Qty)</label>
-                        <input type="number" min="1" class="form-control @if(old('modal_id') == 'create') @error('nqty') is-invalid @enderror @endif" id="nqty" name="nqty" value="{{ old('modal_id') == 'create' ? old('nqty') : '' }}" required>
-                        @if(old('modal_id') == 'create') @error('nqty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                        <input type="number" min="1" class="form-control @if($isCreateOld) @error('nqty') is-invalid @enderror @endif" id="nqty" name="nqty" value="{{ $isCreateUnlimitedQty ? '' : ($isCreateOld ? old('nqty') : '') }}" {{ $isCreateUnlimitedQty ? 'disabled' : 'required' }}>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input js-unlimited-toggle" type="checkbox" role="switch" id="unlimited_nqty_create" name="unlimited_nqty" value="1" data-target="#nqty" {{ $isCreateUnlimitedQty ? 'checked' : '' }}>
+                            <label class="form-check-label small text-muted" for="unlimited_nqty_create">Kuota tidak terbatas (-)</label>
+                        </div>
+                        @if($isCreateOld) @error('nqty') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
                     </div>
                     <div class="col-md-6 mb-3">
                         <label for="nmin_spend" class="form-label">Minimal Belanja (Rp)</label>
@@ -276,16 +311,44 @@
 @push('scripts')
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        function syncUnlimitedToggle(toggleEl) {
+            var targetSelector = toggleEl.getAttribute('data-target');
+            var targetInput = targetSelector ? document.querySelector(targetSelector) : null;
+            if (!targetInput) {
+                return;
+            }
+
+            if (toggleEl.checked) {
+                targetInput.value = '';
+                targetInput.disabled = true;
+                targetInput.required = false;
+            } else {
+                targetInput.disabled = false;
+                targetInput.required = true;
+            }
+        }
+
+        document.querySelectorAll('.js-unlimited-toggle').forEach(function(toggleEl) {
+            syncUnlimitedToggle(toggleEl);
+            toggleEl.addEventListener('change', function() {
+                syncUnlimitedToggle(toggleEl);
+            });
+        });
+
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
         var modalId = "{{ old('modal_id') }}";
 
         if (hasErrors && modalId) {
             if (modalId === 'create') {
-                var myModal = new bootstrap.Modal(document.getElementById('createModal'));
-                myModal.show();
+                var createEl = document.getElementById('createModal');
+                if (createEl) {
+                    new bootstrap.Modal(createEl).show();
+                }
             } else {
-                var myModal = new bootstrap.Modal(document.getElementById('editModal' + modalId));
-                myModal.show();
+                var editEl = document.getElementById('editModal' + modalId);
+                if (editEl) {
+                    new bootstrap.Modal(editEl).show();
+                }
             }
         }
     });
