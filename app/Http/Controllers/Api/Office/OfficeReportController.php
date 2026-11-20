@@ -1,3 +1,7 @@
+<?php
+
+namespace App\Http\Controllers\Api\Office;
+
 use App\Exports\CustomerProductSummarySheet;
 use App\Exports\SalesDetailExport;
 use App\Exports\SalesItemExport;
