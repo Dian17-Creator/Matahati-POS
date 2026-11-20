@@ -30,7 +30,26 @@ class VoucherController extends Controller
         $vouchers = $query
             ->orderByRaw('CASE WHEN dend IS NULL THEN 1 ELSE 0 END ASC')
             ->orderBy('dend', 'asc')
-            ->get();
+            ->get()
+            ->map(function (MposVoucher $voucher): MposVoucher {
+                $voucher->setAttribute('is_unlimited_date', is_null($voucher->dend));
+                $voucher->setAttribute('is_unlimited_qty', is_null($voucher->nqty));
+
+                // Ensure non-null values in API JSON so APK models/filters expecting date & int do not fail
+                if (is_null($voucher->dend)) {
+                    $voucher->dend = '2099-12-31';
+                }
+
+                if (is_null($voucher->nqty)) {
+                    $voucher->nqty = 999999;
+                }
+
+                if (is_null($voucher->nredeem)) {
+                    $voucher->nredeem = 0;
+                }
+
+                return $voucher;
+            });
 
         return response()->json([
             'success' => true,
