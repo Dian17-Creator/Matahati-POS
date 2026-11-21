@@ -457,9 +457,14 @@ class OfficeReportController extends Controller
         $user = $request->user();
         if (!$user) {
             $bearer = $request->bearerToken() ?: $request->input('token');
-            if ($bearer && str_starts_with($bearer, 'logged_in_office_')) {
-                $userId = (int) substr($bearer, strlen('logged_in_office_'));
-                $user = \App\Models\Muser::find($userId);
+            if ($bearer) {
+                if (str_starts_with($bearer, 'Bearer ')) {
+                    $bearer = substr($bearer, 7);
+                }
+                if (str_starts_with($bearer, 'logged_in_office_')) {
+                    $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                    $user = \App\Models\Muser::find($userId);
+                }
             }
         }
 
