@@ -33,6 +33,7 @@ Route::prefix('office')->group(function () {
     Route::get('/dashboard', [OfficeDashboardController::class, 'index']);
     Route::get('/purchases', [OfficePurchaseController::class, 'index']);
     Route::get('/purchases/{id}', [OfficePurchaseController::class, 'show']);
+    Route::get('/purchases/{id}/print-pdf', [OfficePurchaseController::class, 'printPdf']);
     Route::get('/reports', [OfficeReportController::class, 'index']);
     Route::get('/reports/export', [OfficeReportController::class, 'export']);
     Route::get('/inventory', [OfficeInventoryController::class, 'index']);
