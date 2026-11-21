@@ -519,7 +519,7 @@ class OfficeReportController extends Controller
             ->select(
                 'nid_transaction',
                 DB::raw('SUM(nqty_void + nqty_refund) as total_void_refund_qty'),
-                DB::raw('SUM(nsubtotal_void + nsubtotal_refund) as item_void_refund'),
+                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as item_void_refund'),
                 DB::raw('SUM((nqty - nqty_void - nqty_refund) * ncost) as total_cost'),
                 DB::raw('MIN(ncost) as min_cost')
             )
