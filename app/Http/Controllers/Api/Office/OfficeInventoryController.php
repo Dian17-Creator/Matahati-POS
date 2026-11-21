@@ -526,6 +526,14 @@ class OfficeInventoryController extends Controller
             return response()->json(['success' => false, 'message' => 'Nomor dokumen wajib diisi.'], 422);
         }
 
+        if (in_array($type, ['produksi_stok', 'production'], true)) {
+            return $this->getProductionDetail($no);
+        }
+
+        if (in_array($type, ['stok_opname', 'opname'], true)) {
+            return $this->getOpnameDetail($no);
+        }
+
         $ctype = ($type === 'stock_out' || $type === 'stok_keluar') ? MposStockMutation::TYPE_OUT : MposStockMutation::TYPE_IN;
 
         $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product.category', 'ingredient'])
@@ -596,6 +604,161 @@ class OfficeInventoryController extends Controller
                 'total_qty' => (int) $items->sum('nqty'),
                 'total_cost' => (float) $items->sum('nsubtotal'),
                 'total_cost_formatted' => 'Rp ' . number_format($items->sum('nsubtotal'), 0, ',', '.'),
+                'details' => $details,
+            ],
+        ]);
+    }
+
+    private function getProductionDetail(string $no): JsonResponse
+    {
+        $prodH = MposProductionH::with([
+            'outlet',
+            'user',
+            'products.product.category',
+            'materials.product',
+            'materials.ingredient'
+        ])
+        ->where('cno_production', $no)
+        ->orWhere('nid', $no)
+        ->first();
+
+        if (!$prodH) {
+            return response()->json(['success' => false, 'message' => 'Dokumen Produksi Stok tidak ditemukan.'], 404);
+        }
+
+        $dprod = $prodH->dproduction ? Carbon::parse($prodH->dproduction) : null;
+        $createdBy = $prodH->user?->cemail ?: ($prodH->user?->email ?: ($prodH->user?->cname ?: 'Admin'));
+
+        $statusLabel = match (strtoupper((string) $prodH->cstatus)) {
+            'POSTED' => 'Posted',
+            'DRAFT' => 'Draf',
+            'CANCELLED', 'VOID' => 'Batal',
+            default => $prodH->cstatus ?: 'Draf',
+        };
+
+        $materials = $prodH->materials->map(function ($m, $idx) {
+            $isIng = $m->isIngredient();
+            $name = $m->product?->cname ?? ($isIng ? ($m->ingredient?->cname ?? 'Bahan Baku') : 'Item');
+            $unit = $m->getItemUnitAttribute();
+            $qty = (float) $m->nqty;
+            $cost = (float) $m->ncost;
+            $subtotal = (float) $m->nsubtotal;
+
+            return [
+                'no' => $idx + 1,
+                'item_name' => $name,
+                'tipe' => $isIng ? 'BAHAN BAKU' : ($m->product ? 'PRODUK' : 'BAHAN BAKU'),
+                'cost' => $cost,
+                'cost_formatted' => 'Rp ' . number_format($cost, 0, ',', '.'),
+                'qty_deducted' => -$qty,
+                'qty_deducted_formatted' => '-' . (fmod($qty, 1) === 0.0 ? (int)$qty : number_format($qty, 2, ',', '.')),
+                'unit' => strtoupper($unit),
+                'subtotal' => $subtotal,
+                'subtotal_formatted' => 'Rp ' . number_format($subtotal, 0, ',', '.'),
+            ];
+        });
+
+        $products = $prodH->products->map(function ($p, $idx) use ($materials) {
+            $name = $p->product?->cname ?? 'Produk Hasil';
+            $unit = $p->product?->csatuan ?: 'GRAM';
+            $qty = (float) $p->nqty;
+
+            return [
+                'no' => $idx + 1,
+                'product_name' => $name,
+                'qty' => $qty,
+                'qty_formatted' => number_format($qty, 2, ',', '.'),
+                'unit' => strtoupper($unit),
+                'materials_count' => count($materials),
+                'materials' => $materials,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'type' => 'produksi_stok',
+                'cno_ref' => $prodH->cno_production,
+                'dmutation' => $dprod ? $dprod->format('d-M-Y') : '-',
+                'dmutation_full' => $dprod ? $dprod->format('d M Y') : '-',
+                'outlet_name' => $prodH->outlet?->cname ?: 'Matahati POS',
+                'user_email' => $createdBy,
+                'cnote' => $prodH->cnote ?: '-',
+                'cstatus' => $prodH->cstatus ?: 'DRAFT',
+                'status_label' => $statusLabel,
+                'total_product_qty' => (float) $prodH->ntotal_product_qty,
+                'total_product_qty_formatted' => number_format((float) $prodH->ntotal_product_qty, 2, ',', '.'),
+                'products' => $products,
+                'materials' => $materials,
+            ],
+        ]);
+    }
+
+    private function getOpnameDetail(string $no): JsonResponse
+    {
+        $opH = MposStockOpnameH::with([
+            'outlet',
+            'user',
+            'details.product.category',
+            'details.ingredient'
+        ])
+        ->where('cno_opname', $no)
+        ->orWhere('nid', $no)
+        ->first();
+
+        if (!$opH) {
+            return response()->json(['success' => false, 'message' => 'Dokumen Stok Opname tidak ditemukan.'], 404);
+        }
+
+        $dop = $opH->dopname ? Carbon::parse($opH->dopname) : null;
+        $createdBy = $opH->user?->cemail ?: ($opH->user?->email ?: ($opH->user?->cname ?: 'Admin'));
+
+        $statusLabel = match (strtoupper((string) $opH->cstatus)) {
+            'POSTED' => 'Posted',
+            'DRAFT' => 'Draf',
+            'CANCELLED', 'VOID' => 'Batal',
+            default => $opH->cstatus ?: 'Draf',
+        };
+
+        $details = $opH->details->map(function ($d, $idx) {
+            $isIng = $d->isIngredient();
+            $name = $d->product?->cname ?? ($isIng ? ($d->ingredient?->cname ?? 'Bahan Baku') : 'Item');
+            $unit = $d->product?->csatuan ?? ($isIng ? ($d->ingredient?->csatuan ?? 'PCS') : 'PCS');
+            $typeLabel = $d->getItemTypeLabel();
+
+            $qtySystem = (float) $d->nqty_system;
+            $qtyActual = (float) $d->nqty_actual;
+            $qtyDiff = (float) $d->nqty_diff;
+
+            return [
+                'no' => $idx + 1,
+                'product_name' => $name,
+                'item_type' => $typeLabel,
+                'unit' => strtoupper($unit),
+                'category_unit_line' => 'STOK • ' . strtoupper($unit),
+                'qty_system' => (int) $qtySystem,
+                'qty_actual' => (int) $qtyActual,
+                'qty_diff' => (int) $qtyDiff,
+                'qty_diff_formatted' => ($qtyDiff > 0 ? '+' : '') . (int) $qtyDiff,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'type' => 'stok_opname',
+                'cno_ref' => $opH->cno_opname,
+                'dmutation' => $dop ? $dop->format('d-M-Y') : '-',
+                'dmutation_full' => $dop ? $dop->format('d M Y') : '-',
+                'outlet_name' => $opH->outlet?->cname ?: 'Matahati POS',
+                'user_email' => $createdBy,
+                'cnote' => $opH->cnote ?: 'Tidak ada catatan',
+                'cstatus' => $opH->cstatus ?: 'DRAFT',
+                'status_label' => $statusLabel,
+                'total_items_count' => count($details),
+                'total_system_qty' => (int) $opH->details->sum('nqty_system'),
+                'total_actual_qty' => (int) $opH->details->sum('nqty_actual'),
+                'total_diff_qty' => (int) $opH->details->sum('nqty_diff'),
                 'details' => $details,
             ],
         ]);
