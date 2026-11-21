@@ -16,6 +16,7 @@ class MposVoucher extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'nid_outlet',
         'ckode',
         'cdesc',
         'dstart',
@@ -31,6 +32,7 @@ class MposVoucher extends Model
     protected function casts(): array
     {
         return [
+            'nid_outlet' => 'integer',
             'dstart' => 'date',
             'dend' => 'date',
 
@@ -41,6 +43,15 @@ class MposVoucher extends Model
             'ndisc_percent' => 'decimal:2',
             'ndisc_amount' => 'decimal:2',
         ];
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(
+            MposOutlet::class,
+            'nid_outlet',
+            'nid'
+        );
     }
 
     public function sales()

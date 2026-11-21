@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
 use App\Models\MposVoucher;
+use App\Traits\ResolvesOutletScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class VoucherController extends Controller
 {
+    use ResolvesOutletScope;
+
     public function apiIndex(Request $request)
     {
         $today = now()->toDateString();
@@ -22,6 +26,14 @@ class VoucherController extends Controller
                 $q->whereNull('nqty')
                   ->orWhereColumn('nredeem', '<', 'nqty');
             });
+
+        $outletId = $request->input('nid_outlet') ?? $request->input('outlet_id');
+        if ($outletId !== null && $outletId !== '') {
+            $query->where(function ($q) use ($outletId) {
+                $q->whereNull('nid_outlet')
+                  ->orWhere('nid_outlet', (int) $outletId);
+            });
+        }
 
         if ($request->filled('code')) {
             $query->where('ckode', $request->query('code'));
@@ -58,26 +70,87 @@ class VoucherController extends Controller
         ], 200);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $vouchers = MposVoucher::paginate(10);
-        return view('vouchers.index', compact('vouchers'));
+        $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $outlets = $this->getAvailableOutlets();
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+
+        $query = MposVoucher::with('outlet')
+            ->leftJoin('mpos_outlet', 'mpos_voucher.nid_outlet', '=', 'mpos_outlet.nid')
+            ->select('mpos_voucher.*');
+
+        if ($selectedOutletId !== null) {
+            $query->where(function ($q) use ($selectedOutletId) {
+                $q->whereNull('mpos_voucher.nid_outlet')
+                  ->orWhere('mpos_voucher.nid_outlet', $selectedOutletId);
+            });
+        } elseif (! $isSuperAdmin) {
+            $query->where(function ($q) use ($allowedOutletIds) {
+                $q->whereNull('mpos_voucher.nid_outlet');
+                if (! empty($allowedOutletIds)) {
+                    $q->orWhereIn('mpos_voucher.nid_outlet', $allowedOutletIds);
+                }
+            });
+        }
+
+        $vouchers = $query
+            ->orderBy('mpos_voucher.ckode', 'asc')
+            ->orderByRaw('CASE WHEN mpos_voucher.nid_outlet IS NULL THEN 0 ELSE 1 END ASC')
+            ->orderBy('mpos_outlet.cname', 'asc')
+            ->orderBy('mpos_voucher.nid', 'desc')
+            ->paginate(10);
+
+        return view('vouchers.index', compact('vouchers', 'outlets', 'selectedOutletId', 'isSuperAdmin'));
     }
 
     public function store(Request $request)
     {
-        $data = $this->validateVoucher($request);
-        MposVoucher::create($data);
+        [$data, $targetOutlets] = $this->validateVoucher($request);
+
+        DB::transaction(function () use ($data, $targetOutlets): void {
+            foreach ($targetOutlets as $outletId) {
+                MposVoucher::create(array_merge($data, [
+                    'nid_outlet' => $outletId,
+                ]));
+            }
+        });
+
+        $createdCount = count($targetOutlets);
+        $message = $createdCount > 1
+            ? "Voucher berhasil ditambahkan untuk {$createdCount} outlet."
+            : 'Voucher berhasil ditambahkan.';
 
         return redirect()->route('vouchers.index')
-            ->with('success', 'Voucher berhasil ditambahkan.');
+            ->with('success', $message);
     }
 
     public function update(Request $request, string $id)
     {
         $voucher = MposVoucher::findOrFail($id);
-        $data = $this->validateVoucher($request, $voucher);
-        $voucher->update($data);
+        [$data, $targetOutlets] = $this->validateVoucher($request, $voucher);
+
+        DB::transaction(function () use ($voucher, $data, $targetOutlets): void {
+            $primaryOutletId = $targetOutlets[0];
+            $voucher->update(array_merge($data, [
+                'nid_outlet' => $primaryOutletId,
+            ]));
+
+            // If user checked additional outlets during edit, create new rows for those outlets
+            foreach (array_slice($targetOutlets, 1) as $extraOutletId) {
+                $alreadyExists = MposVoucher::where('ckode', $data['ckode'])
+                    ->where('nid_outlet', $extraOutletId)
+                    ->exists();
+
+                if (! $alreadyExists) {
+                    MposVoucher::create(array_merge($data, [
+                        'nid_outlet' => $extraOutletId,
+                        'nredeem' => 0,
+                    ]));
+                }
+            }
+        });
 
         return redirect()->route('vouchers.index')
             ->with('success', 'Voucher berhasil diperbarui.');
@@ -93,16 +166,20 @@ class VoucherController extends Controller
     }
 
     /**
-     * Validate and normalize voucher payload, supporting unlimited end date and quantity.
+     * Validate and normalize voucher payload, supporting unlimited end date/qty and multi-outlet selection.
      *
-     * @return array<string, mixed>
+     * @return array{0: array<string, mixed>, 1: array<int, int|null>}
      */
     private function validateVoucher(Request $request, ?MposVoucher $existingVoucher = null): array
     {
         $isUnlimitedEndDate = $request->boolean('unlimited_dend');
         $isUnlimitedQty = $request->boolean('unlimited_nqty');
+        $allOutlets = $request->boolean('all_outlets');
 
         $validated = $request->validate([
+            'all_outlets' => 'nullable|boolean',
+            'outlet_ids' => 'nullable|array',
+            'outlet_ids.*' => 'integer|exists:mpos_outlet,nid',
             'ckode' => 'required|string|max:50',
             'cdesc' => 'nullable|string',
             'dstart' => 'required|date',
@@ -119,6 +196,52 @@ class VoucherController extends Controller
             'nqty.required' => 'Total kuota wajib diisi jika tidak memilih unlimited.',
             'nredeem.lte' => 'Jumlah redeem tidak boleh lebih besar dari total kuota (nqty).',
         ]);
+
+        $outletIds = array_values(array_unique(array_map('intval', $validated['outlet_ids'] ?? [])));
+
+        if (! $allOutlets && empty($outletIds)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'outlet_ids' => 'Pilih minimal 1 outlet atau centang Semua Outlet.',
+            ]);
+        }
+
+        if (! $this->isSuperAdminUser()) {
+            $allowedOutletIds = $this->getUserAllowedOutletIds();
+            if ($allOutlets && count($allowedOutletIds) <= 1) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'outlet_ids' => 'Anda tidak memiliki akses ke Semua Outlet.',
+                ]);
+            }
+
+            foreach ($outletIds as $oid) {
+                if (! in_array($oid, $allowedOutletIds, true)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'outlet_ids' => 'Anda tidak memiliki akses ke salah satu outlet yang dipilih.',
+                    ]);
+                }
+            }
+        }
+
+        $targetOutlets = $allOutlets ? [null] : $outletIds;
+
+        foreach ($targetOutlets as $targetOutletId) {
+            $duplicateQuery = MposVoucher::whereRaw('LOWER(ckode) = ?', [strtolower($validated['ckode'])]);
+            if ($targetOutletId === null) {
+                $duplicateQuery->whereNull('nid_outlet');
+            } else {
+                $duplicateQuery->where('nid_outlet', $targetOutletId);
+            }
+
+            if ($existingVoucher) {
+                $duplicateQuery->where('nid', '!=', $existingVoucher->nid);
+            }
+
+            if ($duplicateQuery->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'ckode' => 'Kode voucher sudah digunakan pada outlet yang dipilih.',
+                ]);
+            }
+        }
 
         // Custom validation for discount rules
         $hasPercent = !empty($request->ndisc_percent) && $request->ndisc_percent > 0;
@@ -137,7 +260,7 @@ class VoucherController extends Controller
             ]);
         }
 
-        return [
+        $payload = [
             'ckode' => $validated['ckode'],
             'cdesc' => $validated['cdesc'] ?? null,
             'dstart' => $validated['dstart'],
@@ -151,5 +274,7 @@ class VoucherController extends Controller
             'ndisc_amount' => $validated['ndisc_amount'] ?? 0,
             'cstatus' => $validated['cstatus'],
         ];
+
+        return [$payload, $targetOutlets];
     }
 }

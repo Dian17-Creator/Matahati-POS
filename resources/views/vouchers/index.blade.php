@@ -18,6 +18,7 @@
                 <thead class="table-light text-secondary">
                     <tr>
                         <th class="text-center py-3 ps-4">Kode</th>
+                        <th class="text-center py-3 ps-4">Outlet</th>
                         <th class="text-center py-3 ps-4">Deskripsi</th>
                         <th class="text-center py-3 ps-4">Periode</th>
                         <th class="text-center py-3 ps-4">Kuota / Terpakai</th>
@@ -38,6 +39,13 @@
                                 </div>
                                 <span class="fw-bold text-primary">{{ $voucher->ckode }}</span>
                             </div>
+                        </td>
+                        <td class="text-center">
+                            @if($voucher->nid_outlet && $voucher->outlet)
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info-subtle">{{ $voucher->outlet->cname }}</span>
+                            @else
+                            <span class="badge bg-light text-secondary border">Semua Outlet</span>
+                            @endif
                         </td>
                         <td>{{ \Illuminate\Support\Str::limit($voucher->cdesc, 30) }}</td>
                         <td>
@@ -131,7 +139,44 @@
                                             $isEditOld = old('modal_id') == $voucher->nid;
                                             $isEditUnlimitedEnd = $isEditOld ? (bool) old('unlimited_dend') : is_null($voucher->dend);
                                             $isEditUnlimitedQty = $isEditOld ? (bool) old('unlimited_nqty') : is_null($voucher->nqty);
+                                            $editAllOutlets = $isEditOld ? (bool) old('all_outlets') : is_null($voucher->nid_outlet);
+                                            $editOutletIds = $isEditOld
+                                                ? array_map('intval', (array) old('outlet_ids', []))
+                                                : ($voucher->nid_outlet ? [(int) $voucher->nid_outlet] : []);
                                         @endphp
+                                        <div class="col-md-12 mb-3">
+                                            <label class="form-label">Pilih Outlet (Multi Outlet) <span class="text-danger">*</span></label>
+                                            <div class="dropdown voucher-outlet-dropdown @if($isEditOld) @error('outlet_ids') is-invalid @enderror @endif">
+                                                <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                                    <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                                                </button>
+                                                <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                                    @if($isSuperAdmin || $outlets->count() > 1)
+                                                    <li>
+                                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                            <input class="form-check-input me-2 all-outlets-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="all_outlets" value="1" id="edit_all_outlets_{{ $voucher->nid }}" {{ $editAllOutlets ? 'checked' : '' }}>
+                                                            <label class="form-check-label w-100 ms-2 fw-semibold" for="edit_all_outlets_{{ $voucher->nid }}" style="cursor:pointer;">
+                                                                Semua Outlet
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider my-1"></li>
+                                                    @endif
+                                                    @foreach($outlets as $outlet)
+                                                    <li>
+                                                        <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                                            <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="edit_outlet_{{ $voucher->nid }}_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array((int) $outlet->nid, $editOutletIds, true) ? 'checked' : '' }}>
+                                                            <label class="form-check-label w-100 ms-2" for="edit_outlet_{{ $voucher->nid }}_{{ $outlet->nid }}" style="cursor:pointer;">
+                                                                {{ $outlet->cname }}
+                                                            </label>
+                                                        </div>
+                                                    </li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                            @if($isEditOld) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
+                                            <div class="form-text small text-muted">Centang outlet tujuan. Jika memilih lebih dari 1 outlet, voucher baru akan dibuat untuk outlet tambahan.</div>
+                                        </div>
                                         <div class="col-md-6 mb-3">
                                             <label for="dend_{{ $voucher->nid }}" class="form-label">Tanggal Berakhir</label>
                                             <input type="date" class="form-control @if($isEditOld) @error('dend') is-invalid @enderror @endif" id="dend_{{ $voucher->nid }}" name="dend" value="{{ $isEditUnlimitedEnd ? '' : ($isEditOld ? old('dend') : (isset($voucher->dend) ? \Carbon\Carbon::parse($voucher->dend)->format('Y-m-d') : '')) }}" {{ $isEditUnlimitedEnd ? 'disabled' : 'required' }}>
@@ -207,7 +252,7 @@
                     @endif
                     @empty
                     <tr>
-                        <td colspan="{{ $canModifyData ? 7 : 6 }}" class="text-center text-muted py-4">Tidak ada data voucher.</td>
+                        <td colspan="{{ $canModifyData ? 8 : 7 }}" class="text-center text-muted py-4">Tidak ada data voucher.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -261,7 +306,48 @@
                         $isCreateOld = old('modal_id') == 'create';
                         $isCreateUnlimitedEnd = $isCreateOld ? (bool) old('unlimited_dend') : false;
                         $isCreateUnlimitedQty = $isCreateOld ? (bool) old('unlimited_nqty') : false;
+                        $createAllOutlets = $isCreateOld
+                            ? (bool) old('all_outlets')
+                            : (empty($selectedOutletId) && ($isSuperAdmin || $outlets->count() > 1));
+                        $createOutletIds = $isCreateOld
+                            ? array_map('intval', (array) old('outlet_ids', []))
+                            : (!empty($selectedOutletId)
+                                ? [(int) $selectedOutletId]
+                                : ($outlets->count() === 1 ? [(int) $outlets->first()->nid] : []));
                     @endphp
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label">Pilih Outlet (Multi Outlet) <span class="text-danger">*</span></label>
+                        <div class="dropdown voucher-outlet-dropdown @if($isCreateOld) @error('outlet_ids') is-invalid @enderror @endif">
+                            <button class="btn btn-outline-secondary w-100 text-start dropdown-toggle d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                <span><i class="bi bi-shop me-2"></i> <span class="selected-text">Pilih Outlet...</span></span>
+                            </button>
+                            <ul class="dropdown-menu w-100 p-2 shadow" style="max-height: 250px; overflow-y: auto;">
+                                @if($isSuperAdmin || $outlets->count() > 1)
+                                <li>
+                                    <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                        <input class="form-check-input me-2 all-outlets-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="all_outlets" value="1" id="create_all_outlets" {{ $createAllOutlets ? 'checked' : '' }}>
+                                        <label class="form-check-label w-100 ms-2 fw-semibold" for="create_all_outlets" style="cursor:pointer;">
+                                            Semua Outlet
+                                        </label>
+                                    </div>
+                                </li>
+                                <li><hr class="dropdown-divider my-1"></li>
+                                @endif
+                                @foreach($outlets as $outlet)
+                                <li>
+                                    <div class="form-check dropdown-item rounded py-1 px-3 mb-1 d-flex align-items-center">
+                                        <input class="form-check-input me-2 outlet-checkbox" style="margin-left: 0; margin-top: 0;" type="checkbox" name="outlet_ids[]" value="{{ $outlet->nid }}" id="create_outlet_{{ $outlet->nid }}" data-name="{{ $outlet->cname }}" {{ in_array((int) $outlet->nid, $createOutletIds, true) ? 'checked' : '' }}>
+                                        <label class="form-check-label w-100 ms-2" for="create_outlet_{{ $outlet->nid }}" style="cursor:pointer;">
+                                            {{ $outlet->cname }}
+                                        </label>
+                                    </div>
+                                </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        @if($isCreateOld) @error('outlet_ids') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror @endif
+                        <div class="form-text small text-muted">Centang satu atau beberapa outlet (otomatis dibuatkan baris per outlet), atau pilih Semua Outlet.</div>
+                    </div>
                     <div class="col-md-6 mb-3">
                         <label for="dend" class="form-label">Tanggal Berakhir</label>
                         <input type="date" class="form-control @if($isCreateOld) @error('dend') is-invalid @enderror @endif" id="dend" name="dend" value="{{ $isCreateUnlimitedEnd ? '' : ($isCreateOld ? old('dend') : '') }}" {{ $isCreateUnlimitedEnd ? 'disabled' : 'required' }}>
@@ -333,6 +419,53 @@
             toggleEl.addEventListener('change', function() {
                 syncUnlimitedToggle(toggleEl);
             });
+        });
+
+        function updateOutletDropdownText(dropdown) {
+            var selectedText = dropdown.querySelector('.selected-text');
+            if (!selectedText) {
+                return;
+            }
+
+            var allCheckbox = dropdown.querySelector('.all-outlets-checkbox');
+            var checkedOutlets = dropdown.querySelectorAll('.outlet-checkbox:checked');
+
+            if (allCheckbox && allCheckbox.checked) {
+                selectedText.textContent = 'Semua Outlet';
+            } else if (checkedOutlets.length === 0) {
+                selectedText.textContent = 'Pilih Outlet...';
+            } else if (checkedOutlets.length === 1) {
+                selectedText.textContent = checkedOutlets[0].getAttribute('data-name');
+            } else {
+                selectedText.textContent = checkedOutlets.length + ' Outlet Terpilih';
+            }
+        }
+
+        document.querySelectorAll('.voucher-outlet-dropdown').forEach(function(dropdown) {
+            var allCheckbox = dropdown.querySelector('.all-outlets-checkbox');
+            var outletCheckboxes = dropdown.querySelectorAll('.outlet-checkbox');
+
+            if (allCheckbox) {
+                allCheckbox.addEventListener('change', function() {
+                    if (allCheckbox.checked) {
+                        outletCheckboxes.forEach(function(cb) {
+                            cb.checked = false;
+                        });
+                    }
+                    updateOutletDropdownText(dropdown);
+                });
+            }
+
+            outletCheckboxes.forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    if (cb.checked && allCheckbox) {
+                        allCheckbox.checked = false;
+                    }
+                    updateOutletDropdownText(dropdown);
+                });
+            });
+
+            updateOutletDropdownText(dropdown);
         });
 
         var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
