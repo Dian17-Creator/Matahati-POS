@@ -36,6 +36,8 @@ Route::prefix('office')->group(function () {
     Route::get('/reports', [OfficeReportController::class, 'index']);
     Route::get('/reports/export', [OfficeReportController::class, 'export']);
     Route::get('/inventory', [OfficeInventoryController::class, 'index']);
+    Route::get('/inventory/detail', [OfficeInventoryController::class, 'showDetail']);
+    Route::get('/inventory/print-pdf', [OfficeInventoryController::class, 'printPdf']);
     Route::get('/products', [OfficeProductController::class, 'getProducts']);
     Route::get('/categories', [OfficeProductController::class, 'getCategories']);
     Route::post('/categories', [OfficeProductController::class, 'storeCategory']);

@@ -511,4 +511,189 @@ class OfficeInventoryController extends Controller
             ],
         ]);
     }
+
+    public function showDetail(Request $request): JsonResponse
+    {
+        $user = $this->authenticateOfficeUser($request);
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Pengguna tidak terautentikasi.'], 401);
+        }
+
+        $type = strtolower((string) $request->input('type', 'stock_in'));
+        $no = trim((string) $request->input('no'));
+
+        if (empty($no)) {
+            return response()->json(['success' => false, 'message' => 'Nomor dokumen wajib diisi.'], 422);
+        }
+
+        $ctype = ($type === 'stock_out' || $type === 'stok_keluar') ? MposStockMutation::TYPE_OUT : MposStockMutation::TYPE_IN;
+
+        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product.category', 'ingredient'])
+            ->where('ctype', $ctype)
+            ->where(function ($q) use ($no) {
+                $q->where('cno_ref', $no)
+                    ->orWhere('nid', $no);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'Dokumen transaksi tidak ditemukan.'], 404);
+        }
+
+        $first = $items->first();
+        $dmutation = $first->dmutation ? Carbon::parse($first->dmutation) : null;
+
+        $details = $items->map(function ($d, $idx) {
+            $isIng = $d->isIngredient();
+            $itemType = $isIng ? 'Bahan Baku' : ($d->getItemTypeLabel() ?: 'Produk');
+            $itemName = $d->product?->cname ?? ($isIng ? ($d->ingredient?->cname ?? 'Bahan Baku') : 'Produk');
+            $itemCategory = $d->product?->category?->cname ?: ($isIng ? 'BAHAN BAKU' : 'PRODUK');
+            $currentStock = (int) ($isIng ? ($d->ingredient?->nstock ?? 0) : ($d->product?->nqty ?? 0));
+            $qty = (int) $d->nqty;
+            $cost = (float) $d->ncost;
+            $subtotal = (float) $d->nsubtotal;
+
+            return [
+                'no' => $idx + 1,
+                'tipe' => $itemType,
+                'item_name' => $itemName,
+                'category_name' => strtoupper($itemCategory),
+                'current_stock' => $currentStock,
+                'qty' => $qty,
+                'cost' => $cost,
+                'cost_formatted' => 'Rp ' . number_format($cost, 0, ',', '.'),
+                'subtotal' => $subtotal,
+                'subtotal_formatted' => 'Rp ' . number_format($subtotal, 0, ',', '.'),
+            ];
+        });
+
+        $postedBy = $first->user?->cemail ?: ($first->user?->email ?: ($first->user?->cname ?: 'Admin'));
+        $diterimaDari = !empty($first->targetOutlet) ? $first->targetOutlet->cname : ($first->outlet?->cname ?? 'Input Stok Masuk Manual');
+        $transferKe = $first->targetOutlet?->cname ?? '-';
+
+        $statusLabel = match (strtoupper((string) $first->cstatus)) {
+            'POSTED' => 'Posted',
+            'DRAFT' => 'Draf',
+            'CANCELLED', 'VOID' => 'Batal',
+            default => $first->cstatus ?: 'Draf',
+        };
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'cno_ref' => $first->cno_ref,
+                'ctype' => $ctype,
+                'dmutation' => $dmutation ? $dmutation->format('d-M-Y') : '-',
+                'dmutation_full' => $dmutation ? $dmutation->format('d/m/Y H:i') : '-',
+                'diterima_dari' => $diterimaDari,
+                'transfer_ke' => $transferKe,
+                'outlet_name' => $first->outlet?->cname ?: 'Matahati POS',
+                'creason' => $first->creason ?: ($ctype === MposStockMutation::TYPE_IN ? 'Pembelian' : 'Lain-lain'),
+                'cnote' => $first->cnote ?: '-',
+                'cstatus' => $first->cstatus ?: 'DRAFT',
+                'status_label' => $statusLabel,
+                'posted_by' => $postedBy,
+                'total_qty' => (int) $items->sum('nqty'),
+                'total_cost' => (float) $items->sum('nsubtotal'),
+                'total_cost_formatted' => 'Rp ' . number_format($items->sum('nsubtotal'), 0, ',', '.'),
+                'details' => $details,
+            ],
+        ]);
+    }
+
+    public function printPdf(Request $request)
+    {
+        $user = $this->authenticateOfficeUser($request);
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Pengguna tidak terautentikasi.'], 401);
+        }
+
+        $type = strtolower((string) $request->input('type', 'stock_in'));
+        $no = trim((string) $request->input('no'));
+
+        if (empty($no)) {
+            return response()->json(['success' => false, 'message' => 'Nomor dokumen wajib diisi.'], 422);
+        }
+
+        $ctype = ($type === 'stock_out' || $type === 'stok_keluar') ? MposStockMutation::TYPE_OUT : MposStockMutation::TYPE_IN;
+
+        $items = MposStockMutation::with(['outlet', 'targetOutlet', 'user', 'product', 'ingredient'])
+            ->where('ctype', $ctype)
+            ->where(function ($q) use ($no) {
+                $q->where('cno_ref', $no)
+                    ->orWhere('nid', $no);
+            })
+            ->get();
+
+        if ($items->isEmpty()) {
+            abort(404, 'Dokumen transaksi tidak ditemukan.');
+        }
+
+        $first = $items->first();
+
+        if ($ctype === MposStockMutation::TYPE_IN) {
+            $stockIn = (object) [
+                'nid' => $first->nid,
+                'cno_stock_in' => $first->cno_ref,
+                'dstock_in' => $first->dmutation,
+                'creason' => $first->creason,
+                'cstatus' => $first->cstatus,
+                'cnote' => $first->cnote,
+                'outlet' => $first->outlet,
+                'targetOutlet' => $first->targetOutlet,
+                'user' => $first->user,
+                'details' => $items,
+                'ntotal_qty' => $items->sum('nqty'),
+                'ntotal_cost' => $items->sum('nsubtotal'),
+                'supplier' => null,
+                'creceived_by' => $first->user?->cemail ?: ($first->user?->email ?: ($first->user?->cname ?: 'Admin')),
+            ];
+
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('inventory.stock_in_print', compact('stockIn'));
+            $pdf->setPaper('a4', 'portrait');
+            return $pdf->stream("Stok_Masuk_{$stockIn->cno_stock_in}.pdf");
+        } else {
+            $stockOut = (object) [
+                'nid' => $first->nid,
+                'cno_stock_out' => $first->cno_ref,
+                'dstock_out' => $first->dmutation,
+                'creason' => $first->creason,
+                'cstatus' => $first->cstatus,
+                'cnote' => $first->cnote,
+                'outlet' => $first->outlet,
+                'targetOutlet' => $first->targetOutlet,
+                'user' => $first->user,
+                'details' => $items,
+                'ntotal_qty' => $items->sum('nqty'),
+                'ntotal_cost' => $items->sum('nsubtotal'),
+            ];
+
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('inventory.stock_out_print', compact('stockOut'));
+            $pdf->setPaper('a4', 'portrait');
+            return $pdf->stream("Stok_Keluar_{$stockOut->cno_stock_out}.pdf");
+        }
+    }
+
+    private function authenticateOfficeUser(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            $bearer = $request->bearerToken() ?: $request->input('token');
+            if ($bearer) {
+                if (str_starts_with($bearer, 'Bearer ')) {
+                    $bearer = substr($bearer, 7);
+                }
+                if (str_starts_with($bearer, 'logged_in_office_')) {
+                    $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                    $user = \App\Models\Muser::find($userId);
+                }
+            }
+        }
+
+        if ($user) {
+            Auth::setUser($user);
+        }
+
+        return $user;
+    }
 }
