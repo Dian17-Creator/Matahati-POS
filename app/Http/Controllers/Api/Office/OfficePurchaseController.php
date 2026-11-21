@@ -354,7 +354,7 @@ class OfficePurchaseController extends Controller
             abort(404, 'Transaksi pembelian tidak ditemukan.');
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchases.print', compact('purchase'));
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchases.office_print_pdf', compact('purchase'));
         $pdf->setPaper('a4', 'portrait');
 
         $cno = $purchase->cno_purchase ?: ('PO-' . $purchase->nid);
