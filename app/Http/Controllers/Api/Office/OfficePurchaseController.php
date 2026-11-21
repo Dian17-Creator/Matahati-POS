@@ -319,4 +319,45 @@ class OfficePurchaseController extends Controller
             ],
         ]);
     }
+
+    public function printPdf(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (!$user) {
+            $bearer = $request->bearerToken() ?: $request->input('token');
+            if ($bearer) {
+                if (str_starts_with($bearer, 'Bearer ')) {
+                    $bearer = substr($bearer, 7);
+                }
+                if (str_starts_with($bearer, 'logged_in_office_')) {
+                    $userId = (int) substr($bearer, strlen('logged_in_office_'));
+                    $user = \App\Models\Muser::find($userId);
+                }
+            }
+        }
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Pengguna tidak terautentikasi.'], 401);
+        }
+
+        Auth::setUser($user);
+
+        $purchase = MposPurchaseH::with([
+            'supplier',
+            'outlet',
+            'user',
+            'details.product',
+            'details.ingredient',
+        ])->find($id);
+
+        if (!$purchase) {
+            abort(404, 'Transaksi pembelian tidak ditemukan.');
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('purchases.print', compact('purchase'));
+        $pdf->setPaper('a4', 'portrait');
+
+        $cno = $purchase->cno_purchase ?: ('PO-' . $purchase->nid);
+        return $pdf->stream("Purchase_Order_{$cno}.pdf");
+    }
 }

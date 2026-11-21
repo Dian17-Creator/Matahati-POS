@@ -22,6 +22,8 @@ class MposPurchaseH extends Model
     public const PAYMENT_UNPAID = 'UNPAID';
     public const PAYMENT_PAID = 'PAID';
 
+    public const SPV_EDIT_MAX_DAYS = 30;
+
     protected $table = 'mpos_purchase_h';
 
     protected $primaryKey = 'nid';
@@ -47,6 +49,10 @@ class MposPurchaseH extends Model
         'ntotal_amount',
         'cnote',
         'dcreated',
+        'dedited_at',
+        'nid_edited_by',
+        'cedited_by',
+        'cedit_reason',
     ];
 
     protected function casts(): array
@@ -57,6 +63,7 @@ class MposPurchaseH extends Model
             'ddue_date' => 'date',
             'dreceived' => 'datetime',
             'dcreated' => 'datetime',
+            'dedited_at' => 'datetime',
             'ntotal_amount' => 'decimal:2',
         ];
     }
@@ -84,6 +91,15 @@ class MposPurchaseH extends Model
         return $this->belongsTo(
             Muser::class,
             'nid_user',
+            'nid'
+        );
+    }
+
+    public function editedByUser()
+    {
+        return $this->belongsTo(
+            Muser::class,
+            'nid_edited_by',
             'nid'
         );
     }

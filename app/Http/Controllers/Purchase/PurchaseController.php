@@ -757,7 +757,26 @@ class PurchaseController extends Controller
             ->sortBy('cname', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        return view('purchases.show', compact('purchase', 'products', 'ingredients'));
+        $outletProducts = MposProduct::where('cstatus', 'ACTIVE')
+            ->where('nid_outlet', (int) $purchase->nid_outlet)
+            ->orderBy('cname')
+            ->get($productColumns);
+
+        $outletIngredients = MposIngredients::where('nid_outlet', (int) $purchase->nid_outlet)
+            ->orderBy('cname')
+            ->get();
+
+        $suppliers = MposSupplier::where('factive', 1)
+            ->where(function ($q) use ($purchase) {
+                $q->where('nid_outlet', $purchase->nid_outlet)
+                  ->orWhereNull('nid_outlet');
+            })
+            ->orderBy('cname')
+            ->get();
+
+        $editEligibility = $this->resolveReceivedEditEligibility($purchase);
+
+        return view('purchases.show', compact('purchase', 'products', 'ingredients', 'outletProducts', 'outletIngredients', 'suppliers', 'editEligibility'));
     }
 
     public function addItem(Request $request, string $id)
@@ -1100,5 +1119,354 @@ class PurchaseController extends Controller
         }
 
         return view('purchases.print', compact('purchase'));
+    }
+
+    /**
+     * Evaluate whether the current user may edit a RECEIVED purchase.
+     *
+     * @return array{canEdit: bool, showButton: bool, reason: ?string}
+     */
+    protected function resolveReceivedEditEligibility(MposPurchaseH $purchase): array
+    {
+        if ($purchase->isReturn() || $purchase->cstatus !== MposPurchaseH::STATUS_RECEIVED) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => null];
+        }
+
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isSpv = $this->isSpvUser();
+
+        if (!$isSuperAdmin && !$isSpv) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => null];
+        }
+
+        if (!$isSuperAdmin && !in_array((int) $purchase->nid_outlet, $this->getUserAllowedOutletIds(), true)) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => 'Anda tidak memiliki akses ke outlet transaksi ini.'];
+        }
+
+        return ['canEdit' => true, 'showButton' => true, 'reason' => null];
+    }
+
+    /**
+     * Resolve or replicate a product/ingredient record to the purchase's target outlet.
+     *
+     * @return array{key: string, citem_type: string, nid_product: ?int, nid_ingredient: ?int, name: string}
+     */
+    protected function resolveOutletItemForPurchase(int $outletId, string $itemType, ?int $productId, ?int $ingredientId): array
+    {
+        if ($itemType === MposPurchaseD::TYPE_BAHAN_BAKU && !empty($ingredientId)) {
+            $ingredient = MposIngredients::find($ingredientId);
+            if (!$ingredient) {
+                throw new \RuntimeException('Bahan baku yang dipilih tidak ditemukan.');
+            }
+
+            if ((int) $ingredient->nid_outlet !== $outletId) {
+                if (empty($ingredient->nid_outlet)) {
+                    $ingredient->nid_outlet = $outletId;
+                    $ingredient->save();
+                } else {
+                    $outletIngredient = MposIngredients::where('nid_outlet', $outletId)
+                        ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $ingredient->cname))])
+                        ->first();
+
+                    if ($outletIngredient) {
+                        $ingredient = $outletIngredient;
+                    } else {
+                        $newIngPayload = [
+                            'cname' => $ingredient->cname,
+                            'nid_outlet' => $outletId,
+                            'csatuan' => $ingredient->csatuan ?: 'PCS',
+                            'nstock' => 0,
+                        ];
+                        if (MposIngredients::hasPriceColumn()) {
+                            $newIngPayload['nprice'] = (float) ($ingredient->nprice ?: 0);
+                        }
+                        $ingredient = MposIngredients::create($newIngPayload);
+                    }
+                }
+            }
+
+            return [
+                'key' => 'ingredient:' . $ingredient->nid,
+                'citem_type' => MposPurchaseD::TYPE_BAHAN_BAKU,
+                'nid_product' => null,
+                'nid_ingredient' => (int) $ingredient->nid,
+                'name' => (string) $ingredient->cname,
+            ];
+        }
+
+        if (!empty($productId)) {
+            $product = MposProduct::find($productId);
+            if (!$product) {
+                throw new \RuntimeException('Produk yang dipilih tidak ditemukan.');
+            }
+
+            if ((int) $product->nid_outlet !== $outletId) {
+                $outletProduct = MposProduct::where('nid_outlet', $outletId)
+                    ->where('cname', $product->cname)
+                    ->first();
+
+                if ($outletProduct) {
+                    $product = $outletProduct;
+                } else {
+                    $newProduct = $product->replicate();
+                    $newProduct->nid_outlet = $outletId;
+                    $newProduct->nqty = 0;
+                    $newProduct->save();
+                    $product = $newProduct;
+                }
+            }
+
+            return [
+                'key' => 'product:' . $product->nid,
+                'citem_type' => $itemType,
+                'nid_product' => (int) $product->nid,
+                'nid_ingredient' => null,
+                'name' => (string) $product->cname,
+            ];
+        }
+
+        throw new \RuntimeException('Item pembelian tidak valid.');
+    }
+
+    /**
+     * Edit a RECEIVED purchase (SPV / Superadmin) with stock guard, opname cutoff, and audit tracking.
+     */
+    public function updateReceived(Request $request, string $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'cedit_reason' => 'required|string|min:5|max:500',
+            'nid_supplier' => 'required|integer|exists:mpos_supplier,nid',
+            'dpurchase' => 'required|date',
+            'dreceived' => 'required|date',
+            'ddue_date' => 'nullable|date',
+            'cno_reference' => 'nullable|string|max:100',
+            'cnote' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1',
+            'items.*.citem_type' => 'required|string|in:PRODUCT,INGREDIENT,PRODUK,SETENGAH_JADI,BAHAN_BAKU',
+            'items.*.nid_product' => 'nullable|integer',
+            'items.*.nid_ingredient' => 'nullable|integer',
+            'items.*.nqty' => 'required|integer|min:1',
+            'items.*.ncost' => 'required|numeric|min:0',
+        ], [
+            'cedit_reason.required' => 'Alasan edit wajib diisi.',
+            'cedit_reason.min' => 'Alasan edit minimal 5 karakter.',
+            'items.required' => 'Minimal harus ada 1 item dalam pembelian.',
+            'items.min' => 'Minimal harus ada 1 item dalam pembelian.',
+            'items.*.nqty.min' => 'Kuantitas item minimal 1.',
+            'items.*.ncost.min' => 'Harga beli tidak boleh negatif.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error_modal', 'edit_received');
+        }
+
+        DB::beginTransaction();
+        try {
+            $purchase = MposPurchaseH::with(['details.product', 'details.ingredient'])
+                ->where('nid', $id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $eligibility = $this->resolveReceivedEditEligibility($purchase);
+            if (!$eligibility['canEdit']) {
+                throw new \RuntimeException($eligibility['reason'] ?: 'Anda tidak memiliki izin untuk mengedit pembelian ini.');
+            }
+
+            $oldCnoReference = $purchase->cno_reference;
+            $newReceivedDate = Carbon::parse($request->input('dreceived'));
+
+            // 1. Aggregate old quantities by item key
+            $oldMap = [];
+            foreach ($purchase->details as $oldDetail) {
+                $key = $oldDetail->isIngredient()
+                    ? 'ingredient:' . (int) $oldDetail->nid_ingredient
+                    : 'product:' . (int) $oldDetail->nid_product;
+
+                if (!isset($oldMap[$key])) {
+                    $oldMap[$key] = [
+                        'qty' => 0.0,
+                        'name' => $oldDetail->product?->cname ?? $oldDetail->ingredient?->cname ?? 'Item',
+                        'nid_product' => $oldDetail->nid_product ? (int) $oldDetail->nid_product : null,
+                        'nid_ingredient' => $oldDetail->nid_ingredient ? (int) $oldDetail->nid_ingredient : null,
+                    ];
+                }
+                $oldMap[$key]['qty'] += (float) $oldDetail->nqty;
+            }
+
+            // 2. Resolve and merge submitted items
+            $mergedNewItems = [];
+            foreach ($request->input('items', []) as $rawItem) {
+                $rawType = strtoupper(trim((string) ($rawItem['citem_type'] ?? MposPurchaseD::TYPE_PRODUK)));
+                if (in_array($rawType, [MposPurchaseD::TYPE_BAHAN_BAKU, MposPurchaseD::TYPE_INGREDIENT], true)) {
+                    $normType = MposPurchaseD::TYPE_BAHAN_BAKU;
+                } elseif ($rawType === MposPurchaseD::TYPE_SETENGAH_JADI) {
+                    $normType = MposPurchaseD::TYPE_SETENGAH_JADI;
+                } else {
+                    $normType = MposPurchaseD::TYPE_PRODUK;
+                }
+
+                $resolved = $this->resolveOutletItemForPurchase(
+                    (int) $purchase->nid_outlet,
+                    $normType,
+                    !empty($rawItem['nid_product']) ? (int) $rawItem['nid_product'] : null,
+                    !empty($rawItem['nid_ingredient']) ? (int) $rawItem['nid_ingredient'] : null
+                );
+
+                $qty = (int) $rawItem['nqty'];
+                $cost = (float) $rawItem['ncost'];
+                $key = $resolved['key'];
+
+                if (isset($mergedNewItems[$key])) {
+                    $mergedNewItems[$key]['nqty'] += $qty;
+                    $mergedNewItems[$key]['ncost'] = $cost;
+                    $mergedNewItems[$key]['nsubtotal'] = $mergedNewItems[$key]['nqty'] * $cost;
+                } else {
+                    $mergedNewItems[$key] = [
+                        'citem_type' => $resolved['citem_type'],
+                        'nid_product' => $resolved['nid_product'],
+                        'nid_ingredient' => $resolved['nid_ingredient'],
+                        'name' => $resolved['name'],
+                        'nqty' => $qty,
+                        'ncost' => $cost,
+                        'nsubtotal' => $qty * $cost,
+                    ];
+                }
+            }
+
+            // 3. Validate stock availability for any reduced/removed items & compute net deltas
+            $allKeys = array_unique(array_merge(array_keys($oldMap), array_keys($mergedNewItems)));
+            $stockUpdates = [];
+
+            foreach ($allKeys as $key) {
+                $oldQty = (float) ($oldMap[$key]['qty'] ?? 0);
+                $newQty = (float) ($mergedNewItems[$key]['nqty'] ?? 0);
+                $delta = $newQty - $oldQty;
+
+                if (abs($delta) < 0.0001) {
+                    continue;
+                }
+
+                [$kind, $targetId] = explode(':', $key, 2);
+                $targetId = (int) $targetId;
+                $itemName = $mergedNewItems[$key]['name'] ?? $oldMap[$key]['name'] ?? 'Item';
+
+                if ($kind === 'ingredient') {
+                    $model = MposIngredients::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$model) {
+                        throw new \RuntimeException("Bahan baku '{$itemName}' tidak ditemukan.");
+                    }
+                    $currentStock = (float) ($model->nstock ?? 0);
+                    if ($delta < 0 && $currentStock < abs($delta)) {
+                        $reduction = abs($delta);
+                        throw new \RuntimeException(
+                            "Item '{$itemName}' tidak dapat dikurangi sebanyak {$reduction} karena stok saat ini hanya {$currentStock} (sudah terjual/terpakai)."
+                        );
+                    }
+                    $stockUpdates[] = ['kind' => 'ingredient', 'model' => $model, 'delta' => $delta];
+                } else {
+                    $model = MposProduct::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$model) {
+                        throw new \RuntimeException("Produk '{$itemName}' tidak ditemukan.");
+                    }
+                    $currentStock = (float) ($model->nqty ?? 0);
+                    if ($delta < 0 && $currentStock < abs($delta)) {
+                        $reduction = abs($delta);
+                        throw new \RuntimeException(
+                            "Item '{$itemName}' tidak dapat dikurangi sebanyak {$reduction} karena stok saat ini hanya {$currentStock} (sudah terjual/terpakai)."
+                        );
+                    }
+                    $stockUpdates[] = ['kind' => 'product', 'model' => $model, 'delta' => $delta];
+                }
+            }
+
+            // 4. Apply net stock deltas
+            foreach ($stockUpdates as $update) {
+                if ($update['kind'] === 'ingredient') {
+                    $update['model']->nstock = (float) $update['model']->nstock + $update['delta'];
+                    $update['model']->save();
+                } else {
+                    $update['model']->nqty = (float) $update['model']->nqty + $update['delta'];
+                    $update['model']->save();
+                }
+            }
+
+            // 5. Replace old stock mutations for this PO with updated mutations
+            $existingMutationQuery = MposStockMutation::where('nid_outlet', $purchase->nid_outlet)
+                ->where('ctype', MposStockMutation::TYPE_IN)
+                ->where('cstatus', MposStockMutation::STATUS_POSTED)
+                ->where(function ($q) use ($purchase, $oldCnoReference) {
+                    $q->where('cnote', 'PO: ' . $purchase->cno_purchase);
+                    if (!empty($oldCnoReference)) {
+                        $q->orWhere('cno_ref', $oldCnoReference);
+                    }
+                });
+
+            $existingStockRef = (clone $existingMutationQuery)->value('cno_ref');
+            $existingMutationQuery->delete();
+
+            $stockInRef = $existingStockRef ?: ($request->input('cno_reference') ?: MposStockMutation::generateNumber('IN', $newReceivedDate));
+
+            // 6. Replace purchase details & recreate stock mutations
+            MposPurchaseD::where('nid_purchase', $purchase->nid)->delete();
+
+            $totalAmount = 0.0;
+            foreach ($mergedNewItems as $newItem) {
+                $totalAmount += (float) $newItem['nsubtotal'];
+
+                MposPurchaseD::create([
+                    'nid_purchase' => $purchase->nid,
+                    'citem_type' => $newItem['citem_type'],
+                    'nid_product' => $newItem['nid_product'],
+                    'nid_ingredient' => $newItem['nid_ingredient'],
+                    'nqty' => $newItem['nqty'],
+                    'ncost' => $newItem['ncost'],
+                    'nsubtotal' => $newItem['nsubtotal'],
+                ]);
+
+                MposStockMutation::create([
+                    'cno_ref' => $stockInRef,
+                    'dmutation' => $newReceivedDate,
+                    'ctype' => MposStockMutation::TYPE_IN,
+                    'nid_outlet' => $purchase->nid_outlet,
+                    'nid_user' => Auth::id() ?? 1,
+                    'citem_type' => MposStockMutation::normalizeItemType($newItem['citem_type']),
+                    'nid_product' => $newItem['nid_product'],
+                    'nid_ingredient' => $newItem['nid_ingredient'],
+                    'nqty' => (float) $newItem['nqty'],
+                    'ncost' => (float) $newItem['ncost'],
+                    'nsubtotal' => (float) $newItem['nsubtotal'],
+                    'creason' => 'Pembelian (Revisi SPV)',
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => 'PO: ' . $purchase->cno_purchase,
+                    'dcreated' => Carbon::now(),
+                ]);
+            }
+
+            // 7. Update purchase header + audit fields
+            $purchase->nid_supplier = (int) $request->input('nid_supplier');
+            $purchase->dpurchase = Carbon::parse($request->input('dpurchase'));
+            $purchase->dreceived = $newReceivedDate;
+            $purchase->ddue_date = $request->input('ddue_date') ? Carbon::parse($request->input('ddue_date')) : null;
+            $purchase->cno_reference = $request->input('cno_reference') ?: $stockInRef;
+            $purchase->cnote = $request->input('cnote');
+            $purchase->ntotal_amount = $totalAmount;
+            $purchase->dedited_at = Carbon::now();
+            $purchase->nid_edited_by = Auth::id();
+            $purchase->cedited_by = Auth::user()?->cname ?: (Auth::user()?->email ?: 'SPV');
+            $purchase->cedit_reason = trim((string) $request->input('cedit_reason'));
+            $purchase->save();
+
+            DB::commit();
+
+            return redirect()->back()->with('success', "Pembelian {$purchase->cno_purchase} berhasil direvisi dan stok telah disinkronkan ulang.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal merevisi pembelian: ' . $e->getMessage());
+        }
     }
 }

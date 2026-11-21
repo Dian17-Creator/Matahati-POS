@@ -107,6 +107,7 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
         Route::post('/stock-in/receive-purchase/{purchaseId}', [InventoryController::class, 'receivePurchase'])->name('stock-in.receive-purchase');
         Route::get('/stock-in/{id}', [InventoryController::class, 'showStockIn'])->name('stock-in.show');
         Route::put('/stock-in/{id}', [InventoryController::class, 'updateStockInHeader'])->name('stock-in.update');
+        Route::put('/stock-in/{id}/posted', [InventoryController::class, 'updatePostedStockIn'])->name('stock-in.update-posted');
         Route::post('/stock-in/{id}/post', [InventoryController::class, 'postStockIn'])->name('stock-in.post');
         Route::post('/stock-in/{id}/cancel', [InventoryController::class, 'cancelStockIn'])->name('stock-in.cancel');
         Route::post('/stock-in/{id}/items', [InventoryController::class, 'addStockInItem'])->name('stock-in.items.store');
@@ -117,6 +118,7 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
         Route::post('/stock-out', [InventoryController::class, 'storeStockOut'])->name('stock-out.store');
         Route::get('/stock-out/{id}', [InventoryController::class, 'showStockOut'])->name('stock-out.show');
         Route::put('/stock-out/{id}', [InventoryController::class, 'updateStockOutHeader'])->name('stock-out.update');
+        Route::put('/stock-out/{id}/posted', [InventoryController::class, 'updatePostedStockOut'])->name('stock-out.update-posted');
         Route::post('/stock-out/{id}/post', [InventoryController::class, 'postStockOut'])->name('stock-out.post');
         Route::post('/stock-out/{id}/cancel', [InventoryController::class, 'cancelStockOut'])->name('stock-out.cancel');
         Route::post('/stock-out/{id}/items', [InventoryController::class, 'addStockOutItem'])->name('stock-out.items.store');
@@ -192,6 +194,7 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
         });
 
         Route::get('/{id}', [PurchaseController::class, 'show'])->name('show');
+        Route::put('/{id}/received', [PurchaseController::class, 'updateReceived'])->name('update-received');
         Route::post('/{id}/items', [PurchaseController::class, 'addItem'])->name('add-item');
         Route::delete('/{id}/items/{detailId}', [PurchaseController::class, 'removeItem'])->name('remove-item');
         Route::post('/{id}/receive', [PurchaseController::class, 'receive'])->name('receive');
