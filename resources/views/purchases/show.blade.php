@@ -115,6 +115,16 @@
         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelModal">
             <i class="bi bi-x-lg me-1"></i> Batalkan PO
         </button>
+        @elseif(($editEligibility['showButton'] ?? false) && $purchase->cstatus === 'RECEIVED')
+            @if($editEligibility['canEdit'])
+            <button type="button" class="btn btn-warning btn-sm px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#editReceivedModal">
+                <i class="bi bi-pencil-square me-1"></i> Edit Transaksi (SPV)
+            </button>
+            @else
+            <button type="button" class="btn btn-outline-secondary btn-sm px-3" disabled title="{{ $editEligibility['reason'] }}">
+                <i class="bi bi-lock me-1"></i> Edit Terkunci
+            </button>
+            @endif
         @endif
     </div>
 </div>
@@ -130,6 +140,13 @@
 <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
     <i class="bi bi-exclamation-triangle me-1"></i> {{ session('error') }}
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
+
+@if(($editEligibility['showButton'] ?? false) && !$editEligibility['canEdit'] && !empty($editEligibility['reason']))
+<div class="alert alert-secondary d-flex align-items-center gap-2 mb-3 small" role="alert">
+    <i class="bi bi-lock-fill"></i>
+    <span>{{ $editEligibility['reason'] }}</span>
 </div>
 @endif
 
@@ -430,6 +447,34 @@
     </div>
 </div>
 
+<!-- Section Riwayat Revisi Transaksi -->
+@if($purchase->dedited_at)
+<div class="card mb-4 overflow-hidden" style="border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <div class="d-flex align-items-center gap-2">
+            <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i> Riwayat Revisi Transaksi</h6>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Pernah Diedit</span>
+        </div>
+    </div>
+    <div class="card-body bg-white py-3">
+        <div class="row g-3 small">
+            <div class="col-md-3">
+                <div class="text-muted mb-1">Terakhir Diedit Oleh</div>
+                <div class="fw-semibold text-dark">{{ $purchase->cedited_by ?: 'SPV' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted mb-1">Waktu Revisi</div>
+                <div class="fw-semibold text-dark">{{ \Carbon\Carbon::parse($purchase->dedited_at)->format('d M Y, H:i') }}</div>
+            </div>
+            <div class="col-md-6">
+                <div class="text-muted mb-1">Alasan Revisi</div>
+                <div class="text-dark" style="white-space: pre-line;">{{ $purchase->cedit_reason ?: '-' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 <!-- Modal Tambah Item (Produk / Bahan Baku) -->
 @if($canModifyData && $purchase->cstatus === 'PENDING')
 <div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
@@ -564,6 +609,215 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
                     <button type="submit" class="btn btn-danger btn-sm">Ya, Batalkan Pesanan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- Modal Edit Transaksi Selesai (SPV) -->
+@if(($editEligibility['canEdit'] ?? false) && $purchase->cstatus === 'RECEIVED')
+<div class="modal fade" id="editReceivedModal" tabindex="-1" aria-labelledby="editReceivedModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <form action="{{ route('purchases.update-received', $purchase->nid) }}" method="POST" id="editReceivedForm" class="d-flex flex-column overflow-hidden" style="max-height: calc(100vh - 2rem);">
+                @csrf
+                @method('PUT')
+                <div class="modal-header bg-warning-subtle flex-shrink-0">
+                    <h5 class="modal-title fw-bold text-dark" id="editReceivedModalLabel">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Transaksi Pembelian ({{ $purchase->cno_purchase }})
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body overflow-y-auto" style="max-height: 72vh;">
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-shield-check me-1"></i>
+                        <strong>Perhatian:</strong> Perubahan akan otomatis menyesuaikan stok saat ini. Pengurangan qty atau penghapusan item akan ditolak jika stok saat ini sudah terpakai/terjual.
+                    </div>
+
+                    @if($errors->any() && session('error_modal') === 'edit_received')
+                    <div class="alert alert-danger small mb-3">
+                        <ul class="mb-0 ps-3">
+                            @foreach($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    @endif
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Alasan Edit / Revisi <span class="text-danger">*</span></label>
+                        <textarea name="cedit_reason" class="form-control form-control-sm" rows="2" required minlength="5" maxlength="500" placeholder="Jelaskan alasan perubahan transaksi (minimal 5 karakter)...">{{ old('cedit_reason') }}</textarea>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Supplier <span class="text-danger">*</span></label>
+                            <select name="nid_supplier" class="form-select form-select-sm" required>
+                                @foreach($suppliers as $sup)
+                                <option value="{{ $sup->nid }}" {{ (int) old('nid_supplier', $purchase->nid_supplier) === (int) $sup->nid ? 'selected' : '' }}>
+                                    {{ $sup->cname }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold small">Tanggal Beli <span class="text-danger">*</span></label>
+                            <input type="date" name="dpurchase" class="form-control form-control-sm" value="{{ old('dpurchase', $purchase->dpurchase ? \Carbon\Carbon::parse($purchase->dpurchase)->format('Y-m-d') : date('Y-m-d')) }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold small">Tanggal Diterima <span class="text-danger">*</span></label>
+                            <input type="date" name="dreceived" class="form-control form-control-sm" value="{{ old('dreceived', $purchase->dreceived ? \Carbon\Carbon::parse($purchase->dreceived)->format('Y-m-d') : date('Y-m-d')) }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold small">Jatuh Tempo</label>
+                            <input type="date" name="ddue_date" class="form-control form-control-sm" value="{{ old('ddue_date', $purchase->ddue_date ? \Carbon\Carbon::parse($purchase->ddue_date)->format('Y-m-d') : '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold small">No. Surat Jalan</label>
+                            <input type="text" name="cno_reference" class="form-control form-control-sm" value="{{ old('cno_reference', $purchase->cno_reference) }}" maxlength="100">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Catatan</label>
+                        <input type="text" name="cnote" class="form-control form-control-sm" value="{{ old('cnote', $purchase->cnote) }}" maxlength="1000" placeholder="Catatan tambahan...">
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="card bg-light border mb-3 p-2">
+                        <div class="small fw-semibold mb-2"><i class="bi bi-plus-circle me-1 text-primary"></i> Tambah Item Baru ke Pembelian</div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">Pilih Item</label>
+                                <select id="editNewItemSelect" class="form-select form-select-sm">
+                                    <option value="">-- Cari atau pilih Produk / Bahan Baku --</option>
+                                    @foreach($outletProducts as $p)
+                                    @php
+                                        $pType = strtoupper(trim((string) ($p->cproduct_type ?? 'PRODUK')));
+                                        if ($pType === 'PRODUCT') $pType = 'PRODUK';
+                                        if ($pType === 'INGREDIENT') $pType = 'BAHAN_BAKU';
+                                        $pSatuan = $p->csatuan ?: 'PCS';
+                                    @endphp
+                                    <option value="product:{{ $p->nid }}"
+                                        data-kind="product"
+                                        data-id="{{ $p->nid }}"
+                                        data-type="{{ $pType }}"
+                                        data-name="{{ $p->cname }}"
+                                        data-unit="{{ $pSatuan }}"
+                                        data-stock="{{ $p->nqty ?? 0 }}"
+                                        data-cost="{{ $p->nprice_buy ?? 0 }}">
+                                        [{{ $pType === 'SETENGAH_JADI' ? 'Setengah Jadi' : ($pType === 'BAHAN_BAKU' ? 'Bahan Baku' : 'Produk') }}] {{ $p->cname }} (Stok: {{ $p->nqty ?? 0 }} {{ $pSatuan }})
+                                    </option>
+                                    @endforeach
+                                    @foreach($outletIngredients as $ing)
+                                    @php $ingSatuan = $ing->csatuan ?: 'PCS'; @endphp
+                                    <option value="ingredient:{{ $ing->nid }}"
+                                        data-kind="ingredient"
+                                        data-id="{{ $ing->nid }}"
+                                        data-type="BAHAN_BAKU"
+                                        data-name="{{ $ing->cname }}"
+                                        data-unit="{{ $ingSatuan }}"
+                                        data-stock="{{ $ing->nstock ?? 0 }}"
+                                        data-cost="{{ $ing->nprice ?? 0 }}">
+                                        [Bahan Baku] {{ $ing->cname }} (Stok: {{ $ing->nstock ?? 0 }} {{ $ingSatuan }})
+                                    </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Qty</label>
+                                <input type="number" id="editNewItemQty" class="form-control form-control-sm" min="1" value="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Harga Beli (Rp)</label>
+                                <input type="number" id="editNewItemCost" class="form-control form-control-sm" min="0" step="any" value="0">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" id="btnAddEditItemRow" class="btn btn-primary btn-sm w-100">
+                                    <i class="bi bi-plus-lg"></i> Tambah
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">Daftar Item Pembelian</h6>
+                        <span class="text-muted small">Minimal 1 item harus tersisa</span>
+                    </div>
+
+                    <div class="table-responsive border rounded mb-2">
+                        <table class="table table-sm align-middle mb-0" id="editReceivedItemsTable">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th>ITEM</th>
+                                    <th class="text-center">TIPE</th>
+                                    <th class="text-center">STOK SEKARANG</th>
+                                    <th style="width: 120px;">QTY BELI</th>
+                                    <th style="width: 160px;">HARGA BELI (RP)</th>
+                                    <th class="text-end" style="width: 150px;">SUBTOTAL</th>
+                                    <th class="text-center" style="width: 60px;">AKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small" id="editReceivedItemsBody">
+                                @foreach($purchase->details as $idx => $detail)
+                                @php
+                                    $isIng = $detail->isIngredient();
+                                    $itemName = $isIng ? ($detail->ingredient?->cname ?? 'Bahan Baku') : ($detail->product?->cname ?? 'Produk');
+                                    $itemUnit = $detail->getItemUnit();
+                                    $normType = $detail->getItemTypeNormalized();
+                                    $currStock = $isIng ? (float) ($detail->ingredient?->nstock ?? 0) : (float) ($detail->product?->nqty ?? 0);
+                                @endphp
+                                <tr class="edit-item-row">
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $itemName }}</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">Satuan: {{ $itemUnit }}</div>
+                                        <input type="hidden" name="items[{{ $idx }}][citem_type]" value="{{ $normType }}">
+                                        <input type="hidden" name="items[{{ $idx }}][nid_product]" value="{{ $detail->nid_product }}">
+                                        <input type="hidden" name="items[{{ $idx }}][nid_ingredient]" value="{{ $detail->nid_ingredient }}">
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border">{{ $detail->getItemTypeLabel() }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info-subtle text-info-emphasis border">{{ rtrim(rtrim(number_format($currStock, 2, ',', '.'), '0'), ',') }} {{ $itemUnit }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="items[{{ $idx }}][nqty]" class="form-control form-control-sm edit-qty-input" min="1" value="{{ (int) $detail->nqty }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="items[{{ $idx }}][ncost]" class="form-control form-control-sm edit-cost-input" min="0" step="any" value="{{ (float) $detail->ncost }}" required>
+                                    </td>
+                                    <td class="text-end fw-bold edit-row-subtotal">
+                                        Rp {{ rtrim(rtrim(number_format((float) $detail->nsubtotal, 2, ',', '.'), '0'), ',') }}
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-outline-danger btn-sm p-1 btn-remove-edit-row" title="Hapus Baris">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="5" class="text-end fw-bold">GRAND TOTAL REVISI:</td>
+                                    <td class="text-end fw-bold text-primary" id="editReceivedGrandTotal">
+                                        Rp {{ rtrim(rtrim(number_format((float) $purchase->ntotal_amount, 2, ',', '.'), '0'), ',') }}
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer flex-shrink-0 bg-white">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-3 fw-semibold">
+                        <i class="bi bi-save me-1"></i> Simpan Revisi & Sinkronkan Stok
+                    </button>
                 </div>
             </form>
         </div>
@@ -709,6 +963,153 @@
             paymentSelect.addEventListener('change', togglePaymentDate);
             togglePaymentDate();
         }
+
+        // --- Edit Transaksi Selesai (SPV) ---
+        const editItemsBody = document.getElementById('editReceivedItemsBody');
+        const editGrandTotalEl = document.getElementById('editReceivedGrandTotal');
+        const editNewItemSelect = document.getElementById('editNewItemSelect');
+        const editNewItemQty = document.getElementById('editNewItemQty');
+        const editNewItemCost = document.getElementById('editNewItemCost');
+        const btnAddEditItemRow = document.getElementById('btnAddEditItemRow');
+
+        function formatRupiah(num) {
+            return 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(num || 0);
+        }
+
+        function recalcEditReceivedTotals() {
+            if (!editItemsBody || !editGrandTotalEl) return;
+            let grand = 0;
+            editItemsBody.querySelectorAll('.edit-item-row').forEach((row, index) => {
+                // Re-index inputs so array indices stay contiguous
+                row.querySelectorAll('input[name^="items["]').forEach(inp => {
+                    inp.name = inp.name.replace(/items\[\d+\]/, 'items[' + index + ']');
+                });
+                const q = parseFloat(row.querySelector('.edit-qty-input')?.value || 0);
+                const c = parseFloat(row.querySelector('.edit-cost-input')?.value || 0);
+                const sub = q * c;
+                grand += sub;
+                const subCell = row.querySelector('.edit-row-subtotal');
+                if (subCell) subCell.innerText = formatRupiah(sub);
+            });
+            editGrandTotalEl.innerText = formatRupiah(grand);
+        }
+
+        if (editItemsBody) {
+            editItemsBody.addEventListener('input', function(e) {
+                if (e.target.classList.contains('edit-qty-input') || e.target.classList.contains('edit-cost-input')) {
+                    recalcEditReceivedTotals();
+                }
+            });
+
+            editItemsBody.addEventListener('click', function(e) {
+                const btn = e.target.closest('.btn-remove-edit-row');
+                if (!btn) return;
+                const rows = editItemsBody.querySelectorAll('.edit-item-row');
+                if (rows.length <= 1) {
+                    alert('Minimal harus ada 1 item dalam pembelian.');
+                    return;
+                }
+                btn.closest('.edit-item-row').remove();
+                recalcEditReceivedTotals();
+            });
+        }
+
+        let editNewItemTomSelect = null;
+        if (editNewItemSelect && typeof TomSelect !== 'undefined') {
+            editNewItemTomSelect = new TomSelect(editNewItemSelect, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih Produk / Bahan Baku --',
+                allowEmptyOption: true,
+                onChange: function(val) {
+                    if (val && editNewItemCost) {
+                        const opt = editNewItemSelect.querySelector('option[value="' + CSS.escape(val) + '"]');
+                        if (opt) {
+                            editNewItemCost.value = parseFloat(opt.getAttribute('data-cost') || 0);
+                        }
+                    }
+                }
+            });
+        } else if (editNewItemSelect) {
+            editNewItemSelect.addEventListener('change', function() {
+                const opt = this.options[this.selectedIndex];
+                if (opt && opt.value && editNewItemCost) {
+                    editNewItemCost.value = parseFloat(opt.getAttribute('data-cost') || 0);
+                }
+            });
+        }
+
+        if (btnAddEditItemRow && editItemsBody && editNewItemSelect) {
+            btnAddEditItemRow.addEventListener('click', function() {
+                const selectedVal = editNewItemTomSelect ? editNewItemTomSelect.getValue() : editNewItemSelect.value;
+                const opt = selectedVal
+                    ? editNewItemSelect.querySelector('option[value="' + CSS.escape(selectedVal) + '"]')
+                    : null;
+                if (!opt || !opt.value) {
+                    alert('Pilih item terlebih dahulu.');
+                    return;
+                }
+                const kind = opt.getAttribute('data-kind');
+                const itemId = opt.getAttribute('data-id');
+                const itemType = opt.getAttribute('data-type') || 'PRODUK';
+                const itemName = opt.getAttribute('data-name') || 'Item';
+                const itemUnit = opt.getAttribute('data-unit') || 'PCS';
+                const itemStock = opt.getAttribute('data-stock') || '0';
+                const qty = Math.max(1, parseInt(editNewItemQty?.value || '1', 10));
+                const cost = Math.max(0, parseFloat(editNewItemCost?.value || '0'));
+
+                const idx = editItemsBody.querySelectorAll('.edit-item-row').length;
+                const typeLabel = itemType === 'BAHAN_BAKU' ? 'Bahan Baku' : (itemType === 'SETENGAH_JADI' ? 'Setengah Jadi' : 'Produk');
+                const prodIdVal = kind === 'product' ? itemId : '';
+                const ingIdVal = kind === 'ingredient' ? itemId : '';
+
+                const tr = document.createElement('tr');
+                tr.className = 'edit-item-row';
+                tr.innerHTML = `
+                    <td>
+                        <div class="fw-semibold text-dark">${itemName}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">Satuan: ${itemUnit}</div>
+                        <input type="hidden" name="items[${idx}][citem_type]" value="${itemType}">
+                        <input type="hidden" name="items[${idx}][nid_product]" value="${prodIdVal}">
+                        <input type="hidden" name="items[${idx}][nid_ingredient]" value="${ingIdVal}">
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark border">${typeLabel}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-info-subtle text-info-emphasis border">${itemStock} ${itemUnit}</span>
+                    </td>
+                    <td>
+                        <input type="number" name="items[${idx}][nqty]" class="form-control form-control-sm edit-qty-input" min="1" value="${qty}" required>
+                    </td>
+                    <td>
+                        <input type="number" name="items[${idx}][ncost]" class="form-control form-control-sm edit-cost-input" min="0" step="any" value="${cost}" required>
+                    </td>
+                    <td class="text-end fw-bold edit-row-subtotal">${formatRupiah(qty * cost)}</td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-outline-danger btn-sm p-1 btn-remove-edit-row" title="Hapus Baris">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                editItemsBody.appendChild(tr);
+                recalcEditReceivedTotals();
+                if (editNewItemTomSelect) {
+                    editNewItemTomSelect.clear(true);
+                } else {
+                    editNewItemSelect.value = '';
+                }
+                if (editNewItemQty) editNewItemQty.value = '1';
+                if (editNewItemCost) editNewItemCost.value = '0';
+            });
+        }
+
+        @if(session('error_modal') === 'edit_received')
+        const editModalEl = document.getElementById('editReceivedModal');
+        if (editModalEl && typeof bootstrap !== 'undefined') {
+            new bootstrap.Modal(editModalEl).show();
+        }
+        @endif
     });
 </script>
 @endpush

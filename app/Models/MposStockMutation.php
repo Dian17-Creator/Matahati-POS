@@ -51,6 +51,10 @@ class MposStockMutation extends Model
         'crack',
         'dcreated',
         'dupdated',
+        'dedited_at',
+        'nid_edited_by',
+        'cedited_by',
+        'cedit_reason',
     ];
 
     protected function casts(): array
@@ -60,6 +64,7 @@ class MposStockMutation extends Model
             'dexpired' => 'date',
             'dcreated' => 'datetime',
             'dupdated' => 'datetime',
+            'dedited_at' => 'datetime',
             'nqty' => 'decimal:2',
             'ncost' => 'decimal:2',
             'nsubtotal' => 'decimal:2',
@@ -79,6 +84,11 @@ class MposStockMutation extends Model
     public function user()
     {
         return $this->belongsTo(Muser::class, 'nid_user', 'nid');
+    }
+
+    public function editedByUser()
+    {
+        return $this->belongsTo(Muser::class, 'nid_edited_by', 'nid');
     }
 
     public function product()

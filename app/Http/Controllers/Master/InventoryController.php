@@ -1271,6 +1271,16 @@ class InventoryController extends Controller
             ->orderBy('cname')
             ->get();
 
+        $outletProducts = MposProduct::with('category')
+            ->where('nid_outlet', (int) $first->nid_outlet)
+            ->where('cstatus', 'ACTIVE')
+            ->orderBy('cname')
+            ->get();
+
+        $outletIngredients = MposIngredients::where('nid_outlet', (int) $first->nid_outlet)
+            ->orderBy('cname')
+            ->get();
+
         $stockIn = (object) [
             'nid' => $first->nid,
             'cno_stock_in' => $first->cno_ref,
@@ -1288,12 +1298,17 @@ class InventoryController extends Controller
             'ntotal_cost' => $items->sum('nsubtotal'),
             'supplier' => null,
             'creceived_by' => $first->user?->cemail ?: ($first->user?->email ?: ($first->user?->cname ?: 'Admin')),
+            'dedited_at' => $first->dedited_at,
+            'cedited_by' => $first->cedited_by,
+            'cedit_reason' => $first->cedit_reason,
             'isDraft' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_DRAFT),
             'isPosted' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED),
             'isCancelled' => in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true),
         ];
 
-        return view('inventory.stock_in_show', compact('stockIn', 'availableProducts'));
+        $editEligibility = $this->resolvePostedStockMutationEditEligibility($first, MposStockMutation::TYPE_IN);
+
+        return view('inventory.stock_in_show', compact('stockIn', 'availableProducts', 'outletProducts', 'outletIngredients', 'editEligibility'));
     }
 
     /**
@@ -1816,6 +1831,16 @@ class InventoryController extends Controller
 
         $availableIngredients = collect();
 
+        $outletProducts = MposProduct::with('category')
+            ->where('nid_outlet', (int) $first->nid_outlet)
+            ->where('cstatus', 'ACTIVE')
+            ->orderBy('cname')
+            ->get();
+
+        $outletIngredients = MposIngredients::where('nid_outlet', (int) $first->nid_outlet)
+            ->orderBy('cname')
+            ->get();
+
         $stockOut = (object) [
             'nid' => $first->nid,
             'cno_stock_out' => $first->cno_ref,
@@ -1831,12 +1856,17 @@ class InventoryController extends Controller
             'details' => $items,
             'ntotal_qty' => $items->sum('nqty'),
             'ntotal_cost' => $items->sum('nsubtotal'),
+            'dedited_at' => $first->dedited_at,
+            'cedited_by' => $first->cedited_by,
+            'cedit_reason' => $first->cedit_reason,
             'isDraft' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_DRAFT),
             'isPosted' => (strtoupper((string) $first->cstatus) === MposStockMutation::STATUS_POSTED),
             'isCancelled' => in_array(strtoupper((string) $first->cstatus), [MposStockMutation::STATUS_CANCELLED, MposStockMutation::STATUS_VOID], true),
         ];
 
-        return view('inventory.stock_out_show', compact('stockOut', 'availableProducts', 'availableIngredients'));
+        $editEligibility = $this->resolvePostedStockMutationEditEligibility($first, MposStockMutation::TYPE_OUT);
+
+        return view('inventory.stock_out_show', compact('stockOut', 'availableProducts', 'availableIngredients', 'outletProducts', 'outletIngredients', 'editEligibility'));
     }
 
     /**
@@ -4515,5 +4545,583 @@ class InventoryController extends Controller
         $filename = "Produksi_Stok_{$production->cno_production}.pdf";
 
         return $pdf->stream($filename);
+    }
+
+    /**
+     * Evaluate whether the current user may edit a POSTED Stock In / Stock Out document.
+     *
+     * @return array{canEdit: bool, showButton: bool, reason: ?string}
+     */
+    protected function resolvePostedStockMutationEditEligibility(MposStockMutation $first, string $type): array
+    {
+        if (strtoupper((string) $first->cstatus) !== MposStockMutation::STATUS_POSTED) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => null];
+        }
+
+        $isSuperAdmin = $this->isSuperAdminUser();
+        $isSpv = $this->isSpvUser();
+
+        if (!$isSuperAdmin && !$isSpv) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => null];
+        }
+
+        if (!$isSuperAdmin && !in_array((int) $first->nid_outlet, $this->getUserAllowedOutletIds(), true)) {
+            return ['canEdit' => false, 'showButton' => false, 'reason' => 'Anda tidak memiliki akses ke outlet transaksi ini.'];
+        }
+
+        if ($type === MposStockMutation::TYPE_IN) {
+            $noteUpper = strtoupper(trim((string) $first->cnote));
+            if (str_starts_with($noteUpper, 'PO:')) {
+                return [
+                    'canEdit' => false,
+                    'showButton' => true,
+                    'reason' => "Stok Masuk ini berasal dari Pembelian ({$first->cnote}). Silakan edit melalui menu Pembelian.",
+                ];
+            }
+
+            if (!empty($first->nid_target_outlet) && str_starts_with(strtolower(trim((string) $first->creason)), 'transfer')) {
+                return [
+                    'canEdit' => false,
+                    'showButton' => true,
+                    'reason' => 'Stok Masuk ini berasal dari Transfer Antar Toko. Silakan edit melalui dokumen Stok Keluar asal.',
+                ];
+            }
+        }
+
+        return ['canEdit' => true, 'showButton' => true, 'reason' => null];
+    }
+
+    /**
+     * Normalize and validate an item row submitted from Stock In / Stock Out posted edit modal.
+     *
+     * @return array{key: string, citem_type: string, nid_product: ?int, nid_ingredient: ?int, name: string}
+     */
+    protected function resolveInventoryOutletItem(int $outletId, string $rawType, ?int $productId, ?int $ingredientId): array
+    {
+        $normType = MposStockMutation::normalizeItemType($rawType);
+
+        if (!empty($ingredientId)) {
+            $ingredient = MposIngredients::where('nid', $ingredientId)
+                ->where('nid_outlet', $outletId)
+                ->first();
+            if (!$ingredient) {
+                $ingredient = MposIngredients::find($ingredientId);
+            }
+            if (!$ingredient) {
+                throw new \RuntimeException('Bahan baku yang dipilih tidak ditemukan.');
+            }
+
+            return [
+                'key' => 'ingredient:' . $ingredient->nid,
+                'citem_type' => MposStockMutation::ITEM_BAHAN_BAKU,
+                'nid_product' => null,
+                'nid_ingredient' => (int) $ingredient->nid,
+                'name' => (string) $ingredient->cname,
+            ];
+        }
+
+        if (!empty($productId)) {
+            $product = MposProduct::find($productId);
+            if (!$product) {
+                throw new \RuntimeException('Produk yang dipilih tidak ditemukan.');
+            }
+
+            return [
+                'key' => 'product:' . $product->nid,
+                'citem_type' => $normType,
+                'nid_product' => (int) $product->nid,
+                'nid_ingredient' => null,
+                'name' => (string) $product->cname,
+            ];
+        }
+
+        throw new \RuntimeException('Item transaksi tidak valid.');
+    }
+
+    /**
+     * Edit a POSTED Stock In document (SPV / Superadmin) with anti-negative stock guard.
+     */
+    public function updatePostedStockIn(Request $request, string $id): RedirectResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'cedit_reason' => 'required|string|min:5|max:500',
+            'dstock_in' => 'required|date',
+            'creason' => 'nullable|string|max:255',
+            'cnote' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1',
+            'items.*.citem_type' => 'required|string',
+            'items.*.nid_product' => 'nullable|integer',
+            'items.*.nid_ingredient' => 'nullable|integer',
+            'items.*.nqty' => 'required|numeric|min:0.01',
+            'items.*.ncost' => 'required|numeric|min:0',
+        ], [
+            'cedit_reason.required' => 'Alasan edit wajib diisi.',
+            'cedit_reason.min' => 'Alasan edit minimal 5 karakter.',
+            'items.required' => 'Minimal harus ada 1 item dalam dokumen.',
+            'items.min' => 'Minimal harus ada 1 item dalam dokumen.',
+            'items.*.nqty.min' => 'Kuantitas item minimal 0.01.',
+            'items.*.ncost.min' => 'Harga beli tidak boleh negatif.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error_modal', 'edit_posted_stock_in');
+        }
+
+        DB::beginTransaction();
+        try {
+            $oldItems = MposStockMutation::with(['product', 'ingredient'])
+                ->where('ctype', MposStockMutation::TYPE_IN)
+                ->where(function ($q) use ($id) {
+                    $q->where('cno_ref', $id)->orWhere('nid', $id);
+                })
+                ->lockForUpdate()
+                ->get();
+
+            if ($oldItems->isEmpty()) {
+                throw new \RuntimeException('Dokumen Stok Masuk tidak ditemukan.');
+            }
+
+            $first = $oldItems->first();
+            $eligibility = $this->resolvePostedStockMutationEditEligibility($first, MposStockMutation::TYPE_IN);
+            if (!$eligibility['canEdit']) {
+                throw new \RuntimeException($eligibility['reason'] ?: 'Anda tidak memiliki izin untuk mengedit dokumen ini.');
+            }
+
+            $stockInNumber = $first->cno_ref;
+            $outletId = (int) $first->nid_outlet;
+            $newDate = Carbon::parse($request->input('dstock_in'));
+
+            $oldMap = [];
+            foreach ($oldItems as $oldItem) {
+                $key = $oldItem->isIngredient()
+                    ? 'ingredient:' . (int) $oldItem->nid_ingredient
+                    : 'product:' . (int) $oldItem->nid_product;
+
+                if (!isset($oldMap[$key])) {
+                    $oldMap[$key] = [
+                        'qty' => 0.0,
+                        'name' => $oldItem->product?->cname ?? $oldItem->ingredient?->cname ?? 'Item',
+                    ];
+                }
+                $oldMap[$key]['qty'] += (float) $oldItem->nqty;
+            }
+
+            $mergedNew = [];
+            foreach ($request->input('items', []) as $rawItem) {
+                $resolved = $this->resolveInventoryOutletItem(
+                    $outletId,
+                    (string) ($rawItem['citem_type'] ?? MposStockMutation::ITEM_PRODUK),
+                    !empty($rawItem['nid_product']) ? (int) $rawItem['nid_product'] : null,
+                    !empty($rawItem['nid_ingredient']) ? (int) $rawItem['nid_ingredient'] : null
+                );
+
+                $qty = (float) $rawItem['nqty'];
+                $cost = (float) $rawItem['ncost'];
+                $key = $resolved['key'];
+
+                if (isset($mergedNew[$key])) {
+                    $mergedNew[$key]['nqty'] += $qty;
+                    $mergedNew[$key]['ncost'] = $cost;
+                    $mergedNew[$key]['nsubtotal'] = $mergedNew[$key]['nqty'] * $cost;
+                } else {
+                    $mergedNew[$key] = [
+                        'citem_type' => $resolved['citem_type'],
+                        'nid_product' => $resolved['nid_product'],
+                        'nid_ingredient' => $resolved['nid_ingredient'],
+                        'name' => $resolved['name'],
+                        'nqty' => $qty,
+                        'ncost' => $cost,
+                        'nsubtotal' => $qty * $cost,
+                    ];
+                }
+            }
+
+            $allKeys = array_unique(array_merge(array_keys($oldMap), array_keys($mergedNew)));
+            $stockUpdates = [];
+
+            foreach ($allKeys as $key) {
+                $oldQty = (float) ($oldMap[$key]['qty'] ?? 0);
+                $newQty = (float) ($mergedNew[$key]['nqty'] ?? 0);
+                $delta = $newQty - $oldQty;
+
+                if (abs($delta) < 0.0001) {
+                    continue;
+                }
+
+                [$kind, $targetId] = explode(':', $key, 2);
+                $targetId = (int) $targetId;
+                $itemName = $mergedNew[$key]['name'] ?? $oldMap[$key]['name'] ?? 'Item';
+
+                if ($kind === 'ingredient') {
+                    $model = MposIngredients::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$model) {
+                        throw new \RuntimeException("Bahan baku '{$itemName}' tidak ditemukan.");
+                    }
+                    $currentStock = (float) ($model->nstock ?? 0);
+                    if ($delta < 0 && $currentStock < abs($delta)) {
+                        $reduction = abs($delta);
+                        throw new \RuntimeException("Item '{$itemName}' tidak dapat dikurangi sebanyak {$reduction} karena stok saat ini hanya {$currentStock}.");
+                    }
+                    $stockUpdates[] = ['kind' => 'ingredient', 'model' => $model, 'delta' => $delta];
+                } else {
+                    $model = MposProduct::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$model) {
+                        throw new \RuntimeException("Produk '{$itemName}' tidak ditemukan.");
+                    }
+                    $currentStock = (float) ($model->nqty ?? 0);
+                    if ($delta < 0 && $currentStock < abs($delta)) {
+                        $reduction = abs($delta);
+                        throw new \RuntimeException("Item '{$itemName}' tidak dapat dikurangi sebanyak {$reduction} karena stok saat ini hanya {$currentStock}.");
+                    }
+                    $stockUpdates[] = ['kind' => 'product', 'model' => $model, 'delta' => $delta];
+                }
+            }
+
+            foreach ($stockUpdates as $update) {
+                if ($update['kind'] === 'ingredient') {
+                    $update['model']->nstock = (float) $update['model']->nstock + $update['delta'];
+                    $update['model']->save();
+                } else {
+                    $update['model']->nqty = (float) $update['model']->nqty + $update['delta'];
+                    $update['model']->save();
+                }
+            }
+
+            $editedByName = Auth::user()?->cname ?: (Auth::user()?->email ?: 'SPV');
+            $editReason = trim((string) $request->input('cedit_reason'));
+            $now = Carbon::now();
+
+            MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+                ->where('cno_ref', $stockInNumber)
+                ->delete();
+
+            foreach ($mergedNew as $newItem) {
+                MposStockMutation::create([
+                    'cno_ref' => $stockInNumber,
+                    'dmutation' => $newDate,
+                    'ctype' => MposStockMutation::TYPE_IN,
+                    'nid_outlet' => $outletId,
+                    'nid_target_outlet' => $first->nid_target_outlet,
+                    'nid_user' => $first->nid_user ?? (Auth::id() ?? 1),
+                    'citem_type' => $newItem['citem_type'],
+                    'nid_product' => $newItem['nid_product'],
+                    'nid_ingredient' => $newItem['nid_ingredient'],
+                    'nqty' => $newItem['nqty'],
+                    'ncost' => $newItem['ncost'],
+                    'nsubtotal' => $newItem['nsubtotal'],
+                    'creason' => $request->input('creason') ?: $first->creason,
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => $request->input('cnote'),
+                    'dcreated' => $first->dcreated ?? $now,
+                    'dupdated' => $now,
+                    'dedited_at' => $now,
+                    'nid_edited_by' => Auth::id(),
+                    'cedited_by' => $editedByName,
+                    'cedit_reason' => $editReason,
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-in.show', $stockInNumber)
+                ->with('success', "Dokumen Stok Masuk {$stockInNumber} berhasil direvisi dan stok telah disinkronkan ulang.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal merevisi Stok Masuk: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Edit a POSTED Stock Out document (SPV / Superadmin) with anti-negative stock guard and transfer sync.
+     */
+    public function updatePostedStockOut(Request $request, string $id): RedirectResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'cedit_reason' => 'required|string|min:5|max:500',
+            'dstock_out' => 'required|date',
+            'creason' => 'nullable|string|max:255',
+            'cnote' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1',
+            'items.*.citem_type' => 'required|string',
+            'items.*.nid_product' => 'nullable|integer',
+            'items.*.nid_ingredient' => 'nullable|integer',
+            'items.*.nqty' => 'required|numeric|min:0.01',
+            'items.*.ncost' => 'required|numeric|min:0',
+        ], [
+            'cedit_reason.required' => 'Alasan edit wajib diisi.',
+            'cedit_reason.min' => 'Alasan edit minimal 5 karakter.',
+            'items.required' => 'Minimal harus ada 1 item dalam dokumen.',
+            'items.min' => 'Minimal harus ada 1 item dalam dokumen.',
+            'items.*.nqty.min' => 'Kuantitas item minimal 0.01.',
+            'items.*.ncost.min' => 'Harga modal tidak boleh negatif.',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error_modal', 'edit_posted_stock_out');
+        }
+
+        DB::beginTransaction();
+        try {
+            $oldItems = MposStockMutation::with(['outlet', 'targetOutlet', 'product', 'ingredient'])
+                ->where('ctype', MposStockMutation::TYPE_OUT)
+                ->where(function ($q) use ($id) {
+                    $q->where('cno_ref', $id)->orWhere('nid', $id);
+                })
+                ->lockForUpdate()
+                ->get();
+
+            if ($oldItems->isEmpty()) {
+                throw new \RuntimeException('Dokumen Stok Keluar tidak ditemukan.');
+            }
+
+            $first = $oldItems->first();
+            $eligibility = $this->resolvePostedStockMutationEditEligibility($first, MposStockMutation::TYPE_OUT);
+            if (!$eligibility['canEdit']) {
+                throw new \RuntimeException($eligibility['reason'] ?: 'Anda tidak memiliki izin untuk mengedit dokumen ini.');
+            }
+
+            $stockOutNumber = $first->cno_ref;
+            $outletId = (int) $first->nid_outlet;
+            $targetOutletId = $first->nid_target_outlet ? (int) $first->nid_target_outlet : null;
+            $isTransfer = !empty($targetOutletId);
+            $newDate = Carbon::parse($request->input('dstock_out'));
+
+            $oldMap = [];
+            foreach ($oldItems as $oldItem) {
+                $key = $oldItem->isIngredient()
+                    ? 'ingredient:' . (int) $oldItem->nid_ingredient
+                    : 'product:' . (int) $oldItem->nid_product;
+
+                if (!isset($oldMap[$key])) {
+                    $oldMap[$key] = [
+                        'qty' => 0.0,
+                        'name' => $oldItem->product?->cname ?? $oldItem->ingredient?->cname ?? 'Item',
+                    ];
+                }
+                $oldMap[$key]['qty'] += (float) $oldItem->nqty;
+            }
+
+            $mergedNew = [];
+            foreach ($request->input('items', []) as $rawItem) {
+                $resolved = $this->resolveInventoryOutletItem(
+                    $outletId,
+                    (string) ($rawItem['citem_type'] ?? MposStockMutation::ITEM_PRODUK),
+                    !empty($rawItem['nid_product']) ? (int) $rawItem['nid_product'] : null,
+                    !empty($rawItem['nid_ingredient']) ? (int) $rawItem['nid_ingredient'] : null
+                );
+
+                $qty = (float) $rawItem['nqty'];
+                $cost = (float) $rawItem['ncost'];
+                $key = $resolved['key'];
+
+                if (isset($mergedNew[$key])) {
+                    $mergedNew[$key]['nqty'] += $qty;
+                    $mergedNew[$key]['ncost'] = $cost;
+                    $mergedNew[$key]['nsubtotal'] = $mergedNew[$key]['nqty'] * $cost;
+                } else {
+                    $mergedNew[$key] = [
+                        'citem_type' => $resolved['citem_type'],
+                        'nid_product' => $resolved['nid_product'],
+                        'nid_ingredient' => $resolved['nid_ingredient'],
+                        'name' => $resolved['name'],
+                        'nqty' => $qty,
+                        'ncost' => $cost,
+                        'nsubtotal' => $qty * $cost,
+                    ];
+                }
+            }
+
+            $allKeys = array_unique(array_merge(array_keys($oldMap), array_keys($mergedNew)));
+            $originUpdates = [];
+            $targetUpdates = [];
+            $transferTargetIds = [];
+
+            foreach ($allKeys as $key) {
+                $oldQty = (float) ($oldMap[$key]['qty'] ?? 0);
+                $newQty = (float) ($mergedNew[$key]['nqty'] ?? 0);
+                $delta = $newQty - $oldQty; // > 0 means more stock OUT from origin
+
+                [$kind, $targetId] = explode(':', $key, 2);
+                $targetId = (int) $targetId;
+                $itemName = $mergedNew[$key]['name'] ?? $oldMap[$key]['name'] ?? 'Item';
+
+                if ($kind === 'ingredient') {
+                    $originModel = MposIngredients::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$originModel) {
+                        throw new \RuntimeException("Bahan baku '{$itemName}' tidak ditemukan.");
+                    }
+                    $originStock = (float) ($originModel->nstock ?? 0);
+                    if ($delta > 0 && $originStock < $delta) {
+                        throw new \RuntimeException("Stok bahan baku '{$itemName}' tidak mencukupi untuk penambahan keluar {$delta} (stok saat ini: {$originStock}).");
+                    }
+                    if (abs($delta) >= 0.0001) {
+                        $originUpdates[] = ['kind' => 'ingredient', 'model' => $originModel, 'delta' => -$delta];
+                    }
+
+                    if ($isTransfer) {
+                        $targetIng = MposIngredients::where('nid_outlet', $targetOutletId)
+                            ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $originModel->cname))])
+                            ->lockForUpdate()
+                            ->first();
+                        if (!$targetIng && $newQty > 0) {
+                            $newIngPayload = [
+                                'cname' => $originModel->cname,
+                                'nid_outlet' => $targetOutletId,
+                                'csatuan' => $originModel->csatuan ?: 'PCS',
+                                'nstock' => 0,
+                            ];
+                            if (MposIngredients::hasPriceColumn()) {
+                                $newIngPayload['nprice'] = (float) ($originModel->nprice ?: ($mergedNew[$key]['ncost'] ?? 0));
+                            }
+                            $targetIng = MposIngredients::create($newIngPayload);
+                        }
+                        if ($targetIng) {
+                            $targetStock = (float) ($targetIng->nstock ?? 0);
+                            if ($delta < 0 && $targetStock < abs($delta)) {
+                                $reduction = abs($delta);
+                                throw new \RuntimeException("Stok tujuan '{$itemName}' tidak mencukupi untuk pengurangan transfer {$reduction} (stok tujuan saat ini: {$targetStock}).");
+                            }
+                            if (abs($delta) >= 0.0001) {
+                                $targetUpdates[] = ['kind' => 'ingredient', 'model' => $targetIng, 'delta' => $delta];
+                            }
+                            $transferTargetIds[$key] = ['nid_product' => null, 'nid_ingredient' => (int) $targetIng->nid];
+                        }
+                    }
+                } else {
+                    $originModel = MposProduct::where('nid', $targetId)->lockForUpdate()->first();
+                    if (!$originModel) {
+                        throw new \RuntimeException("Produk '{$itemName}' tidak ditemukan.");
+                    }
+                    $originStock = (float) ($originModel->nqty ?? 0);
+                    if ($delta > 0 && $originStock < $delta) {
+                        throw new \RuntimeException("Stok produk '{$itemName}' tidak mencukupi untuk penambahan keluar {$delta} (stok saat ini: {$originStock}).");
+                    }
+                    if (abs($delta) >= 0.0001) {
+                        $originUpdates[] = ['kind' => 'product', 'model' => $originModel, 'delta' => -$delta];
+                    }
+
+                    if ($isTransfer) {
+                        $costForTarget = (float) ($mergedNew[$key]['ncost'] ?? 0);
+                        $targetProd = $this->resolveOrCreateOutletProduct($originModel, $targetOutletId, $costForTarget);
+                        $targetProd = MposProduct::where('nid', $targetProd->nid)->lockForUpdate()->first();
+                        $targetStock = (float) ($targetProd->nqty ?? 0);
+                        if ($delta < 0 && $targetStock < abs($delta)) {
+                            $reduction = abs($delta);
+                            throw new \RuntimeException("Stok tujuan '{$itemName}' tidak mencukupi untuk pengurangan transfer {$reduction} (stok tujuan saat ini: {$targetStock}).");
+                        }
+                        if (abs($delta) >= 0.0001) {
+                            $targetUpdates[] = ['kind' => 'product', 'model' => $targetProd, 'delta' => $delta];
+                        }
+                        $transferTargetIds[$key] = ['nid_product' => (int) $targetProd->nid, 'nid_ingredient' => null];
+                    }
+                }
+            }
+
+            foreach (array_merge($originUpdates, $targetUpdates) as $update) {
+                if ($update['kind'] === 'ingredient') {
+                    $update['model']->nstock = (float) $update['model']->nstock + $update['delta'];
+                    $update['model']->save();
+                } else {
+                    $update['model']->nqty = (float) $update['model']->nqty + $update['delta'];
+                    $update['model']->save();
+                }
+            }
+
+            $editedByName = Auth::user()?->cname ?: (Auth::user()?->email ?: 'SPV');
+            $editReason = trim((string) $request->input('cedit_reason'));
+            $now = Carbon::now();
+
+            MposStockMutation::where('ctype', MposStockMutation::TYPE_OUT)
+                ->where('cno_ref', $stockOutNumber)
+                ->delete();
+
+            foreach ($mergedNew as $newItem) {
+                MposStockMutation::create([
+                    'cno_ref' => $stockOutNumber,
+                    'dmutation' => $newDate,
+                    'ctype' => MposStockMutation::TYPE_OUT,
+                    'nid_outlet' => $outletId,
+                    'nid_target_outlet' => $targetOutletId,
+                    'nid_user' => $first->nid_user ?? (Auth::id() ?? 1),
+                    'citem_type' => $newItem['citem_type'],
+                    'nid_product' => $newItem['nid_product'],
+                    'nid_ingredient' => $newItem['nid_ingredient'],
+                    'nqty' => $newItem['nqty'],
+                    'ncost' => $newItem['ncost'],
+                    'nsubtotal' => $newItem['nsubtotal'],
+                    'creason' => $request->input('creason') ?: $first->creason,
+                    'cstatus' => MposStockMutation::STATUS_POSTED,
+                    'cnote' => $request->input('cnote'),
+                    'dcreated' => $first->dcreated ?? $now,
+                    'dupdated' => $now,
+                    'dedited_at' => $now,
+                    'nid_edited_by' => Auth::id(),
+                    'cedited_by' => $editedByName,
+                    'cedit_reason' => $editReason,
+                ]);
+            }
+
+            if ($isTransfer) {
+                $pairedInQuery = MposStockMutation::where('ctype', MposStockMutation::TYPE_IN)
+                    ->where('nid_outlet', $targetOutletId)
+                    ->where('nid_target_outlet', $outletId)
+                    ->where('cstatus', MposStockMutation::STATUS_POSTED)
+                    ->where('cnote', 'LIKE', '%(' . $stockOutNumber . ')%');
+
+                $existingTargetRef = (clone $pairedInQuery)->value('cno_ref') ?: MposStockMutation::generateNumber('IN', $newDate);
+                $pairedInQuery->delete();
+
+                $originOutletName = $first->outlet?->cname ?: 'Outlet Asal';
+                $targetNote = 'Transfer dari ' . $originOutletName . ' (' . $stockOutNumber . ')';
+                if (!empty($request->input('cnote'))) {
+                    $targetNote .= ' - ' . $request->input('cnote');
+                }
+
+                foreach ($mergedNew as $key => $newItem) {
+                    $targetIds = $transferTargetIds[$key] ?? ['nid_product' => $newItem['nid_product'], 'nid_ingredient' => $newItem['nid_ingredient']];
+                    MposStockMutation::create([
+                        'cno_ref' => $existingTargetRef,
+                        'dmutation' => $newDate,
+                        'ctype' => MposStockMutation::TYPE_IN,
+                        'nid_outlet' => $targetOutletId,
+                        'nid_target_outlet' => $outletId,
+                        'nid_user' => $first->nid_user ?? (Auth::id() ?? 1),
+                        'citem_type' => $newItem['citem_type'],
+                        'nid_product' => $targetIds['nid_product'],
+                        'nid_ingredient' => $targetIds['nid_ingredient'],
+                        'nqty' => $newItem['nqty'],
+                        'ncost' => $newItem['ncost'],
+                        'nsubtotal' => $newItem['nsubtotal'],
+                        'creason' => 'Transfer Antar Toko',
+                        'cstatus' => MposStockMutation::STATUS_POSTED,
+                        'cnote' => $targetNote,
+                        'dcreated' => $first->dcreated ?? $now,
+                        'dupdated' => $now,
+                        'dedited_at' => $now,
+                        'nid_edited_by' => Auth::id(),
+                        'cedited_by' => $editedByName,
+                        'cedit_reason' => $editReason,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('inventory.stock-out.show', $stockOutNumber)
+                ->with('success', "Dokumen Stok Keluar {$stockOutNumber} berhasil direvisi dan stok telah disinkronkan ulang.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Gagal merevisi Stok Keluar: ' . $e->getMessage());
+        }
     }
 }

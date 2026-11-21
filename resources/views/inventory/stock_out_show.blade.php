@@ -347,6 +347,16 @@
                     <button type="button" class="btn btn-success btn-sm px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPostingConfirm">
                         <i class="bi bi-check2-circle me-1"></i> Posting Sekarang
                     </button>
+                    @elseif(($editEligibility['showButton'] ?? false) && $stockOut->isPosted)
+                        @if($editEligibility['canEdit'])
+                        <button type="button" class="btn btn-warning btn-sm px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#editPostedStockOutModal">
+                            <i class="bi bi-pencil-square me-1"></i> Edit Transaksi (SPV)
+                        </button>
+                        @else
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-3 shadow-sm" disabled title="{{ $editEligibility['reason'] }}">
+                            <i class="bi bi-lock me-1"></i> Edit Terkunci
+                        </button>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -584,6 +594,211 @@
         </div>
     </div>
 </div>
+
+@if($stockOut->dedited_at)
+<div class="card detail-card shadow-sm mb-4 rounded-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <div class="d-flex align-items-center gap-2">
+            <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-1 text-warning"></i> Riwayat Revisi Transaksi</h6>
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Pernah Diedit</span>
+        </div>
+    </div>
+    <div class="card-body bg-white py-3">
+        <div class="row g-3 small">
+            <div class="col-md-3">
+                <div class="text-muted mb-1">Terakhir Diedit Oleh</div>
+                <div class="fw-semibold text-dark">{{ $stockOut->cedited_by ?: 'SPV' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted mb-1">Waktu Revisi</div>
+                <div class="fw-semibold text-dark">{{ \Carbon\Carbon::parse($stockOut->dedited_at)->format('d M Y, H:i') }}</div>
+            </div>
+            <div class="col-md-6">
+                <div class="text-muted mb-1">Alasan Revisi</div>
+                <div class="text-dark" style="white-space: pre-line;">{{ $stockOut->cedit_reason ?: '-' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ==================== MODAL EDIT TRANSAKSI POSTED (SPV) ==================== --}}
+@if(($editEligibility['canEdit'] ?? false) && $stockOut->isPosted)
+<div class="modal fade" id="editPostedStockOutModal" tabindex="-1" aria-labelledby="editPostedStockOutModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <form action="{{ route('inventory.stock-out.update-posted', $stockOut->cno_stock_out) }}" method="POST" class="d-flex flex-column overflow-hidden" style="max-height: calc(100vh - 2rem);">
+                @csrf
+                @method('PUT')
+                <div class="modal-header bg-warning-subtle flex-shrink-0">
+                    <h5 class="modal-title fw-bold text-dark" id="editPostedStockOutModalLabel">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Stok Keluar ({{ $stockOut->cno_stock_out }})
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body overflow-y-auto" style="max-height: 72vh;">
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-shield-check me-1"></i>
+                        <strong>Perhatian:</strong> Penambahan qty keluar akan divalidasi terhadap stok saat ini di outlet asal{{ $stockOut->targetOutlet ? ' (dan pengurangan transfer divalidasi terhadap stok outlet tujuan ' . $stockOut->targetOutlet->cname . ')' : '' }}.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Alasan Edit / Revisi <span class="text-danger">*</span></label>
+                        <textarea name="cedit_reason" class="form-control form-control-sm" rows="2" required minlength="5" maxlength="500" placeholder="Jelaskan alasan perubahan transaksi (minimal 5 karakter)...">{{ old('cedit_reason') }}</textarea>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small">Tanggal Keluar <span class="text-danger">*</span></label>
+                            <input type="date" name="dstock_out" class="form-control form-control-sm" value="{{ old('dstock_out', $stockOut->dstock_out ? \Carbon\Carbon::parse($stockOut->dstock_out)->format('Y-m-d') : date('Y-m-d')) }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Alasan Pengeluaran</label>
+                            <input type="text" name="creason" class="form-control form-control-sm" value="{{ old('creason', $stockOut->creason) }}" maxlength="255">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">Catatan</label>
+                            <input type="text" name="cnote" class="form-control form-control-sm" value="{{ old('cnote', $stockOut->cnote) }}" maxlength="1000">
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="card bg-light border mb-3 p-2">
+                        <div class="small fw-semibold mb-2"><i class="bi bi-plus-circle me-1 text-primary"></i> Tambah Item Baru ke Stok Keluar</div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label small mb-1">Pilih Item</label>
+                                <select id="editStockOutNewItemSelect" class="form-select form-select-sm">
+                                    <option value="">-- Cari atau pilih Produk / Bahan Baku --</option>
+                                    @foreach($outletProducts as $p)
+                                    @php
+                                        $pType = \App\Models\MposStockMutation::normalizeItemType($p->cproduct_type ?? 'PRODUK');
+                                        $pSatuan = $p->csatuan ?: 'PCS';
+                                    @endphp
+                                    <option value="product:{{ $p->nid }}"
+                                        data-kind="product"
+                                        data-id="{{ $p->nid }}"
+                                        data-type="{{ $pType }}"
+                                        data-name="{{ $p->cname }}"
+                                        data-unit="{{ $pSatuan }}"
+                                        data-stock="{{ $p->nqty ?? 0 }}"
+                                        data-cost="{{ $p->nprice_buy ?? 0 }}">
+                                        [{{ $pType === 'SETENGAH_JADI' ? 'Setengah Jadi' : ($pType === 'BAHAN_BAKU' ? 'Bahan Baku' : 'Produk') }}] {{ $p->cname }} (Stok: {{ $p->nqty ?? 0 }} {{ $pSatuan }})
+                                    </option>
+                                    @endforeach
+                                    @foreach($outletIngredients as $ing)
+                                    @php $ingSatuan = $ing->csatuan ?: 'PCS'; @endphp
+                                    <option value="ingredient:{{ $ing->nid }}"
+                                        data-kind="ingredient"
+                                        data-id="{{ $ing->nid }}"
+                                        data-type="BAHAN_BAKU"
+                                        data-name="{{ $ing->cname }}"
+                                        data-unit="{{ $ingSatuan }}"
+                                        data-stock="{{ $ing->nstock ?? 0 }}"
+                                        data-cost="{{ $ing->nprice ?? 0 }}">
+                                        [Bahan Baku] {{ $ing->cname }} (Stok: {{ $ing->nstock ?? 0 }} {{ $ingSatuan }})
+                                    </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-1">Qty</label>
+                                <input type="number" id="editStockOutNewQty" class="form-control form-control-sm" min="0.01" step="any" value="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">Harga Modal (Rp)</label>
+                                <input type="number" id="editStockOutNewCost" class="form-control form-control-sm" min="0" step="any" value="0">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" id="btnAddEditStockOutRow" class="btn btn-primary btn-sm w-100">
+                                    <i class="bi bi-plus-lg"></i> Tambah
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold mb-0">Daftar Item Stok Keluar</h6>
+                        <span class="text-muted small">Minimal 1 item harus tersisa</span>
+                    </div>
+
+                    <div class="table-responsive border rounded mb-2">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th>ITEM</th>
+                                    <th class="text-center">TIPE</th>
+                                    <th class="text-center">STOK SEKARANG</th>
+                                    <th style="width: 120px;">QTY KELUAR</th>
+                                    <th style="width: 160px;">HARGA MODAL (RP)</th>
+                                    <th class="text-end" style="width: 150px;">SUBTOTAL</th>
+                                    <th class="text-center" style="width: 60px;">AKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small" id="editStockOutItemsBody">
+                                @foreach($stockOut->details as $idx => $detail)
+                                @php
+                                    $isIng = $detail->isIngredient();
+                                    $itemName = $isIng ? ($detail->ingredient?->cname ?? 'Bahan Baku') : ($detail->product?->cname ?? 'Produk');
+                                    $itemUnit = $isIng ? ($detail->ingredient?->csatuan ?: 'PCS') : ($detail->product?->csatuan ?: 'PCS');
+                                    $normType = $detail->getItemTypeNormalized();
+                                    $currStock = (float) ($detail->current_stock ?? 0);
+                                @endphp
+                                <tr class="edit-so-row">
+                                    <td>
+                                        <div class="fw-semibold text-dark">{{ $itemName }}</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">Satuan: {{ $itemUnit }}</div>
+                                        <input type="hidden" name="items[{{ $idx }}][citem_type]" value="{{ $normType }}">
+                                        <input type="hidden" name="items[{{ $idx }}][nid_product]" value="{{ $detail->nid_product }}">
+                                        <input type="hidden" name="items[{{ $idx }}][nid_ingredient]" value="{{ $detail->nid_ingredient }}">
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border">{{ $detail->getItemTypeLabel() }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info-subtle text-info-emphasis border">{{ rtrim(rtrim(number_format($currStock, 2, ',', '.'), '0'), ',') }} {{ $itemUnit }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="items[{{ $idx }}][nqty]" class="form-control form-control-sm edit-so-qty" min="0.01" step="any" value="{{ (float) $detail->nqty }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="items[{{ $idx }}][ncost]" class="form-control form-control-sm edit-so-cost" min="0" step="any" value="{{ (float) $detail->ncost }}" required>
+                                    </td>
+                                    <td class="text-end fw-bold edit-so-subtotal">
+                                        Rp {{ number_format((float) $detail->nsubtotal, 0, ',', '.') }}
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-outline-danger btn-sm p-1 btn-remove-so-row" title="Hapus Baris">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="5" class="text-end fw-bold">TOTAL MODAL REVISI:</td>
+                                    <td class="text-end fw-bold text-danger" id="editStockOutGrandTotal">
+                                        Rp {{ number_format((float) $stockOut->ntotal_cost, 0, ',', '.') }}
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer flex-shrink-0 bg-white">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-3 fw-semibold">
+                        <i class="bi bi-save me-1"></i> Simpan Revisi & Sinkronkan Stok
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ==================== MODAL KONFIRMASI POSTING ==================== --}}
 @if($canModifyData && $stockOut->isDraft)
@@ -1038,5 +1253,118 @@
             totalCostEl.textContent = 'Rp ' + Math.round(totalCost).toLocaleString('id-ID');
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const body = document.getElementById('editStockOutItemsBody');
+        const grandEl = document.getElementById('editStockOutGrandTotal');
+        const sel = document.getElementById('editStockOutNewItemSelect');
+        const qtyIn = document.getElementById('editStockOutNewQty');
+        const costIn = document.getElementById('editStockOutNewCost');
+        const addBtn = document.getElementById('btnAddEditStockOutRow');
+
+        function fmtRp(v) {
+            return 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+        }
+
+        function recalcSo() {
+            if (!body || !grandEl) return;
+            let total = 0;
+            body.querySelectorAll('.edit-so-row').forEach((row, idx) => {
+                row.querySelectorAll('input[name^="items["]').forEach(inp => {
+                    inp.name = inp.name.replace(/items\[\d+\]/, 'items[' + idx + ']');
+                });
+                const q = parseFloat(row.querySelector('.edit-so-qty')?.value || 0);
+                const c = parseFloat(row.querySelector('.edit-so-cost')?.value || 0);
+                const sub = q * c;
+                total += sub;
+                const subEl = row.querySelector('.edit-so-subtotal');
+                if (subEl) subEl.textContent = fmtRp(sub);
+            });
+            grandEl.textContent = fmtRp(total);
+        }
+
+        if (body) {
+            body.addEventListener('input', function(e) {
+                if (e.target.classList.contains('edit-so-qty') || e.target.classList.contains('edit-so-cost')) {
+                    recalcSo();
+                }
+            });
+            body.addEventListener('click', function(e) {
+                const btn = e.target.closest('.btn-remove-so-row');
+                if (!btn) return;
+                if (body.querySelectorAll('.edit-so-row').length <= 1) {
+                    alert('Minimal harus ada 1 item dalam dokumen.');
+                    return;
+                }
+                btn.closest('.edit-so-row').remove();
+                recalcSo();
+            });
+        }
+
+        let soTs = null;
+        if (sel && typeof TomSelect !== 'undefined') {
+            soTs = new TomSelect(sel, {
+                create: false,
+                maxItems: 1,
+                placeholder: '-- Cari atau pilih Produk / Bahan Baku --',
+                allowEmptyOption: true,
+                onChange: function(val) {
+                    if (val && costIn) {
+                        const opt = sel.querySelector('option[value="' + CSS.escape(val) + '"]');
+                        if (opt) costIn.value = parseFloat(opt.getAttribute('data-cost') || 0);
+                    }
+                }
+            });
+        } else if (sel) {
+            sel.addEventListener('change', function() {
+                const opt = this.options[this.selectedIndex];
+                if (opt && opt.value && costIn) costIn.value = parseFloat(opt.getAttribute('data-cost') || 0);
+            });
+        }
+
+        if (addBtn && body && sel) {
+            addBtn.addEventListener('click', function() {
+                const val = soTs ? soTs.getValue() : sel.value;
+                const opt = val ? sel.querySelector('option[value="' + CSS.escape(val) + '"]') : null;
+                if (!opt || !opt.value) {
+                    alert('Pilih item terlebih dahulu.');
+                    return;
+                }
+                const kind = opt.getAttribute('data-kind');
+                const id = opt.getAttribute('data-id');
+                const type = opt.getAttribute('data-type') || 'PRODUK';
+                const name = opt.getAttribute('data-name') || 'Item';
+                const unit = opt.getAttribute('data-unit') || 'PCS';
+                const stock = opt.getAttribute('data-stock') || '0';
+                const q = Math.max(0.01, parseFloat(qtyIn?.value || '1'));
+                const c = Math.max(0, parseFloat(costIn?.value || '0'));
+                const idx = body.querySelectorAll('.edit-so-row').length;
+                const typeLabel = type === 'BAHAN_BAKU' ? 'Bahan Baku' : (type === 'SETENGAH_JADI' ? 'Setengah Jadi' : 'Produk');
+
+                const tr = document.createElement('tr');
+                tr.className = 'edit-so-row';
+                tr.innerHTML = `
+                    <td>
+                        <div class="fw-semibold text-dark">${name}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">Satuan: ${unit}</div>
+                        <input type="hidden" name="items[${idx}][citem_type]" value="${type}">
+                        <input type="hidden" name="items[${idx}][nid_product]" value="${kind === 'product' ? id : ''}">
+                        <input type="hidden" name="items[${idx}][nid_ingredient]" value="${kind === 'ingredient' ? id : ''}">
+                    </td>
+                    <td class="text-center"><span class="badge bg-light text-dark border">${typeLabel}</span></td>
+                    <td class="text-center"><span class="badge bg-info-subtle text-info-emphasis border">${stock} ${unit}</span></td>
+                    <td><input type="number" name="items[${idx}][nqty]" class="form-control form-control-sm edit-so-qty" min="0.01" step="any" value="${q}" required></td>
+                    <td><input type="number" name="items[${idx}][ncost]" class="form-control form-control-sm edit-so-cost" min="0" step="any" value="${c}" required></td>
+                    <td class="text-end fw-bold edit-so-subtotal">${fmtRp(q * c)}</td>
+                    <td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm p-1 btn-remove-so-row" title="Hapus Baris"><i class="bi bi-trash"></i></button></td>
+                `;
+                body.appendChild(tr);
+                recalcSo();
+                if (soTs) soTs.clear(true); else sel.value = '';
+                if (qtyIn) qtyIn.value = '1';
+                if (costIn) costIn.value = '0';
+            });
+        }
+    });
 </script>
 @endsection
