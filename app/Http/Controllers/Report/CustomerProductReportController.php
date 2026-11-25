@@ -339,11 +339,20 @@ class CustomerProductReportController extends Controller
 
     private function buildReportQuery($startDate, $endDate, $customerId, $categoryId, $productId, $outletId = null)
     {
+        if (!empty($outletId) && (int) $outletId > 0) {
+            $type = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $outletId);
+            $sources = $type === \App\Models\MposOutlet::TRANSACTION_TYPE_OFFLINE
+                ? [['mpos_sls_h', 'mpos_sls_d', 'OFF']]
+                : [['mpos_sales_h', 'mpos_sales_d', 'ON']];
+        } else {
+            $sources = [
+                ['mpos_sales_h', 'mpos_sales_d', 'ON'],
+                ['mpos_sls_h', 'mpos_sls_d', 'OFF'],
+            ];
+        }
+
         $subQueries = [];
-        foreach ([
-            ['mpos_sales_h', 'mpos_sales_d', 'ON'],
-            ['mpos_sls_h', 'mpos_sls_d', 'OFF'],
-        ] as [$headerTable, $detailTable, $idPrefix]) {
+        foreach ($sources as [$headerTable, $detailTable, $idPrefix]) {
             $subQueries[] = $this->buildSingleSourceCustomerProductQuery(
                 $headerTable,
                 $detailTable,
@@ -357,7 +366,10 @@ class CustomerProductReportController extends Controller
             );
         }
 
-        $combined = $subQueries[0]->unionAll($subQueries[1]);
+        $combined = array_shift($subQueries);
+        foreach ($subQueries as $sub) {
+            $combined->unionAll($sub);
+        }
 
         return DB::query()->fromSub($combined, 'combined_customer_products');
     }

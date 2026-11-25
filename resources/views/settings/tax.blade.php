@@ -83,42 +83,45 @@
         Saat ini Anda berada pada mode <strong>Semua Outlet</strong>. Silakan pilih salah satu outlet pada dropdown di pojok kanan atas untuk mengatur pajak & biaya outlet tersebut.
 </div>
 @else
+@php
+    $isOutletOffline = ($outletTransactionType ?? 'ONLINE') === 'OFFLINE';
+    $activeKey = $isOutletOffline ? 'offline' : 'online';
+    $cfg = $isOutletOffline
+        ? ['setting' => $offlineSetting, 'category' => 'OFFLINE', 'isOnline' => false]
+        : ['setting' => $onlineSetting, 'category' => 'ONLINE', 'isOnline' => true];
+@endphp
 <div class="card border-0 shadow-sm mb-2">
     <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3">
         <div>
             <div class="fw-bold" style="font-size: 14px;">Pajak & Biaya</div>
-            <div class="helper-text text-muted">Atur skema pajak transaksi Offline dan Online untuk <strong>{{ $selectedOutlet?->cname ?? 'Outlet' }}</strong>.</div>
+            <div class="helper-text text-muted">
+                Atur skema pajak transaksi <strong>{{ $isOutletOffline ? 'Offline (Kena Pajak)' : 'Online (Non-Pajak)' }}</strong> untuk <strong>{{ $selectedOutlet?->cname ?? 'Outlet' }}</strong>.
+            </div>
         </div>
-        <span class="badge bg-light text-dark border" style="font-size: 11.5px;">
-            <i class="bi bi-shop me-1"></i>{{ $selectedOutlet?->cname ?? 'Outlet' }}
-        </span>
+        <div class="d-flex align-items-center gap-2">
+            @if($isOutletOffline)
+            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 11.5px;">
+                <i class="bi bi-shop-window me-1"></i>Outlet Offline (Kena Pajak)
+            </span>
+            @else
+            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 11.5px;">
+                <i class="bi bi-globe me-1"></i>Outlet Online (Non-Pajak)
+            </span>
+            @endif
+            <span class="badge bg-light text-dark border" style="font-size: 11.5px;">
+                <i class="bi bi-shop me-1"></i>{{ $selectedOutlet?->cname ?? 'Outlet' }}
+            </span>
+        </div>
     </div>
 </div>
 
-<!-- Tabs Offline vs Online -->
-<ul class="nav nav-tabs mb-2" id="taxSettingTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link {{ $activeTab === 'offline' ? 'active fw-semibold' : '' }}" id="offline-tab" data-bs-toggle="tab" data-bs-target="#offline-pane" type="button" role="tab">
-            <i class="bi bi-shop me-1"></i> Transaksi Offline (Kena Pajak)
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link {{ $activeTab === 'online' ? 'active fw-semibold' : '' }}" id="online-tab" data-bs-toggle="tab" data-bs-target="#online-pane" type="button" role="tab">
-            <i class="bi bi-globe me-1"></i> Transaksi Online (Non-Pajak)
-        </button>
-    </li>
-</ul>
-
-<div class="tab-content">
-    @foreach([
-    'offline' => ['setting' => $offlineSetting, 'category' => 'OFFLINE', 'isOnline' => false],
-    'online' => ['setting' => $onlineSetting, 'category' => 'ONLINE', 'isOnline' => true],
-    ] as $key => $cfg)
+<div>
     @php
+    $key = $activeKey;
     $setting = $cfg['setting'];
     $isOnline = $cfg['isOnline'];
     @endphp
-    <div class="tab-pane fade {{ $activeTab === $key ? 'show active' : '' }}" id="{{ $key }}-pane" role="tabpanel">
+    <div>
         <form method="POST" action="{{ route('settings.tax.update') }}">
             @csrf
             @method('PUT')
@@ -320,7 +323,6 @@
             </div>
         </form>
     </div>
-    @endforeach
 </div>
 @endif
 </div>

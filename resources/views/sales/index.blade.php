@@ -291,12 +291,12 @@
                     @forelse($sales as $sale)
                         <tr>
                             <td class="px-3 py-3">
-                                <a href="{{ route('sales.show', $sale->nid) }}" class="fw-semibold text-primary text-decoration-none">
+                                <a href="{{ route('sales.show', ['id' => $sale->nid, 'category' => $sale->ctransaction_category ?? null]) }}" class="fw-semibold text-primary text-decoration-none">
                                     {{ $sale->cnotransaction }}
                                 </a>
-                                @if(empty($selectedOutletId) && $sale->outlet)
+                                @if(empty($selectedOutletId) && !empty($sale->outlet_name))
                                     <div class="text-muted mt-1" style="font-size: 0.76rem;">
-                                        <i class="bi bi-shop me-1"></i>{{ $sale->outlet->cname }}
+                                        <i class="bi bi-shop me-1"></i>{{ $sale->outlet_name }}
                                     </div>
                                 @endif
                             </td>

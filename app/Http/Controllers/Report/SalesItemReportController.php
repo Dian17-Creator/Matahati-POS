@@ -130,11 +130,20 @@ class SalesItemReportController extends Controller
 
     private function buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search)
     {
+        if (!empty($outletId) && (int) $outletId > 0) {
+            $type = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $outletId);
+            $sources = $type === \App\Models\MposOutlet::TRANSACTION_TYPE_OFFLINE
+                ? [['mpos_sls_h', 'mpos_sls_d', 'OFFLINE']]
+                : [['mpos_sales_h', 'mpos_sales_d', 'ONLINE']];
+        } else {
+            $sources = [
+                ['mpos_sales_h', 'mpos_sales_d', 'ONLINE'],
+                ['mpos_sls_h', 'mpos_sls_d', 'OFFLINE'],
+            ];
+        }
+
         $subQueries = [];
-        foreach ([
-            ['mpos_sales_h', 'mpos_sales_d', 'ONLINE'],
-            ['mpos_sls_h', 'mpos_sls_d', 'OFFLINE'],
-        ] as [$headerTable, $detailTable, $catLabel]) {
+        foreach ($sources as [$headerTable, $detailTable, $catLabel]) {
             $subQueries[] = $this->buildSingleSourceItemQuery(
                 $headerTable,
                 $detailTable,
@@ -147,7 +156,10 @@ class SalesItemReportController extends Controller
             );
         }
 
-        $combined = $subQueries[0]->unionAll($subQueries[1]);
+        $combined = array_shift($subQueries);
+        foreach ($subQueries as $sub) {
+            $combined->unionAll($sub);
+        }
 
         return DB::query()->fromSub($combined, 'combined_items');
     }

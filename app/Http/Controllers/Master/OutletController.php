@@ -19,12 +19,17 @@ class OutletController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'cname' => 'required|string|max:255',
             'nid_dept' => 'nullable|exists:mdepartment,nid',
+            'ctransaction_type' => 'required|string|in:ONLINE,OFFLINE',
         ]);
 
-        MposOutlet::create($request->all());
+        MposOutlet::create([
+            'cname' => $validated['cname'],
+            'nid_dept' => $validated['nid_dept'] ?? null,
+            'ctransaction_type' => strtoupper($validated['ctransaction_type']),
+        ]);
 
         return redirect()->route('outlets.index')
             ->with('success', 'Outlet berhasil ditambahkan.');
@@ -32,13 +37,18 @@ class OutletController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $request->validate([
+        $validated = $request->validate([
             'cname' => 'required|string|max:255',
             'nid_dept' => 'nullable|exists:mdepartment,nid',
+            'ctransaction_type' => 'required|string|in:ONLINE,OFFLINE',
         ]);
 
         $outlet = MposOutlet::findOrFail($id);
-        $outlet->update($request->all());
+        $outlet->update([
+            'cname' => $validated['cname'],
+            'nid_dept' => $validated['nid_dept'] ?? null,
+            'ctransaction_type' => strtoupper($validated['ctransaction_type']),
+        ]);
 
         return redirect()->route('outlets.index')
             ->with('success', 'Outlet berhasil diperbarui.');

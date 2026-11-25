@@ -43,8 +43,14 @@ class PosReportController extends Controller
             $dateFrom = $request->input('date_from');
             $dateTo = $request->input('date_to', $dateFrom);
 
-            $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
-            $isOffline = ($categoryFilter === 'OFFLINE');
+            $nidOutlet = (int) ($request->input('nid_outlet') ?? $request->input('outlet_id') ?? 0);
+            if ($nidOutlet > 0) {
+                $outletType = \App\Models\MposOutlet::resolveTransactionTypeForOutlet($nidOutlet);
+                $isOffline = ($outletType === \App\Models\MposOutlet::TRANSACTION_TYPE_OFFLINE);
+            } else {
+                $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
+                $isOffline = ($categoryFilter === 'OFFLINE');
+            }
 
             $headerTable = $isOffline ? 'mpos_sls_h' : 'mpos_sales_h';
             $detailTable = $isOffline ? 'mpos_sls_d' : 'mpos_sales_d';

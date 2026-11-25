@@ -93,7 +93,8 @@ class ShiftController extends Controller
             ], 200);
         }
 
-        $category = $request->input('ctransaction_category') ?? $request->input('category');
+        $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $shift->nid_outlet)
+            ?? ($request->input('ctransaction_category') ?? $request->input('category'));
 
         // Hitung real-time total gross sales & cash_sales
         $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
@@ -293,7 +294,8 @@ class ShiftController extends Controller
                 ], 422);
             }
 
-            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $shift->nid_outlet)
+            ?? ($request->input('ctransaction_category') ?? $request->input('category'));
 
             $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
             $cashSales = $this->calculateShiftCashSales($shift->nid, $category);
@@ -365,7 +367,8 @@ class ShiftController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $shifts = $query->paginate($perPage);
 
-        $category = $request->input('ctransaction_category') ?? $request->input('category');
+        $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $shift->nid_outlet)
+            ?? ($request->input('ctransaction_category') ?? $request->input('category'));
 
         $shiftItems = collect($shifts->items())->map(function ($item) use ($category) {
             return $this->attachShiftMetrics($item->toArray(), $item->nid, $category);
@@ -413,7 +416,8 @@ class ShiftController extends Controller
             ], 403);
         }
 
-        $category = $request->input('ctransaction_category') ?? $request->input('category');
+        $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $shift->nid_outlet)
+            ?? ($request->input('ctransaction_category') ?? $request->input('category'));
 
         $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
         $cashSales = $this->calculateShiftCashSales($shift->nid, $category);
@@ -449,6 +453,10 @@ class ShiftController extends Controller
             MposSalesH::STATUS_CANCELLED,
             MposSalesH::STATUS_REFUND,
         ];
+
+        if (empty($category) && !empty($data['nid_outlet'])) {
+            $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $data['nid_outlet']);
+        }
 
         $cat = strtoupper(trim((string) $category));
 

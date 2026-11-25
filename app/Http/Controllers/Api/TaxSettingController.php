@@ -23,10 +23,12 @@ class TaxSettingController extends Controller
 
         $offline = MposTaxSetting::getForOutlet($outletId, MposTaxSetting::CATEGORY_OFFLINE);
         $online = MposTaxSetting::getForOutlet($outletId, MposTaxSetting::CATEGORY_ONLINE);
+        $outletTransactionType = \App\Models\MposOutlet::resolveTransactionTypeForOutlet($outletId) ?? MposTaxSetting::CATEGORY_ONLINE;
 
         return response()->json([
             'success' => true,
             'data' => [
+                'outlet_transaction_type' => $outletTransactionType,
                 'offline' => $offline ?? $this->defaultPayload($outletId, MposTaxSetting::CATEGORY_OFFLINE),
                 'online' => $online ?? $this->defaultPayload($outletId, MposTaxSetting::CATEGORY_ONLINE),
             ],

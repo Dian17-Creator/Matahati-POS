@@ -127,9 +127,20 @@ class SalesDetailReportController extends Controller
         return Excel::download(new SalesDetailExport($transactions, $summary, $startDate, $endDate, $outletName), "laporan_penjualan_{$dateSuffix}.xlsx");
     }
 
-    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId = '', string $sortCol = 'dtransaction', string $sortDir = 'desc', string $category = '')
+    /**
+     * @return array<int, array{0: string, 1: string, 2: string}>
+     */
+    private function resolveSources($outletId, string $category): array
     {
-        $sources = match ($category) {
+        if (!empty($outletId) && (int) $outletId > 0) {
+            $type = MposOutlet::resolveTransactionTypeForOutlet((int) $outletId);
+
+            return $type === MposOutlet::TRANSACTION_TYPE_OFFLINE
+                ? [['mpos_sls_h', 'mpos_sls_d', 'OFFLINE']]
+                : [['mpos_sales_h', 'mpos_sales_d', 'ONLINE']];
+        }
+
+        return match ($category) {
             'ONLINE' => [['mpos_sales_h', 'mpos_sales_d', 'ONLINE']],
             'OFFLINE' => [['mpos_sls_h', 'mpos_sls_d', 'OFFLINE']],
             default => [
@@ -137,6 +148,11 @@ class SalesDetailReportController extends Controller
                 ['mpos_sls_h', 'mpos_sls_d', 'OFFLINE'],
             ],
         };
+    }
+
+    private function buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId = '', string $sortCol = 'dtransaction', string $sortDir = 'desc', string $category = '')
+    {
+        $sources = $this->resolveSources($outletId, $category);
 
         $subQueries = [];
         foreach ($sources as [$headerTable, $detailTable, $catLabel]) {
@@ -296,17 +312,10 @@ class SalesDetailReportController extends Controller
 
     private function buildSummaryQuery($startDate, $endDateParsed, $outletId, $status = '', $paymentId = '', string $category = '')
     {
-        $sources = match ($category) {
-            'ONLINE' => [['mpos_sales_h', 'mpos_sales_d']],
-            'OFFLINE' => [['mpos_sls_h', 'mpos_sls_d']],
-            default => [
-                ['mpos_sales_h', 'mpos_sales_d'],
-                ['mpos_sls_h', 'mpos_sls_d'],
-            ],
-        };
+        $sources = $this->resolveSources($outletId, $category);
 
         $subQueries = [];
-        foreach ($sources as [$headerTable, $detailTable]) {
+        foreach ($sources as [$headerTable, $detailTable, $catLabel]) {
             $subQueries[] = $this->buildSingleSourceSummaryRowsQuery(
                 $headerTable,
                 $detailTable,

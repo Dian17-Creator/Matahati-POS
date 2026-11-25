@@ -131,16 +131,18 @@ class TaxSettingWebController extends Controller
             ? MposTaxSetting::getForOutlet($selectedOutletId, MposTaxSetting::CATEGORY_ONLINE)
             : null;
 
-        $activeTab = strtolower((string) $request->input('tab', 'offline'));
-        if (! in_array($activeTab, ['offline', 'online'], true)) {
-            $activeTab = 'offline';
-        }
+        $outletTransactionType = $selectedOutlet
+            ? $selectedOutlet->resolvedTransactionType()
+            : MposOutlet::TRANSACTION_TYPE_ONLINE;
+
+        $activeTab = strtolower($outletTransactionType);
 
         return compact(
             'selectedOutletId',
             'selectedOutlet',
             'offlineSetting',
             'onlineSetting',
+            'outletTransactionType',
             'activeTab'
         );
     }
