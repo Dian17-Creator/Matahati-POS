@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\MposSalesH;
 use App\Models\MposCashMovement;
 use App\Models\MposCust;
+use App\Models\MposOutlet;
+use App\Models\MposSalesH;
 use App\Models\MposUser;
 use App\Traits\ResolvesOutletScope;
 use Carbon\Carbon;
@@ -99,85 +100,83 @@ class DashboardController extends Controller
             }
             $newCustomersCount = $custQuery->count();
         } else {
-            $firstSales = DB::table('mpos_sales_h')
-                ->select('nid_customer', DB::raw('MIN(dtransaction) as first_trx'))
-                ->whereNotNull('nid_customer');
-            if (!empty($selectedOutletId)) {
-                $firstSales->where('nid_outlet', $selectedOutletId);
-            } elseif (!$this->isSuperAdminUser()) {
-                $firstSales->whereIn('nid_outlet', $allowedOutletIds);
+            $sourcesForCust = $this->resolveDashboardSources($selectedOutletId);
+            $custFirstQueries = [];
+            foreach ($sourcesForCust as [$hTable, $dTable]) {
+                $q = DB::table($hTable)
+                    ->select('nid_customer', DB::raw('MIN(dtransaction) as first_trx'))
+                    ->whereNotNull('nid_customer');
+                if (!empty($selectedOutletId)) {
+                    $q->where('nid_outlet', $selectedOutletId);
+                } elseif (!$this->isSuperAdminUser()) {
+                    $q->whereIn('nid_outlet', $allowedOutletIds);
+                }
+                $custFirstQueries[] = $q->groupBy('nid_customer');
             }
-            $firstSales->groupBy('nid_customer')
-                ->havingRaw('MIN(dtransaction) >= ? AND MIN(dtransaction) <= ?', [$startDate, $endDateParsed]);
+            $combinedFirst = array_shift($custFirstQueries);
+            foreach ($custFirstQueries as $subQ) {
+                $combinedFirst->unionAll($subQ);
+            }
+            $firstSales = DB::query()
+                ->fromSub($combinedFirst, 'all_first')
+                ->select('nid_customer')
+                ->groupBy('nid_customer')
+                ->havingRaw('MIN(first_trx) >= ? AND MIN(first_trx) <= ?', [$startDate, $endDateParsed]);
 
             $newCustomersCount = DB::table(DB::raw("({$firstSales->toSql()}) as sub"))
                 ->mergeBindings($firstSales)
                 ->count();
         }
 
+        $sources = $this->resolveDashboardSources($selectedOutletId);
+        $isSuperAdmin = $this->isSuperAdminUser();
+
         // 5. Metric 2: Pesanan & Metric 3: Pendapatan
-        $salesBaseQuery = DB::table('mpos_sales_h')
-            ->where('dtransaction', '>=', $startDate)
-            ->where('dtransaction', '<=', $endDateParsed)
-            ->whereNull('mpos_sales_h.nid_parent_transaction')
-            ->where(function ($q) {
-                $q->whereIn('cstatus', [
-                    MposSalesH::STATUS_PAID,
-                    MposSalesH::STATUS_COMPLETED,
-                ])->orWhere(function ($sub) {
-                    $sub->whereNotIn('cstatus', [
-                        MposSalesH::STATUS_CANCELLED,
-                        MposSalesH::STATUS_DRAFT,
-                        MposSalesH::STATUS_VOID,
-                        MposSalesH::STATUS_REFUND,
-                    ])->whereNotNull('nid_payment');
-                });
-            });
+        $totalPesanan = 0;
+        $totalPendapatan = 0.0;
+        $partialVoidRefund = 0.0;
 
-        if (!empty($selectedOutletId)) {
-            $salesBaseQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $salesBaseQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        foreach ($sources as [$headerTable, $detailTable]) {
+            $salesBaseQuery = $this->buildSourceSalesBase($headerTable, $startDate, $endDateParsed, $selectedOutletId, $allowedOutletIds, $isSuperAdmin);
+            $totalPesanan += (clone $salesBaseQuery)->count();
+
+            $itemDeductions = DB::table($detailTable)
+                ->select(
+                    'nid_transaction',
+                    DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund')
+                )
+                ->groupBy('nid_transaction');
+
+            $reversals = DB::table($headerTable)
+                ->select(
+                    'nid_parent_transaction',
+                    DB::raw('SUM(ABS(ngrandtotal)) as reversal_amount')
+                )
+                ->whereNotNull('nid_parent_transaction')
+                ->groupBy('nid_parent_transaction');
+
+            $salesSummary = (clone $salesBaseQuery)
+                ->leftJoinSub($itemDeductions, 'items', function ($join) use ($headerTable) {
+                    $join->on("{$headerTable}.nid", '=', 'items.nid_transaction');
+                })
+                ->leftJoinSub($reversals, 'rev', function ($join) use ($headerTable) {
+                    $join->on("{$headerTable}.nid", '=', 'rev.nid_parent_transaction');
+                })
+                ->selectRaw("
+                    SUM(CASE 
+                        WHEN {$headerTable}.csource = 'OLSERA' THEN {$headerTable}.ngrandtotal 
+                        ELSE ({$headerTable}.ngrandtotal - GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0))) 
+                    END) as net_sales,
+                    SUM(CASE 
+                        WHEN {$headerTable}.csource = 'OLSERA' THEN 0 
+                        ELSE GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0)) 
+                    END) as partial_void_refund
+                ")
+                ->first();
+
+            $totalPendapatan += max(0, (float) ($salesSummary->net_sales ?? 0));
+            $partialVoidRefund += (float) ($salesSummary->partial_void_refund ?? 0);
         }
-
-        $totalPesanan = (clone $salesBaseQuery)->count();
-
-        // Item deductions for partial void & refund
-        $itemDeductions = DB::table('mpos_sales_d')
-            ->select(
-                'nid_transaction',
-                DB::raw('SUM((nqty_void + nqty_refund) * nprice) as total_void_refund')
-            )
-            ->groupBy('nid_transaction');
-
-        $reversals = DB::table('mpos_sales_h')
-            ->select(
-                'nid_parent_transaction',
-                DB::raw('SUM(ABS(ngrandtotal)) as reversal_amount')
-            )
-            ->whereNotNull('nid_parent_transaction')
-            ->groupBy('nid_parent_transaction');
-
-        $salesSummary = (clone $salesBaseQuery)
-            ->leftJoinSub($itemDeductions, 'items', function ($join) {
-                $join->on('mpos_sales_h.nid', '=', 'items.nid_transaction');
-            })
-            ->leftJoinSub($reversals, 'rev', function ($join) {
-                $join->on('mpos_sales_h.nid', '=', 'rev.nid_parent_transaction');
-            })
-            ->selectRaw("
-                SUM(CASE 
-                    WHEN mpos_sales_h.csource = 'OLSERA' THEN mpos_sales_h.ngrandtotal 
-                    ELSE (mpos_sales_h.ngrandtotal - GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0))) 
-                END) as net_sales,
-                SUM(CASE 
-                    WHEN mpos_sales_h.csource = 'OLSERA' THEN 0 
-                    ELSE GREATEST(COALESCE(items.total_void_refund, 0), COALESCE(rev.reversal_amount, 0)) 
-                END) as partial_void_refund
-            ")
-            ->first();
-
-        $totalPendapatan = max(0, (float) ($salesSummary->net_sales ?? 0));
 
         // 6. Metric 4: Pengeluaran (Cash out movements)
         $totalPengeluaran = 0;
@@ -190,7 +189,7 @@ class DashboardController extends Controller
 
             if (!empty($selectedOutletId)) {
                 $cashOutQuery->where('mpos_shift.nid_outlet', $selectedOutletId);
-            } elseif (!$this->isSuperAdminUser()) {
+            } elseif (!$isSuperAdmin) {
                 $cashOutQuery->whereIn('mpos_shift.nid_outlet', $allowedOutletIds);
             }
 
@@ -198,59 +197,36 @@ class DashboardController extends Controller
         }
 
         // 7. Metric 5: Pengembalian (Full void & refund + partial void & refund)
-        $refundVoidQuery = DB::table('mpos_sales_h')
-            ->where('dtransaction', '>=', $startDate)
-            ->where('dtransaction', '<=', $endDateParsed)
-            ->whereNull('mpos_sales_h.nid_parent_transaction')
-            ->whereIn('cstatus', [MposSalesH::STATUS_REFUND, MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED]);
+        $fullRefundVoidAmount = 0.0;
+        foreach ($sources as [$headerTable, $detailTable]) {
+            $refundVoidQuery = DB::table($headerTable)
+                ->where('dtransaction', '>=', $startDate)
+                ->where('dtransaction', '<=', $endDateParsed)
+                ->whereNull("{$headerTable}.nid_parent_transaction")
+                ->whereIn('cstatus', [MposSalesH::STATUS_REFUND, MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED]);
 
-        if (!empty($selectedOutletId)) {
-            $refundVoidQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $refundVoidQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+            if (!empty($selectedOutletId)) {
+                $refundVoidQuery->where("{$headerTable}.nid_outlet", $selectedOutletId);
+            } elseif (!$isSuperAdmin) {
+                $refundVoidQuery->whereIn("{$headerTable}.nid_outlet", $allowedOutletIds);
+            }
+
+            $fullRefundVoidAmount += (float) $refundVoidQuery->sum(DB::raw('ABS(ngrandtotal)'));
         }
-
-        $fullRefundVoidAmount = (float) $refundVoidQuery->sum(DB::raw('ABS(ngrandtotal)'));
-        $partialVoidRefund = (float) ($salesSummary->partial_void_refund ?? 0);
         $totalPengembalian = $fullRefundVoidAmount + $partialVoidRefund;
 
         // 8. Metric 6: Rata-rata penjualan per transaksi
         $averageSales = $totalPesanan > 0 ? ($totalPendapatan / $totalPesanan) : 0;
 
         // 9. Grup Produk Terjual Terbanyak & Produk Terjual per Grup
-        $salesDetailQuery = DB::table('mpos_sales_d')
-            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->leftJoin('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
-            ->leftJoin('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
-            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
-            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
-            ->where(function ($q) {
-                $q->whereIn('mpos_sales_h.cstatus', [
-                    MposSalesH::STATUS_PAID,
-                    MposSalesH::STATUS_COMPLETED,
-                ])->orWhere(function ($sub) {
-                    $sub->whereNotIn('mpos_sales_h.cstatus', [
-                        MposSalesH::STATUS_CANCELLED,
-                        MposSalesH::STATUS_DRAFT,
-                        MposSalesH::STATUS_VOID,
-                        MposSalesH::STATUS_REFUND,
-                    ])->whereNotNull('mpos_sales_h.nid_payment');
-                });
-            });
-
-        if (!empty($selectedOutletId)) {
-            $salesDetailQuery->where('mpos_sales_h.nid_outlet', $selectedOutletId);
-        } elseif (!$this->isSuperAdminUser()) {
-            $salesDetailQuery->whereIn('mpos_sales_h.nid_outlet', $allowedOutletIds);
+        $itemSubQueries = [];
+        foreach ($sources as [$headerTable, $detailTable]) {
+            $itemSubQueries[] = $this->buildSourceItemQuery($headerTable, $detailTable, $startDate, $endDateParsed, $selectedOutletId, $allowedOutletIds, $isSuperAdmin);
         }
-
-        // Base Item Sales Query for aggregation
-        $itemSalesBase = (clone $salesDetailQuery)
-            ->select(
-                DB::raw("UPPER(TRIM(COALESCE(NULLIF(TRIM(mpos_grp_product.cname), ''), 'Tanpa Kategori'))) as category_name"),
-                DB::raw("COALESCE(NULLIF(TRIM(mpos_sales_d.cname), ''), 'Produk') as product_name"),
-                DB::raw("(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) as net_qty")
-            );
+        $itemSalesBase = array_shift($itemSubQueries);
+        foreach ($itemSubQueries as $subItemQuery) {
+            $itemSalesBase->unionAll($subItemQuery);
+        }
 
         // Top Product Groups
         $topGroups = DB::query()
@@ -317,5 +293,107 @@ class DashboardController extends Controller
             'lastMonthEnd',
             'sevenDaysAgo'
         ));
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string}>
+     */
+    protected function resolveDashboardSources(?int $selectedOutletId): array
+    {
+        if (!empty($selectedOutletId) && (int) $selectedOutletId > 0) {
+            $type = MposOutlet::resolveTransactionTypeForOutlet((int) $selectedOutletId);
+
+            return $type === MposOutlet::TRANSACTION_TYPE_OFFLINE
+                ? [['mpos_sls_h', 'mpos_sls_d']]
+                : [['mpos_sales_h', 'mpos_sales_d']];
+        }
+
+        return [
+            ['mpos_sales_h', 'mpos_sales_d'],
+            ['mpos_sls_h', 'mpos_sls_d'],
+        ];
+    }
+
+    /**
+     * @param  array<int, int>  $allowedOutletIds
+     */
+    protected function buildSourceSalesBase(
+        string $headerTable,
+        string $startDate,
+        string $endDateParsed,
+        ?int $selectedOutletId,
+        array $allowedOutletIds,
+        bool $isSuperAdmin
+    ) {
+        $query = DB::table($headerTable)
+            ->where('dtransaction', '>=', $startDate)
+            ->where('dtransaction', '<=', $endDateParsed)
+            ->whereNull("{$headerTable}.nid_parent_transaction")
+            ->where(function ($q) {
+                $q->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) {
+                    $sub->whereNotIn('cstatus', [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull('nid_payment');
+                });
+            });
+
+        if (!empty($selectedOutletId)) {
+            $query->where("{$headerTable}.nid_outlet", $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $query->whereIn("{$headerTable}.nid_outlet", $allowedOutletIds);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  array<int, int>  $allowedOutletIds
+     */
+    protected function buildSourceItemQuery(
+        string $headerTable,
+        string $detailTable,
+        string $startDate,
+        string $endDateParsed,
+        ?int $selectedOutletId,
+        array $allowedOutletIds,
+        bool $isSuperAdmin
+    ) {
+        $query = DB::table($detailTable)
+            ->join($headerTable, "{$detailTable}.nid_transaction", '=', "{$headerTable}.nid")
+            ->leftJoin('mpos_product', "{$detailTable}.nid_product", '=', 'mpos_product.nid')
+            ->leftJoin('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
+            ->where("{$headerTable}.dtransaction", '>=', $startDate)
+            ->where("{$headerTable}.dtransaction", '<=', $endDateParsed)
+            ->where(function ($q) use ($headerTable) {
+                $q->whereIn("{$headerTable}.cstatus", [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                ])->orWhere(function ($sub) use ($headerTable) {
+                    $sub->whereNotIn("{$headerTable}.cstatus", [
+                        MposSalesH::STATUS_CANCELLED,
+                        MposSalesH::STATUS_DRAFT,
+                        MposSalesH::STATUS_VOID,
+                        MposSalesH::STATUS_REFUND,
+                    ])->whereNotNull("{$headerTable}.nid_payment");
+                });
+            });
+
+        if (!empty($selectedOutletId)) {
+            $query->where("{$headerTable}.nid_outlet", $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $query->whereIn("{$headerTable}.nid_outlet", $allowedOutletIds);
+        }
+
+        return $query->select(
+            DB::raw("UPPER(TRIM(COALESCE(NULLIF(TRIM(mpos_grp_product.cname), ''), 'Tanpa Kategori'))) as category_name"),
+            DB::raw("COALESCE(NULLIF(TRIM({$detailTable}.cname), ''), 'Produk') as product_name"),
+            DB::raw("({$detailTable}.nqty - {$detailTable}.nqty_void - {$detailTable}.nqty_refund) as net_qty")
+        );
     }
 }

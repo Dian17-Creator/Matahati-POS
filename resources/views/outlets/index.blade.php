@@ -16,6 +16,7 @@
                 <thead class="table-light text-secondary">
                     <tr>
                         <th class="py-3 ps-4">Nama Outlet</th>
+                        <th class="py-3">Tipe Transaksi</th>
                         <th class="py-3">Departemen</th>
                         <th width="15%" class="text-center py-3 pe-4">Aksi</th>
                     </tr>
@@ -30,6 +31,17 @@
                                 </div>
                                 <span class="fw-bold text-dark">{{ $outlet->cname }}</span>
                             </div>
+                        </td>
+                        <td>
+                            @if($outlet->isOfflineTransaction())
+                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1">
+                                <i class="bi bi-shop-window me-1"></i>Offline
+                            </span>
+                            @else
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1">
+                                <i class="bi bi-globe me-1"></i>Online
+                            </span>
+                            @endif
                         </td>
                         <td>
                             @if($outlet->department)
@@ -79,6 +91,17 @@
                                                 @endforeach
                                             </select>
                                             @if(old('modal_id') == $outlet->nid) @error('nid_dept') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="ctransaction_type_{{ $outlet->nid }}" class="form-label">Tipe Transaksi</label>
+                                            @php
+                                                $editTrxType = old('modal_id') == $outlet->nid ? old('ctransaction_type') : $outlet->resolvedTransactionType();
+                                            @endphp
+                                            <select class="form-select @if(old('modal_id') == $outlet->nid) @error('ctransaction_type') is-invalid @enderror @endif" id="ctransaction_type_{{ $outlet->nid }}" name="ctransaction_type" required>
+                                                <option value="ONLINE" {{ $editTrxType === 'ONLINE' ? 'selected' : '' }}>Online (mpos_sales_h)</option>
+                                                <option value="OFFLINE" {{ $editTrxType === 'OFFLINE' ? 'selected' : '' }}>Offline (mpos_sls_h)</option>
+                                            </select>
+                                            @if(old('modal_id') == $outlet->nid) @error('ctransaction_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -158,6 +181,17 @@
                             @endforeach
                         </select>
                         @if(old('modal_id') == 'create') @error('nid_dept') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="mb-3">
+                        <label for="ctransaction_type" class="form-label">Tipe Transaksi</label>
+                        @php
+                            $createTrxType = old('modal_id') == 'create' ? old('ctransaction_type', 'ONLINE') : 'ONLINE';
+                        @endphp
+                        <select class="form-select @if(old('modal_id') == 'create') @error('ctransaction_type') is-invalid @enderror @endif" id="ctransaction_type" name="ctransaction_type" required>
+                            <option value="ONLINE" {{ $createTrxType === 'ONLINE' ? 'selected' : '' }}>Online (mpos_sales_h)</option>
+                            <option value="OFFLINE" {{ $createTrxType === 'OFFLINE' ? 'selected' : '' }}>Offline (mpos_sls_h)</option>
+                        </select>
+                        @if(old('modal_id') == 'create') @error('ctransaction_type') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
                 </div>
                 <div class="modal-footer">

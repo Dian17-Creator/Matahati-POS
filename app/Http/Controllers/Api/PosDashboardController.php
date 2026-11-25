@@ -26,8 +26,13 @@ class PosDashboardController extends Controller
         $dateTo = $validated['date_to'];
         $nidOutlet = $validated['nid_outlet'] ?? $validated['outlet_id'] ?? $request->input('nid_outlet') ?? $request->input('outlet_id');
 
-        $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
-        $isOffline = ($categoryFilter === 'OFFLINE');
+        if (!empty($nidOutlet) && (int) $nidOutlet > 0) {
+            $outletType = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $nidOutlet);
+            $isOffline = ($outletType === \App\Models\MposOutlet::TRANSACTION_TYPE_OFFLINE);
+        } else {
+            $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
+            $isOffline = ($categoryFilter === 'OFFLINE');
+        }
 
         $headerModelClass = $isOffline ? MposSalesoffH::class : MposSalesH::class;
         $headerTable = $isOffline ? 'mpos_sls_h' : 'mpos_sales_h';

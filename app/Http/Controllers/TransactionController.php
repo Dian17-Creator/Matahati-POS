@@ -46,6 +46,11 @@ class TransactionController extends Controller
 
     protected function resolveCategoryFromRequest(Request $request, ?string $orderType = null): string
     {
+        $outletId = (int) ($request->input('nid_outlet') ?? $request->input('outlet_id') ?? 0);
+        if ($outletId > 0) {
+            return \App\Models\MposOutlet::resolveTransactionTypeForOutlet($outletId) ?? MposTaxSetting::CATEGORY_ONLINE;
+        }
+
         $explicit = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? '')));
         if (in_array($explicit, MposTaxSetting::CATEGORIES, true)) {
             return $explicit;
@@ -216,9 +221,16 @@ class TransactionController extends Controller
                 ->update(['cstatus' => MposSalesH::STATUS_COMPLETED]);
             }
 
-            $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'ALL')));
-            $includeOnline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_ONLINE;
-            $includeOffline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_OFFLINE;
+            $outletIdFilter = (int) ($request->input('nid_outlet') ?? $request->input('outlet_id') ?? 0);
+            if ($outletIdFilter > 0) {
+                $outletType = \App\Models\MposOutlet::resolveTransactionTypeForOutlet($outletIdFilter);
+                $includeOnline = ($outletType === \App\Models\MposOutlet::TRANSACTION_TYPE_ONLINE);
+                $includeOffline = ($outletType === \App\Models\MposOutlet::TRANSACTION_TYPE_OFFLINE);
+            } else {
+                $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'ALL')));
+                $includeOnline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_ONLINE;
+                $includeOffline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_OFFLINE;
+            }
 
             $combined = collect();
             if ($includeOnline) {

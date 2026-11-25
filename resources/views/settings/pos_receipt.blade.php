@@ -61,30 +61,17 @@
     </div>
 
     <div class="col-lg-9 col-xl-10">
-        <!-- Tabs Offline vs Online -->
-        <ul class="nav nav-tabs mb-3" id="receiptTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {{ $activeTab === 'offline' ? 'active fw-semibold' : '' }}" id="receipt-offline-tab" data-bs-toggle="tab" data-bs-target="#receipt-offline-pane" type="button" role="tab">
-                    <i class="bi bi-receipt me-1"></i> Resi Transaksi Offline
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link {{ $activeTab === 'online' ? 'active fw-semibold' : '' }}" id="receipt-online-tab" data-bs-toggle="tab" data-bs-target="#receipt-online-pane" type="button" role="tab">
-                    <i class="bi bi-globe me-1"></i> Resi Transaksi Online
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content">
-            @foreach([
-            'offline' => ['setting' => $offlineSetting, 'category' => 'OFFLINE'],
-            'online' => ['setting' => $onlineSetting, 'category' => 'ONLINE'],
-            ] as $key => $cfg)
-            @php
+        @php
+            $isOutletOffline = ($outletTransactionType ?? 'ONLINE') === 'OFFLINE';
+            $key = $isOutletOffline ? 'offline' : 'online';
+            $cfg = $isOutletOffline
+                ? ['setting' => $offlineSetting, 'category' => 'OFFLINE']
+                : ['setting' => $onlineSetting, 'category' => 'ONLINE'];
             $setting = $cfg['setting'];
-            $isOffline = $key === 'offline';
-            @endphp
-            <div class="tab-pane fade {{ $activeTab === $key ? 'show active' : '' }}" id="receipt-{{ $key }}-pane" role="tabpanel">
+            $isOffline = $isOutletOffline;
+        @endphp
+        <div>
+            <div>
                 <div class="card border-0 shadow-sm">
                     <div class="card-body p-4">
                         <div class="row g-4">
@@ -214,7 +201,6 @@
                     </div>
                 </div>
             </div>
-            @endforeach
         </div>
     </div>
 </div>
