@@ -130,124 +130,141 @@ class SalesItemReportController extends Controller
 
     private function buildBaseQuery($startDate, $endDateParsed, $outletId, $productId, $search)
     {
-        $baseQuery = DB::table('mpos_sales_d')
-            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->leftJoin('mpos_cust', 'mpos_sales_h.nid_customer', '=', 'mpos_cust.nid')
-            ->leftJoin('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
-            ->leftJoin('mpos_user', 'mpos_sales_h.nid_user', '=', 'mpos_user.nid')
+        $subQueries = [];
+        foreach ([
+            ['mpos_sales_h', 'mpos_sales_d', 'ONLINE'],
+            ['mpos_sls_h', 'mpos_sls_d', 'OFFLINE'],
+        ] as [$headerTable, $detailTable, $catLabel]) {
+            $subQueries[] = $this->buildSingleSourceItemQuery(
+                $headerTable,
+                $detailTable,
+                $catLabel,
+                $startDate,
+                $endDateParsed,
+                $outletId,
+                $productId,
+                $search
+            );
+        }
+
+        $combined = $subQueries[0]->unionAll($subQueries[1]);
+
+        return DB::query()->fromSub($combined, 'combined_items');
+    }
+
+    private function buildSingleSourceItemQuery(
+        string $headerTable,
+        string $detailTable,
+        string $categoryLabel,
+        $startDate,
+        $endDateParsed,
+        $outletId,
+        $productId,
+        $search
+    ) {
+        $baseQuery = DB::table($detailTable)
+            ->join($headerTable, "{$detailTable}.nid_transaction", '=', "{$headerTable}.nid")
+            ->leftJoin('mpos_cust', "{$headerTable}.nid_customer", '=', 'mpos_cust.nid')
+            ->leftJoin('mpos_product', "{$detailTable}.nid_product", '=', 'mpos_product.nid')
+            ->leftJoin('mpos_user', "{$headerTable}.nid_user", '=', 'mpos_user.nid')
             ->leftJoin('muser', 'mpos_user.nid_user', '=', 'muser.nid')
-            ->leftJoin('mpos_outlet', 'mpos_sales_h.nid_outlet', '=', 'mpos_outlet.nid')
-            ->where(function ($q) {
-                $q->whereIn('mpos_sales_h.cstatus', [
+            ->leftJoin('mpos_outlet', "{$headerTable}.nid_outlet", '=', 'mpos_outlet.nid')
+            ->where(function ($q) use ($headerTable) {
+                $q->whereIn("{$headerTable}.cstatus", [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
-                ])->orWhere(function ($sub) {
-                    $sub->whereNotIn('mpos_sales_h.cstatus', [
+                ])->orWhere(function ($sub) use ($headerTable) {
+                    $sub->whereNotIn("{$headerTable}.cstatus", [
                         MposSalesH::STATUS_CANCELLED,
                         MposSalesH::STATUS_DRAFT,
                         MposSalesH::STATUS_VOID,
                         MposSalesH::STATUS_REFUND,
-                    ])->whereNotNull('mpos_sales_h.nid_payment');
+                    ])->whereNotNull("{$headerTable}.nid_payment");
                 });
             })
-            ->where('mpos_sales_h.dtransaction', '>=', $startDate)
-            ->where('mpos_sales_h.dtransaction', '<=', $endDateParsed)
-            ->whereRaw('(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) > 0');
+            ->where("{$headerTable}.dtransaction", '>=', $startDate)
+            ->where("{$headerTable}.dtransaction", '<=', $endDateParsed)
+            ->whereRaw("({$detailTable}.nqty - {$detailTable}.nqty_void - {$detailTable}.nqty_refund) > 0");
 
         if (!empty($outletId)) {
-            $baseQuery->where('mpos_sales_h.nid_outlet', $outletId);
+            $baseQuery->where("{$headerTable}.nid_outlet", $outletId);
         } elseif (!$this->isSuperAdminUser()) {
-            $baseQuery->whereIn('mpos_sales_h.nid_outlet', $this->getUserAllowedOutletIds());
+            $baseQuery->whereIn("{$headerTable}.nid_outlet", $this->getUserAllowedOutletIds());
         }
 
         if (!empty($productId)) {
-            $baseQuery->where('mpos_sales_d.nid_product', $productId);
+            $baseQuery->where("{$detailTable}.nid_product", $productId);
         }
 
         if (!empty($search)) {
-            $baseQuery->where(function ($q) use ($search) {
-                $q->where('mpos_sales_h.cnotransaction', 'like', "%{$search}%")
-                  ->orWhere('mpos_sales_d.cname', 'like', "%{$search}%")
+            $baseQuery->where(function ($q) use ($headerTable, $detailTable, $search) {
+                $q->where("{$headerTable}.cnotransaction", 'like', "%{$search}%")
+                  ->orWhere("{$detailTable}.cname", 'like', "%{$search}%")
                   ->orWhere('mpos_cust.cname', 'like', "%{$search}%")
-                  ->orWhere('mpos_sales_h.cname_customer', 'like', "%{$search}%");
+                  ->orWhere("{$headerTable}.cname_customer", 'like', "%{$search}%");
             });
         }
 
-        return $baseQuery;
+        $netQtyExpr = "({$detailTable}.nqty - {$detailTable}.nqty_void - {$detailTable}.nqty_refund)";
+        $totalPenjualanExpr = "GREATEST(0, ({$netQtyExpr} * {$detailTable}.nprice) - (CASE WHEN {$headerTable}.nsubtotal > 0 AND {$headerTable}.ndiscount > 0 THEN (({$netQtyExpr} * {$detailTable}.nprice) / {$headerTable}.nsubtotal) * {$headerTable}.ndiscount ELSE 0 END))";
+        $totalModalExpr = "({$netQtyExpr} * {$detailTable}.ncost)";
+
+        return $baseQuery->select([
+            "{$detailTable}.nid as item_id",
+            "{$detailTable}.nid_product",
+            "{$detailTable}.cname as item_name",
+            "{$detailTable}.nprice",
+            "{$detailTable}.ncost",
+            "{$detailTable}.nqty",
+            "{$detailTable}.nqty_void",
+            "{$detailTable}.nqty_refund",
+            "{$headerTable}.nid as transaction_id",
+            "{$headerTable}.cnotransaction",
+            "{$headerTable}.dtransaction",
+            "{$headerTable}.csource",
+            "{$headerTable}.nsubtotal as transaction_subtotal",
+            "{$headerTable}.ndiscount as transaction_discount",
+            "{$headerTable}.cstatus",
+            DB::raw("'{$categoryLabel}' as ctransaction_category"),
+            'muser.cname as cashier_name',
+            DB::raw("COALESCE(NULLIF(NULLIF(TRIM({$headerTable}.cname_customer), ''), 'Umum'), NULLIF(NULLIF(TRIM(mpos_cust.cname), ''), 'Umum'), '-') as customer_name"),
+            'mpos_outlet.cname as outlet_name',
+            DB::raw("{$netQtyExpr} as net_qty"),
+            DB::raw("{$totalPenjualanExpr} as total_penjualan"),
+            DB::raw("{$totalModalExpr} as total_modal"),
+            DB::raw("({$totalPenjualanExpr} - {$totalModalExpr}) as laba"),
+        ]);
     }
 
     private function buildSummaryQuery($baseQuery)
     {
         $summaryQuery = clone $baseQuery;
+
         return $summaryQuery->select([
-            DB::raw('COALESCE(SUM(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund), 0) as total_qty'),
+            DB::raw('COALESCE(SUM(net_qty), 0) as total_qty'),
             DB::raw('0 as total_discount'),
-            DB::raw('COALESCE(SUM(
-                ((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - 
-                CASE 
-                    WHEN mpos_sales_h.nsubtotal > 0 
-                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
-                    ELSE 0 
-                END
-            ), 0) as total_penjualan'),
-            DB::raw('COALESCE(SUM((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.ncost), 0) as total_modal'),
-            DB::raw('COALESCE(SUM(
-                (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) - 
-                CASE 
-                    WHEN mpos_sales_h.nsubtotal > 0 
-                    THEN (((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount 
-                    ELSE 0 
-                END) - 
-                ((mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund) * mpos_sales_d.ncost)
-            ), 0) as total_laba'),
+            DB::raw('COALESCE(SUM(total_penjualan), 0) as total_penjualan'),
+            DB::raw('COALESCE(SUM(total_modal), 0) as total_modal'),
+            DB::raw('COALESCE(SUM(laba), 0) as total_laba'),
         ]);
     }
 
     private function buildItemsQuery($baseQuery, string $sortCol = 'dtransaction', string $sortDir = 'desc')
     {
         $itemsQuery = clone $baseQuery;
-        $itemsQuery->select([
-            'mpos_sales_d.nid as item_id',
-            'mpos_sales_d.nid_product',
-            'mpos_sales_d.cname as item_name',
-            'mpos_sales_d.nprice',
-            'mpos_sales_d.ncost',
-            'mpos_sales_d.nqty',
-            'mpos_sales_d.nqty_void',
-            'mpos_sales_d.nqty_refund',
-            'mpos_sales_h.nid as transaction_id',
-            'mpos_sales_h.cnotransaction',
-            'mpos_sales_h.dtransaction',
-            'mpos_sales_h.csource',
-            'mpos_sales_h.nsubtotal as transaction_subtotal',
-            'mpos_sales_h.ndiscount as transaction_discount',
-            'mpos_sales_h.cstatus',
-            'muser.cname as cashier_name',
-            DB::raw("COALESCE(NULLIF(NULLIF(TRIM(mpos_sales_h.cname_customer), ''), 'Umum'), NULLIF(NULLIF(TRIM(mpos_cust.cname), ''), 'Umum'), '-') as customer_name"),
-            'mpos_outlet.cname as outlet_name',
-        ]);
+        $itemsQuery->select('*');
 
-        $netQtyExpr = '(mpos_sales_d.nqty - mpos_sales_d.nqty_void - mpos_sales_d.nqty_refund)';
-        $totalPenjualanExpr = "GREATEST(0, ({$netQtyExpr} * mpos_sales_d.nprice) - (CASE WHEN mpos_sales_h.nsubtotal > 0 AND mpos_sales_h.ndiscount > 0 THEN (({$netQtyExpr} * mpos_sales_d.nprice) / mpos_sales_h.nsubtotal) * mpos_sales_h.ndiscount ELSE 0 END))";
-        $totalModalExpr = "({$netQtyExpr} * mpos_sales_d.ncost)";
+        $validSortCols = [
+            'cnotransaction', 'dtransaction', 'cashier_name', 'item_name',
+            'customer_name', 'net_qty', 'total_penjualan', 'total_modal', 'laba',
+        ];
+        $orderCol = in_array($sortCol, $validSortCols, true) ? $sortCol : 'dtransaction';
 
-        $sortExpression = match ($sortCol) {
-            'cnotransaction' => 'mpos_sales_h.cnotransaction',
-            'cashier_name' => 'muser.cname',
-            'item_name' => 'mpos_sales_d.cname',
-            'customer_name' => 'customer_name',
-            'net_qty' => DB::raw($netQtyExpr),
-            'total_penjualan' => DB::raw($totalPenjualanExpr),
-            'total_modal' => DB::raw($totalModalExpr),
-            'laba' => DB::raw("({$totalPenjualanExpr} - {$totalModalExpr})"),
-            default => 'mpos_sales_h.dtransaction',
-        };
-
-        $itemsQuery->orderBy($sortExpression, $sortDir);
-        if ($sortCol !== 'dtransaction') {
-            $itemsQuery->orderBy('mpos_sales_h.dtransaction', 'desc');
+        $itemsQuery->orderBy($orderCol, $sortDir);
+        if ($orderCol !== 'dtransaction') {
+            $itemsQuery->orderBy('dtransaction', 'desc');
         }
-        $itemsQuery->orderBy('mpos_sales_d.nid', 'desc');
+        $itemsQuery->orderBy('item_id', 'desc');
 
         return $itemsQuery;
     }

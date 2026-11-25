@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\MposCashMovement;
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffH;
 use App\Models\MposShift;
 use App\Models\MposUser;
 use App\Models\Muser;
@@ -92,31 +93,13 @@ class ShiftController extends Controller
             ], 200);
         }
 
-        // Hitung real-time total gross sales & cash_sales (transaksi utama)
-        $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->sum('ngrandtotal');
+        $category = $request->input('ctransaction_category') ?? $request->input('category');
 
-        $cashSales = $this->calculateShiftCashSales($shift->nid);
-
-        $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-            ->where('cstatus', MposSalesH::STATUS_REFUND)
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
-
-        $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
+        // Hitung real-time total gross sales & cash_sales
+        $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
+        $cashSales = $this->calculateShiftCashSales($shift->nid, $category);
+        $cashRefund = $this->calculateShiftCashRefund($shift->nid, $category);
+        $cashCancellation = $this->calculateShiftCashCancellation($shift->nid, $category);
 
         $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
 
@@ -126,7 +109,7 @@ class ShiftController extends Controller
         $data['nexpected_cash'] = (float) $expectedCash;
         $data['ncancellation_cash'] = (float) $cashCancellation;
         $data['nrefund_cash'] = (float) $cashRefund;
-        $data = $this->attachShiftMetrics($data, $shift->nid);
+        $data = $this->attachShiftMetrics($data, $shift->nid, $category);
 
         return response()->json([
             'success' => true,
@@ -168,8 +151,8 @@ class ShiftController extends Controller
         DB::beginTransaction();
         try {
             // Generate cshift_no unik: SH-{YYMMDD}-{sequence}
-            $prefix = 'SH-'.now()->format('Ymd').'-';
-            $latest = MposShift::where('cshift_no', 'like', $prefix.'%')
+            $prefix = 'SH-' . now()->format('Ymd') . '-';
+            $latest = MposShift::where('cshift_no', 'like', $prefix . '%')
                 ->orderBy('cshift_no', 'desc')
                 ->first();
 
@@ -180,7 +163,7 @@ class ShiftController extends Controller
             }
 
             do {
-                $cshiftNo = $prefix.str_pad($sequence, 4, '0', STR_PAD_LEFT);
+                $cshiftNo = $prefix . str_pad($sequence, 4, '0', STR_PAD_LEFT);
                 $exists = MposShift::where('cshift_no', $cshiftNo)->exists();
                 if ($exists) {
                     $sequence++;
@@ -215,7 +198,7 @@ class ShiftController extends Controller
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal membuka shift: '.$e->getMessage(), ['exception' => $e]);
+            Log::error('Gagal membuka shift: ' . $e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,
@@ -296,7 +279,6 @@ class ShiftController extends Controller
 
         DB::beginTransaction();
         try {
-            // Gunakan lockForUpdate untuk mencegah race condition
             $shift = MposShift::where('nid_user', $mposUser->nid)
                 ->where('cstatus', 'OPEN')
                 ->lockForUpdate()
@@ -311,43 +293,12 @@ class ShiftController extends Controller
                 ], 422);
             }
 
-            // Hitung gross sales (seluruh metode pembayaran transaksi utama)
-            $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-                ->whereIn('cstatus', [
-                    MposSalesH::STATUS_PAID,
-                    MposSalesH::STATUS_COMPLETED,
-                    MposSalesH::STATUS_VOID,
-                    MposSalesH::STATUS_REFUND,
-                    MposSalesH::STATUS_CANCELLED,
-                ])
-                ->whereNull('nid_parent_transaction')
-                ->sum('ngrandtotal');
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
 
-            // Hitung hanya gross cash sales
-            $cashSales = MposSalesH::where('nid_shift', $shift->nid)
-                ->whereIn('cstatus', [
-                    MposSalesH::STATUS_PAID,
-                    MposSalesH::STATUS_COMPLETED,
-                    MposSalesH::STATUS_VOID,
-                    MposSalesH::STATUS_REFUND,
-                    MposSalesH::STATUS_CANCELLED,
-                ])
-                ->whereNull('nid_parent_transaction')
-                ->whereHas('payment', function ($query) {
-                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-                })->sum('ngrandtotal');
-
-            $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-                ->where('cstatus', MposSalesH::STATUS_REFUND)
-                ->whereHas('payment', function ($query) {
-                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-                })->sum('ngrandtotal'));
-
-            $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-                ->whereHas('payment', function ($query) {
-                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-                })->sum('ngrandtotal'));
+            $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
+            $cashSales = $this->calculateShiftCashSales($shift->nid, $category);
+            $cashRefund = $this->calculateShiftCashRefund($shift->nid, $category);
+            $cashCancellation = $this->calculateShiftCashCancellation($shift->nid, $category);
 
             $expectedCash = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
             $actualCash = (float) $validated['nactual_cash'];
@@ -367,7 +318,7 @@ class ShiftController extends Controller
 
             DB::commit();
 
-            $data = $this->attachShiftMetrics($shift->toArray(), $shift->nid);
+            $data = $this->attachShiftMetrics($shift->toArray(), $shift->nid, $category);
 
             return response()->json([
                 'success' => true,
@@ -376,7 +327,7 @@ class ShiftController extends Controller
             ], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Gagal menutup shift: '.$e->getMessage(), ['exception' => $e]);
+            Log::error('Gagal menutup shift: ' . $e->getMessage(), ['exception' => $e]);
 
             return response()->json([
                 'success' => false,
@@ -414,8 +365,10 @@ class ShiftController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $shifts = $query->paginate($perPage);
 
-        $shiftItems = collect($shifts->items())->map(function ($item) {
-            return $this->attachShiftMetrics($item->toArray(), $item->nid);
+        $category = $request->input('ctransaction_category') ?? $request->input('category');
+
+        $shiftItems = collect($shifts->items())->map(function ($item) use ($category) {
+            return $this->attachShiftMetrics($item->toArray(), $item->nid, $category);
         });
 
         return response()->json([
@@ -460,43 +413,25 @@ class ShiftController extends Controller
             ], 403);
         }
 
-        $totalSales = MposSalesH::where('nid_shift', $shift->nid)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->sum('ngrandtotal');
+        $category = $request->input('ctransaction_category') ?? $request->input('category');
 
-        $cashSales = $this->calculateShiftCashSales($shift->nid);
+        $totalSales = $this->calculateShiftTotalSales($shift->nid, $category);
+        $cashSales = $this->calculateShiftCashSales($shift->nid, $category);
 
         $data = $shift->toArray();
         $data['nsales_cash'] = $shift->cstatus === 'OPEN' ? (float) $totalSales : (float) $shift->nsales_cash;
         $data['cash_sales'] = (float) $cashSales;
 
-        // expected cash and others are already in shift if closed, or calculated if open
         if ($shift->cstatus === 'OPEN') {
-            $cashRefund = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-                ->where('cstatus', MposSalesH::STATUS_REFUND)
-                ->whereHas('payment', function ($query) {
-                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-                })->sum('ngrandtotal'));
-
-            $cashCancellation = abs((float) MposSalesH::where('nid_shift', $shift->nid)
-                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-                ->whereHas('payment', function ($query) {
-                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-                })->sum('ngrandtotal'));
+            $cashRefund = $this->calculateShiftCashRefund($shift->nid, $category);
+            $cashCancellation = $this->calculateShiftCashCancellation($shift->nid, $category);
 
             $data['ncancellation_cash'] = $cashCancellation;
             $data['nrefund_cash'] = $cashRefund;
             $data['nexpected_cash'] = $shift->nopening_cash + $cashSales - $cashRefund - $cashCancellation + $shift->ncash_in - $shift->ncash_out;
         }
 
-        $data = $this->attachShiftMetrics($data, $shift->nid);
+        $data = $this->attachShiftMetrics($data, $shift->nid, $category);
 
         return response()->json([
             'success' => true,
@@ -505,7 +440,7 @@ class ShiftController extends Controller
         ], 200);
     }
 
-    protected function attachShiftMetrics(array $data, int $shiftId): array
+    protected function attachShiftMetrics(array $data, int $shiftId, ?string $category = null): array
     {
         $validStatuses = [
             MposSalesH::STATUS_PAID,
@@ -515,112 +450,91 @@ class ShiftController extends Controller
             MposSalesH::STATUS_REFUND,
         ];
 
-        $totalReceipts = MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->count();
+        $cat = strtoupper(trim((string) $category));
 
-        $totalPax = (int) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->sum('nvisitor');
+        $totalReceipts = (int) $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId, $validStatuses): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', $validStatuses)
+                ->whereNull('nid_parent_transaction')
+                ->count();
+        }, $category);
 
-        $subtotal = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->sum('nsubtotal');
+        $totalPax = (int) $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId, $validStatuses): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', $validStatuses)
+                ->whereNull('nid_parent_transaction')
+                ->sum('nvisitor');
+        }, $category);
 
-        $discount = (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->sum('ndiscount');
+        $subtotal = $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId, $validStatuses): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', $validStatuses)
+                ->whereNull('nid_parent_transaction')
+                ->sum('nsubtotal');
+        }, $category);
 
-        $cashSales = $this->calculateShiftCashSales($shiftId);
+        $discount = $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId, $validStatuses): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', $validStatuses)
+                ->whereNull('nid_parent_transaction')
+                ->sum('ndiscount');
+        }, $category);
 
-        $cashFullRefundSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->where('cstatus', MposSalesH::STATUS_REFUND)
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
+        $cashSales = $this->calculateShiftCashSales($shiftId, $category);
+        $cashRefund = $this->calculateShiftCashRefund($shiftId, $category);
+        $cashCancellation = $this->calculateShiftCashCancellation($shiftId, $category);
 
-        $cashReversalRefundSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->where('cstatus', MposSalesH::STATUS_REFUND)
-            ->whereNotNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
+        $totalCancellation = $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId): float {
+            return abs((float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+                ->sum('ngrandtotal'));
+        }, $category);
 
-        $cashRefund = $cashFullRefundSum + $cashReversalRefundSum;
-
-        $cashFullVoidSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
-
-        $cashReversalVoidSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->whereNotNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal'));
-
-        $cashCancellation = $cashFullVoidSum + $cashReversalVoidSum;
-
-        $totalFullVoidSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->whereNull('nid_parent_transaction')
-            ->sum('ngrandtotal'));
-
-        $totalReversalVoidSum = abs((float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
-            ->whereNotNull('nid_parent_transaction')
-            ->sum('ngrandtotal'));
-
-        $totalCancellation = $totalFullVoidSum + $totalReversalVoidSum;
-
-        $paymentBreakdown = DB::table('mpos_sales_h')
-            ->leftJoin('mpos_payment', 'mpos_sales_h.nid_payment', '=', 'mpos_payment.nid')
-            ->where('mpos_sales_h.nid_shift', $shiftId)
-            ->whereIn('mpos_sales_h.cstatus', $validStatuses)
+        $onlineQuery = DB::table('mpos_sales_h as sh')
+            ->leftJoin('mpos_payment as p', 'sh.nid_payment', '=', 'p.nid')
+            ->where('sh.nid_shift', $shiftId)
+            ->whereIn('sh.cstatus', $validStatuses)
             ->select(
-                DB::raw("COALESCE(mpos_payment.cname, 'Lainnya') as payment_name"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.nid_parent_transaction IS NULL AND mpos_sales_h.cstatus IN ('PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED') THEN mpos_sales_h.ngrandtotal ELSE 0 END) as sales"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus = 'REFUND' THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as refund"),
-                DB::raw("SUM(CASE WHEN mpos_sales_h.cstatus IN ('VOID', 'CANCELLED') THEN ABS(mpos_sales_h.ngrandtotal) ELSE 0 END) as void")
+                DB::raw("COALESCE(p.cname, 'Lainnya') as payment_name"),
+                DB::raw("CASE WHEN sh.nid_parent_transaction IS NULL AND sh.cstatus IN ('PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED') THEN sh.ngrandtotal ELSE 0 END as sales_amt"),
+                DB::raw("CASE WHEN sh.cstatus = 'REFUND' THEN ABS(sh.ngrandtotal) ELSE 0 END as refund_amt"),
+                DB::raw("CASE WHEN sh.cstatus IN ('VOID', 'CANCELLED') THEN ABS(sh.ngrandtotal) ELSE 0 END as void_amt")
+            );
+
+        $offlineQuery = DB::table('mpos_sls_h as soh')
+            ->leftJoin('mpos_payment as p', 'soh.nid_payment', '=', 'p.nid')
+            ->where('soh.nid_shift', $shiftId)
+            ->whereIn('soh.cstatus', $validStatuses)
+            ->select(
+                DB::raw("COALESCE(p.cname, 'Lainnya') as payment_name"),
+                DB::raw("CASE WHEN soh.nid_parent_transaction IS NULL AND soh.cstatus IN ('PAID', 'COMPLETED', 'VOID', 'REFUND', 'CANCELLED') THEN soh.ngrandtotal ELSE 0 END as sales_amt"),
+                DB::raw("CASE WHEN soh.cstatus = 'REFUND' THEN ABS(soh.ngrandtotal) ELSE 0 END as refund_amt"),
+                DB::raw("CASE WHEN soh.cstatus IN ('VOID', 'CANCELLED') THEN ABS(soh.ngrandtotal) ELSE 0 END as void_amt")
+            );
+
+        if ($cat === 'OFFLINE') {
+            $unioned = $offlineQuery;
+        } elseif ($cat === 'ONLINE') {
+            $unioned = $onlineQuery;
+        } else {
+            $unioned = $onlineQuery->unionAll($offlineQuery);
+        }
+
+        $paymentBreakdown = DB::query()
+            ->fromSub($unioned, 'combined_sales')
+            ->select(
+                'payment_name',
+                DB::raw('SUM(sales_amt) as sales'),
+                DB::raw('SUM(refund_amt) as refund'),
+                DB::raw('SUM(void_amt) as void')
             )
-            ->groupBy(DB::raw("COALESCE(mpos_payment.cname, 'Lainnya')"))
+            ->groupBy('payment_name')
             ->get()
             ->map(function ($row) {
                 $sales = (float) $row->sales;
                 $refund = (float) $row->refund;
                 $void = (float) $row->void;
+
                 return [
                     'name' => $row->payment_name,
                     'sales' => $sales,
@@ -630,6 +544,21 @@ class ShiftController extends Controller
                 ];
             });
 
+        $offlineSalesTotal = (float) MposSalesoffH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->whereNull('nid_parent_transaction')
+            ->sum('ngrandtotal');
+
+        $offlineTaxTotal = (float) MposSalesoffH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->whereNull('nid_parent_transaction')
+            ->sum('ntax');
+
+        $onlineSalesTotal = (float) MposSalesH::where('nid_shift', $shiftId)
+            ->whereIn('cstatus', $validStatuses)
+            ->whereNull('nid_parent_transaction')
+            ->sum('ngrandtotal');
+
         $data['total_receipts'] = $totalReceipts;
         $data['total_pax'] = $totalPax > 0 ? $totalPax : $totalReceipts;
         $data['subtotal'] = $subtotal;
@@ -638,27 +567,98 @@ class ShiftController extends Controller
         $data['cash_refund'] = $cashRefund;
         $data['cash_cancellation'] = $cashCancellation;
         $data['total_cancellation'] = $totalCancellation;
+        $data['offline_sales_total'] = $offlineSalesTotal;
+        $data['offline_tax_total'] = $offlineTaxTotal;
+        $data['online_sales_total'] = $onlineSalesTotal;
         $data['payment_breakdown'] = $paymentBreakdown;
 
         return $data;
     }
 
     /**
-     * Menghitung total cash sales untuk shift dari mpos_sales_h.
+     * @return array<int, class-string<MposSalesH|MposSalesoffH>>
      */
-    protected function calculateShiftCashSales(int $shiftId): float
+    protected function salesModels(?string $category = null): array
     {
-        return (float) MposSalesH::where('nid_shift', $shiftId)
-            ->whereIn('cstatus', [
-                MposSalesH::STATUS_PAID,
-                MposSalesH::STATUS_COMPLETED,
-                MposSalesH::STATUS_VOID,
-                MposSalesH::STATUS_REFUND,
-                MposSalesH::STATUS_CANCELLED,
-            ])
-            ->whereNull('nid_parent_transaction')
-            ->whereHas('payment', function ($query) {
-                $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
-            })->sum('ngrandtotal');
+        $cat = strtoupper(trim((string) $category));
+        if ($cat === 'OFFLINE') {
+            return [MposSalesoffH::class];
+        }
+        if ($cat === 'ONLINE') {
+            return [MposSalesH::class];
+        }
+        return [MposSalesH::class, MposSalesoffH::class];
+    }
+
+    protected function sumAcrossSalesTables(int $shiftId, callable $callback, ?string $category = null): float
+    {
+        $total = 0.0;
+        foreach ($this->salesModels($category) as $modelClass) {
+            $total += (float) $callback($modelClass, $shiftId);
+        }
+
+        return $total;
+    }
+
+    protected function calculateShiftTotalSales(int $shiftId, ?string $category = null): float
+    {
+        return $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                    MposSalesH::STATUS_VOID,
+                    MposSalesH::STATUS_REFUND,
+                    MposSalesH::STATUS_CANCELLED,
+                ])
+                ->whereNull('nid_parent_transaction')
+                ->sum('ngrandtotal');
+        }, $category);
+    }
+
+    /**
+     * Menghitung total cash sales untuk shift dari mpos_sales_h dan mpos_sls_h.
+     */
+    protected function calculateShiftCashSales(int $shiftId, ?string $category = null): float
+    {
+        return $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId): float {
+            return (float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', [
+                    MposSalesH::STATUS_PAID,
+                    MposSalesH::STATUS_COMPLETED,
+                    MposSalesH::STATUS_VOID,
+                    MposSalesH::STATUS_REFUND,
+                    MposSalesH::STATUS_CANCELLED,
+                ])
+                ->whereNull('nid_parent_transaction')
+                ->whereHas('payment', function ($query): void {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })
+                ->sum('ngrandtotal');
+        }, $category);
+    }
+
+    protected function calculateShiftCashRefund(int $shiftId, ?string $category = null): float
+    {
+        return $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId): float {
+            return abs((float) $modelClass::where('nid_shift', $shiftId)
+                ->where('cstatus', MposSalesH::STATUS_REFUND)
+                ->whereHas('payment', function ($query): void {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })
+                ->sum('ngrandtotal'));
+        }, $category);
+    }
+
+    protected function calculateShiftCashCancellation(int $shiftId, ?string $category = null): float
+    {
+        return $this->sumAcrossSalesTables($shiftId, function ($modelClass) use ($shiftId): float {
+            return abs((float) $modelClass::where('nid_shift', $shiftId)
+                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_CANCELLED])
+                ->whereHas('payment', function ($query): void {
+                    $query->whereRaw('LOWER(cname) LIKE ?', ['%cash%']);
+                })
+                ->sum('ngrandtotal'));
+        }, $category);
     }
 }

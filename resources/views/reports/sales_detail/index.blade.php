@@ -365,6 +365,7 @@
                                 @if(!empty($outletId)) <input type="hidden" name="outlet_id" value="{{ $outletId }}"> @endif
                                 @if(!empty($status)) <input type="hidden" name="status" value="{{ $status }}"> @endif
                                 @if(!empty($paymentId)) <input type="hidden" name="payment_id" value="{{ $paymentId }}"> @endif
+                                @if(!empty($category)) <input type="hidden" name="category" value="{{ $category }}"> @endif
 
                                 <div class="d-flex align-items-center gap-2 flex-nowrap mb-2">
                                     <div class="flex-grow-1" style="min-width: 0;">
@@ -428,6 +429,26 @@
                             <a class="dropdown-item {{ (string)($paymentId ?? '') === (string)$pm->nid ? 'active' : '' }}" href="{{ route('reports.sales-detail', array_merge(request()->except(['page']), ['payment_id' => $pm->nid])) }}">
                                 {{ $pm->cname }}
                                 @if((string)($paymentId ?? '') === (string)$pm->nid) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                            </a>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <!-- Dropdown Kategori (Online / Offline) -->
+                    <div class="dropdown d-inline-block flex-shrink-0">
+                        <button type="button" class="filter-chip {{ !empty($category) ? 'filter-chip-active' : 'filter-chip-inactive' }} dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Pilih Kategori Transaksi">
+                            <i class="bi bi-tags"></i> {{ !empty($category) ? $category : 'Semua Kategori' }}
+                            <i class="bi bi-chevron-down ms-1" style="font-size: 0.65rem; opacity: 0.75;"></i>
+                        </button>
+                        <div class="dropdown-menu filter-dropdown-menu shadow border-0 py-1" style="min-width: 180px;">
+                            <a class="dropdown-item {{ empty($category) ? 'active' : '' }}" href="{{ route('reports.sales-detail', request()->except(['category', 'page'])) }}">
+                                Semua Kategori
+                                @if(empty($category)) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
+                            </a>
+                            @foreach(['OFFLINE', 'ONLINE'] as $catOption)
+                            <a class="dropdown-item {{ ($category ?? '') === $catOption ? 'active' : '' }}" href="{{ route('reports.sales-detail', array_merge(request()->except(['page']), ['category' => $catOption])) }}">
+                                {{ $catOption }}
+                                @if(($category ?? '') === $catOption) <i class="bi bi-check-lg text-primary ms-auto"></i> @endif
                             </a>
                             @endforeach
                         </div>
@@ -618,6 +639,11 @@
                                     <td class="text-center">{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center">
                                         <strong>{{ $row->cnotransaction }}</strong>
+                                        @if(($row->ctransaction_category ?? 'ONLINE') === 'OFFLINE')
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 9px; padding: 2px 5px;">OFFLINE</span>
+                                        @else
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 9px; padding: 2px 5px;">ONLINE</span>
+                                        @endif
                                         @if($row->csource === 'OLSERA')
                                         <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;">OLSERA</span>
                                         @endif

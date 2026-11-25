@@ -28,6 +28,8 @@ class PosReportController extends Controller
                 'outlet_id' => 'nullable|integer',
                 'nid_category' => 'nullable|integer',
                 'nid_user' => 'nullable|integer',
+                'ctransaction_category' => 'nullable|string',
+                'category' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -39,12 +41,18 @@ class PosReportController extends Controller
             }
 
             $dateFrom = $request->input('date_from');
-            $dateTo = $request->input('date_to', $dateFrom); // Default to date_from if not provided
+            $dateTo = $request->input('date_to', $dateFrom);
+
+            $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
+            $isOffline = ($categoryFilter === 'OFFLINE');
+
+            $headerTable = $isOffline ? 'mpos_sls_h' : 'mpos_sales_h';
+            $detailTable = $isOffline ? 'mpos_sls_d' : 'mpos_sales_d';
 
             // Start building the query
-            $query = DB::table('mpos_sales_d as sd')
-                ->join('mpos_sales_h as sh', 'sd.nid_transaction', '=', 'sh.nid')
-                ->leftJoin('mpos_sales_h as parent', 'sh.nid_parent_transaction', '=', 'parent.nid')
+            $query = DB::table("{$detailTable} as sd")
+                ->join("{$headerTable} as sh", 'sd.nid_transaction', '=', 'sh.nid')
+                ->leftJoin("{$headerTable} as parent", 'sh.nid_parent_transaction', '=', 'parent.nid')
                 ->leftJoin('mpos_product as p', 'sd.nid_product', '=', 'p.nid')
                 ->leftJoin('mpos_grp_product as gp', 'p.nid_category', '=', 'gp.nid')
                 ->where(function ($q) {
@@ -52,7 +60,7 @@ class PosReportController extends Controller
                         MposSalesH::STATUS_PAID,
                         MposSalesH::STATUS_COMPLETED,
                     ])
-                    ->orWhereNotNull('sh.nid_parent_transaction');
+                        ->orWhereNotNull('sh.nid_parent_transaction');
                 })
                 ->whereDate(DB::raw('COALESCE(sh.dpayment_date, parent.dpayment_date, parent.dtransaction, sh.dtransaction)'), '>=', $dateFrom)
                 ->whereDate(DB::raw('COALESCE(sh.dpayment_date, parent.dpayment_date, parent.dtransaction, sh.dtransaction)'), '<=', $dateTo);

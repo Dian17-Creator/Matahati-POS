@@ -74,7 +74,7 @@
             <tr>
                 <td>{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y') }}</td>
                 <td>{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
-                <td>{{ $row->cnotransaction }}</td>
+                <td>{{ $row->cnotransaction }} ({{ $row->ctransaction_category ?? 'ONLINE' }})</td>
                 <td style="{{ $excelPaymentStyle }}">{{ ($row->payment_name ?? '-') . (!empty($row->payment_dual_name) ? ' + ' . $row->payment_dual_name : '') }}</td>
                 <td>{{ $effectiveStatus }}</td>
                 <td>{{ $row->cashier_name ?? '-' }}</td>

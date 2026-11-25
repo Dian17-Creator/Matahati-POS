@@ -734,6 +734,7 @@
                     $isTransactionsActive = request()->routeIs(['purchases.*', 'sales.*', 'payments.*']);
                     $isReportsActive = request()->routeIs(['reports.*']);
                     $isPegawaiActive = request()->routeIs(['outlets.*', 'pos-users.*']);
+                    $isSettingsActive = request()->routeIs(['settings.*']);
                     @endphp
 
                     <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
@@ -905,6 +906,34 @@
                         </div>
                     </div>
                     @endif
+
+                    <hr class="sidebar-divider">
+
+                    <!-- Pengaturan -->
+                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isSettingsActive ? '' : 'collapsed' }} {{ $isSettingsActive ? 'active-parent' : '' }}"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menuSettings"
+                        aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}"
+                        aria-controls="menuSettings"
+                        role="button">
+                        <div class="d-flex align-items-center">
+                            <span class="nav-icon">
+                                <i class="bi bi-gear fs-6"></i>
+                            </span>
+                            <span>Pengaturan</span>
+                        </div>
+                        <i class="bi bi-chevron-down nav-arrow"></i>
+                    </div>
+                    <div class="collapse {{ $isSettingsActive ? 'show' : '' }}" id="menuSettings">
+                        <div class="nav-sub-menu">
+                            <a href="{{ route('settings.tax') }}" class="sidebar-sub-item {{ request()->routeIs('settings.tax*') ? 'active' : '' }}">
+                                <span>Pajak & Biaya</span>
+                            </a>
+                            <a href="{{ route('settings.pos.receipt') }}" class="sidebar-sub-item {{ request()->routeIs('settings.pos.receipt*') ? 'active' : '' }}">
+                                <span>Point of Sale (Catatan Resi)</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -58,6 +58,24 @@ class MposOutlet extends Model
         );
     }
 
+    public function offlineSales()
+    {
+        return $this->hasMany(
+            MposSalesoffH::class,
+            'nid_outlet',
+            'nid'
+        );
+    }
+
+    public function taxSettings()
+    {
+        return $this->hasMany(
+            MposTaxSetting::class,
+            'nid_outlet',
+            'nid'
+        );
+    }
+
     public function department()
     {
         return $this->belongsTo(Mdepartment::class, 'nid_dept', 'nid');
