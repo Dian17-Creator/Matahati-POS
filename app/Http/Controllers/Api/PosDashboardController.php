@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffH;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\CarbonPeriod;
@@ -17,14 +18,23 @@ class PosDashboardController extends Controller
             'date_to' => 'required|date_format:Y-m-d|after_or_equal:date_from',
             'nid_outlet' => 'nullable|integer',
             'outlet_id' => 'nullable|integer',
+            'ctransaction_category' => 'nullable|string',
+            'category' => 'nullable|string',
         ]);
 
         $dateFrom = $validated['date_from'];
         $dateTo = $validated['date_to'];
         $nidOutlet = $validated['nid_outlet'] ?? $validated['outlet_id'] ?? $request->input('nid_outlet') ?? $request->input('outlet_id');
 
+        $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'OFFLINE')));
+        $isOffline = ($categoryFilter === 'OFFLINE');
+
+        $headerModelClass = $isOffline ? MposSalesoffH::class : MposSalesH::class;
+        $headerTable = $isOffline ? 'mpos_sls_h' : 'mpos_sales_h';
+        $detailTable = $isOffline ? 'mpos_sls_d' : 'mpos_sales_d';
+
         // 1. Total Penjualan Bersih (Net Sales) = SUM(PAID + COMPLETED) + SUM(Reversals Baru < 0)
-        $salesQuery = MposSalesH::where(function ($q) {
+        $salesQuery = $headerModelClass::where(function ($q) {
                 $q->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
@@ -41,7 +51,7 @@ class PosDashboardController extends Controller
         $totalSales = max(0, (float) $salesQuery->sum('ngrandtotal'));
 
         // 2. Total Pembatalan / Refund (Besaran Reversal Baru + Transaksi Void Lama)
-        $refundQuery = MposSalesH::whereIn('cstatus', [
+        $refundQuery = $headerModelClass::whereIn('cstatus', [
                 MposSalesH::STATUS_VOID,
                 MposSalesH::STATUS_REFUND,
             ])
@@ -55,7 +65,7 @@ class PosDashboardController extends Controller
         $totalRefund = abs((float) $refundQuery->sum('ngrandtotal'));
 
         // 3. Sales By Date (Per Hari)
-        $dailySalesQuery = DB::table('mpos_sales_h')
+        $dailySalesQuery = DB::table($headerTable)
             ->where(function ($q) {
                 $q->whereIn('cstatus', [
                     MposSalesH::STATUS_PAID,
@@ -87,29 +97,29 @@ class PosDashboardController extends Controller
         }
 
         // 4. Top Sales by Product Group
-        $topProductGroupsQuery = DB::table('mpos_sales_d')
-            ->join('mpos_sales_h', 'mpos_sales_d.nid_transaction', '=', 'mpos_sales_h.nid')
-            ->join('mpos_product', 'mpos_sales_d.nid_product', '=', 'mpos_product.nid')
+        $topProductGroupsQuery = DB::table($detailTable)
+            ->join($headerTable, "{$detailTable}.nid_transaction", '=', "{$headerTable}.nid")
+            ->join('mpos_product', "{$detailTable}.nid_product", '=', 'mpos_product.nid')
             ->join('mpos_grp_product', 'mpos_product.nid_category', '=', 'mpos_grp_product.nid')
-            ->where(function ($q) {
-                $q->whereIn('mpos_sales_h.cstatus', [
+            ->where(function ($q) use ($headerTable) {
+                $q->whereIn("{$headerTable}.cstatus", [
                     MposSalesH::STATUS_PAID,
                     MposSalesH::STATUS_COMPLETED,
                 ])
-                ->orWhereNotNull('mpos_sales_h.nid_parent_transaction');
+                ->orWhereNotNull("{$headerTable}.nid_parent_transaction");
             })
-            ->whereDate(DB::raw('COALESCE(mpos_sales_h.dpayment_date, mpos_sales_h.dtransaction)'), '>=', $dateFrom)
-            ->whereDate(DB::raw('COALESCE(mpos_sales_h.dpayment_date, mpos_sales_h.dtransaction)'), '<=', $dateTo);
+            ->whereDate(DB::raw("COALESCE({$headerTable}.dpayment_date, {$headerTable}.dtransaction)"), '>=', $dateFrom)
+            ->whereDate(DB::raw("COALESCE({$headerTable}.dpayment_date, {$headerTable}.dtransaction)"), '<=', $dateTo);
 
         if ($nidOutlet) {
-            $topProductGroupsQuery->where('mpos_sales_h.nid_outlet', $nidOutlet);
+            $topProductGroupsQuery->where("{$headerTable}.nid_outlet", $nidOutlet);
         }
 
         $topProductGroups = $topProductGroupsQuery
             ->selectRaw('MIN(mpos_grp_product.nid) as nid')
             ->selectRaw('UPPER(TRIM(mpos_grp_product.cname)) as name')
-            ->selectRaw('SUM(mpos_sales_d.nqty) as qty')
-            ->selectRaw('SUM(mpos_sales_d.nsubtotal) as total')
+            ->selectRaw("SUM({$detailTable}.nqty) as qty")
+            ->selectRaw("SUM({$detailTable}.nsubtotal) as total")
             ->groupBy(DB::raw('UPPER(TRIM(mpos_grp_product.cname))'))
             ->havingRaw('qty > 0')
             ->orderBy('total', 'desc')

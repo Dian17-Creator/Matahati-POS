@@ -13,6 +13,7 @@ use App\Http\Controllers\Master\VoucherController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\Api\PosDashboardController;
 use App\Http\Controllers\Api\PosReportController;
+use App\Http\Controllers\Api\TaxSettingController;
 use App\Models\MposSalesH;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,10 @@ Route::post('/pos/transactions/{id}/items/refund', [TransactionController::class
 Route::get('/transactions', [TransactionController::class, 'index']);
 Route::get('/transactions/history', [TransactionController::class, 'index']);
 Route::get('/transactions/{id}', [TransactionController::class, 'show']);
+
+// Tax & Receipt Settings
+Route::get('/pos/tax-settings', [TaxSettingController::class, 'index']);
+Route::put('/pos/tax-settings', [TaxSettingController::class, 'update']);
 
 // API ORDER-TYPE
 Route::get('/pos/order-types', function () {

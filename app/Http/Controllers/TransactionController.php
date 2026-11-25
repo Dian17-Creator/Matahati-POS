@@ -5,11 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\MposProduct;
 use App\Models\MposSalesD;
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffD;
+use App\Models\MposSalesoffH;
 use App\Models\MposShift;
+use App\Models\MposTaxSetting;
 use App\Models\MposUser;
 use App\Models\Muser;
 use App\Services\RecipeStockService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -38,101 +43,233 @@ class TransactionController extends Controller
 
         return static::$salesHHasCostCols;
     }
+
+    protected function resolveCategoryFromRequest(Request $request, ?string $orderType = null): string
+    {
+        $explicit = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? '')));
+        if (in_array($explicit, MposTaxSetting::CATEGORIES, true)) {
+            return $explicit;
+        }
+
+        if (strtoupper(trim((string) $orderType)) === MposSalesH::ORDER_TYPE_ONLINE) {
+            return MposTaxSetting::CATEGORY_ONLINE;
+        }
+
+        return MposTaxSetting::CATEGORY_OFFLINE;
+    }
+
+    /**
+     * @return array{0: class-string<MposSalesH|MposSalesoffH>, 1: class-string<MposSalesD|MposSalesoffD>}
+     */
+    protected function modelClassesForCategory(string $category): array
+    {
+        if (strtoupper($category) === MposTaxSetting::CATEGORY_OFFLINE) {
+            return [MposSalesoffH::class, MposSalesoffD::class];
+        }
+
+        return [MposSalesH::class, MposSalesD::class];
+    }
+
+    /**
+     * @return class-string<MposSalesH|MposSalesoffH>
+     */
+    protected function headerClassFor(MposSalesH|MposSalesoffH $transaction): string
+    {
+        return $transaction instanceof MposSalesoffH ? MposSalesoffH::class : MposSalesH::class;
+    }
+
+    /**
+     * @return class-string<MposSalesD|MposSalesoffD>
+     */
+    protected function detailClassFor(MposSalesH|MposSalesoffH $transaction): string
+    {
+        return $transaction instanceof MposSalesoffH ? MposSalesoffD::class : MposSalesD::class;
+    }
+
+    protected function categoryForTransaction(MposSalesH|MposSalesoffH $transaction): string
+    {
+        return $transaction instanceof MposSalesoffH
+            ? MposTaxSetting::CATEGORY_OFFLINE
+            : MposTaxSetting::CATEGORY_ONLINE;
+    }
+
+    /**
+     * @param  array<int, string>  $with
+     */
+    protected function findTransactionByIdOrNo(string $id, ?string $category = null, array $with = [], bool $lockForUpdate = false): MposSalesH|MposSalesoffH|null
+    {
+        $normalizedCat = strtoupper(trim((string) $category));
+        if (in_array($normalizedCat, MposTaxSetting::CATEGORIES, true)) {
+            [$headerClass] = $this->modelClassesForCategory($normalizedCat);
+            $candidates = [$headerClass];
+        } elseif (! is_numeric($id) && str_contains(strtoupper($id), 'OFF')) {
+            $candidates = [MposSalesoffH::class, MposSalesH::class];
+        } else {
+            $candidates = [MposSalesH::class, MposSalesoffH::class];
+        }
+
+        foreach ($candidates as $modelClass) {
+            $query = $modelClass::query();
+            if (! empty($with)) {
+                $query->with($with);
+            }
+            $query->where(function ($q) use ($id): void {
+                if (is_numeric($id)) {
+                    $q->where('nid', (int) $id)->orWhere('cnotransaction', $id);
+                } else {
+                    $q->where('cnotransaction', $id);
+                }
+            });
+            if ($lockForUpdate) {
+                $query->lockForUpdate();
+            }
+
+            $found = $query->first();
+            if ($found) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  class-string<MposSalesH|MposSalesoffH>  $modelClass
+     */
+    protected function buildFilteredHistoryQuery(string $modelClass, Request $request): Builder
+    {
+        $query = $modelClass::with([
+            'details.product',
+            'payment',
+            'paymentDual',
+            'customer',
+            'voucher',
+            'posUser.user',
+            'outlet',
+            'reversals',
+            'parentTransaction',
+        ]);
+
+        if ($request->filled('nid_outlet')) {
+            $query->where('nid_outlet', $request->input('nid_outlet'));
+        } elseif ($request->filled('outlet_id')) {
+            $query->where('nid_outlet', $request->input('outlet_id'));
+        }
+
+        if ($request->filled('cstatus')) {
+            $query->where('cstatus', strtoupper($request->input('cstatus')));
+        } elseif ($request->filled('status')) {
+            $query->where('cstatus', strtoupper($request->input('status')));
+        }
+
+        if ($request->filled('cordertype')) {
+            $query->where('cordertype', strtoupper($request->input('cordertype')));
+        } elseif ($request->filled('order_type')) {
+            $query->where('cordertype', strtoupper($request->input('order_type')));
+        }
+
+        if ($request->filled('nid_user')) {
+            $query->where('nid_user', $request->input('nid_user'));
+        }
+        if ($request->filled('nid_payment')) {
+            $query->where('nid_payment', $request->input('nid_payment'));
+        } elseif ($request->filled('payment_id')) {
+            $query->where('nid_payment', $request->input('payment_id'));
+        }
+        if ($request->filled('date')) {
+            $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), $request->input('date'));
+        }
+
+        if ($request->filled('start_date')) {
+            $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $request->input('end_date'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search): void {
+                $q->where('cnotransaction', 'like', "%{$search}%")
+                    ->orWhere('cname_customer', 'like', "%{$search}%")
+                    ->orWhere('ctable', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy(DB::raw('COALESCE(dpayment_date, dtransaction)'), 'desc')->orderBy('nid', 'desc');
+    }
+
     public function index(Request $request)
     {
         try {
             // Perbaiki otomatis status transaksi induk di DB jika sebelumnya terubah menjadi VOID/REFUND
-            MposSalesH::whereIn('nid', function ($sub) {
-                $sub->select('nid_parent_transaction')
-                    ->from('mpos_sales_h')
-                    ->whereNotNull('nid_parent_transaction');
-            })
-            ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_REFUND])
-            ->update(['cstatus' => MposSalesH::STATUS_COMPLETED]);
-
-            $query = MposSalesH::with([
-                'details.product',
-                'payment',
-                'paymentDual',
-                'customer',
-                'voucher',
-                'posUser.user',
-                'outlet',
-                'reversals',
-                'parentTransaction',
-            ]);
-
-            if ($request->filled('nid_outlet')) {
-                $query->where('nid_outlet', $request->input('nid_outlet'));
-            } elseif ($request->filled('outlet_id')) {
-                $query->where('nid_outlet', $request->input('outlet_id'));
+            foreach ([
+                [MposSalesH::class, 'mpos_sales_h'],
+                [MposSalesoffH::class, 'mpos_sls_h'],
+            ] as [$headerClass, $tableName]) {
+                $headerClass::whereIn('nid', function ($sub) use ($tableName): void {
+                    $sub->select('nid_parent_transaction')
+                        ->from($tableName)
+                        ->whereNotNull('nid_parent_transaction');
+                })
+                ->whereIn('cstatus', [MposSalesH::STATUS_VOID, MposSalesH::STATUS_REFUND])
+                ->update(['cstatus' => MposSalesH::STATUS_COMPLETED]);
             }
 
-            if ($request->filled('cstatus')) {
-                $query->where('cstatus', strtoupper($request->input('cstatus')));
-            } elseif ($request->filled('status')) {
-                $query->where('cstatus', strtoupper($request->input('status')));
-            }
+            $categoryFilter = strtoupper(trim((string) ($request->input('ctransaction_category') ?? $request->input('category') ?? 'ALL')));
+            $includeOnline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_ONLINE;
+            $includeOffline = $categoryFilter === 'ALL' || $categoryFilter === MposTaxSetting::CATEGORY_OFFLINE;
 
-            if ($request->filled('cordertype')) {
-                $query->where('cordertype', strtoupper($request->input('cordertype')));
-            } elseif ($request->filled('order_type')) {
-                $query->where('cordertype', strtoupper($request->input('order_type')));
-            }
-
-            if ($request->filled('nid_user')) {
-                $query->where('nid_user', $request->input('nid_user'));
-            }
-            if ($request->filled('nid_payment')) {
-                $query->where('nid_payment', $request->input('nid_payment'));
-            } elseif ($request->filled('payment_id')) {
-                $query->where('nid_payment', $request->input('payment_id'));
-            }
-            if ($request->filled('date')) {
-                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), $request->input('date'));
-            }
-
-            if ($request->filled('start_date')) {
-                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '>=', $request->input('start_date'));
-            }
-            if ($request->filled('end_date')) {
-                $query->whereDate(DB::raw('COALESCE(dpayment_date, dtransaction)'), '<=', $request->input('end_date'));
-            }
-
-            if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where(function ($q) use ($search) {
-                    $q->where('cnotransaction', 'like', "%{$search}%")
-                        ->orWhere('cname_customer', 'like', "%{$search}%")
-                        ->orWhere('ctable', 'like', "%{$search}%");
+            $combined = collect();
+            if ($includeOnline) {
+                $onlineRows = $this->buildFilteredHistoryQuery(MposSalesH::class, $request)->get()->map(function ($row) {
+                    $row->setAttribute('ctransaction_category', MposTaxSetting::CATEGORY_ONLINE);
+                    return $row;
                 });
+                $combined = $combined->concat($onlineRows);
+            }
+            if ($includeOffline) {
+                $offlineRows = $this->buildFilteredHistoryQuery(MposSalesoffH::class, $request)->get()->map(function ($row) {
+                    $row->setAttribute('ctransaction_category', MposTaxSetting::CATEGORY_OFFLINE);
+                    return $row;
+                });
+                $combined = $combined->concat($offlineRows);
             }
 
-            $query->orderBy(DB::raw('COALESCE(dpayment_date, dtransaction)'), 'desc')->orderBy('nid', 'desc');
+            $sorted = $combined->sort(function ($a, $b): int {
+                $dateA = $a->dpayment_date ?? $a->dtransaction;
+                $dateB = $b->dpayment_date ?? $b->dtransaction;
+                $tsA = $dateA ? strtotime((string) $dateA) : 0;
+                $tsB = $dateB ? strtotime((string) $dateB) : 0;
+                if ($tsA !== $tsB) {
+                    return $tsB <=> $tsA;
+                }
+
+                return ((int) $b->nid) <=> ((int) $a->nid);
+            })->values();
 
             if ($request->boolean('paginate')) {
-                $perPage = (int) $request->input('per_page', 15);
-                $transactions = $query->paginate($perPage);
+                $perPage = max(1, (int) $request->input('per_page', 15));
+                $page = max(1, (int) $request->input('page', 1));
+                $total = $sorted->count();
+                $items = $sorted->slice(($page - 1) * $perPage, $perPage)->values();
+                $paginator = new LengthAwarePaginator($items, $total, $perPage, $page);
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Riwayat transaksi berhasil diambil',
-                    'data' => $transactions->items(),
+                    'data' => $paginator->items(),
                     'pagination' => [
-                        'current_page' => $transactions->currentPage(),
-                        'last_page' => $transactions->lastPage(),
-                        'per_page' => $transactions->perPage(),
-                        'total' => $transactions->total(),
+                        'current_page' => $paginator->currentPage(),
+                        'last_page' => $paginator->lastPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
                     ],
                 ], 200);
             }
 
             $limit = $request->filled('limit') ? (int) $request->input('limit') : null;
-            if ($limit && $limit > 0) {
-                $transactions = $query->limit($limit)->get();
-            } else {
-                $transactions = $query->get();
-            }
+            $transactions = ($limit && $limit > 0) ? $sorted->take($limit)->values() : $sorted;
 
             return response()->json([
                 'success' => true,
@@ -152,10 +289,11 @@ class TransactionController extends Controller
         }
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
         try {
-            $transaction = MposSalesH::with([
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category, [
                 'details.product',
                 'payment',
                 'paymentDual',
@@ -165,15 +303,7 @@ class TransactionController extends Controller
                 'outlet',
                 'reversals',
                 'parentTransaction',
-            ])
-                ->where(function ($query) use ($id) {
-                    if (is_numeric($id)) {
-                        $query->where('nid', (int) $id)->orWhere('cnotransaction', $id);
-                    } else {
-                        $query->where('cnotransaction', $id);
-                    }
-                })
-                ->first();
+            ]);
 
             if (! $transaction) {
                 return response()->json([
@@ -181,6 +311,8 @@ class TransactionController extends Controller
                     'message' => 'Transaksi tidak ditemukan',
                 ], 404);
             }
+
+            $transaction->setAttribute('ctransaction_category', $this->categoryForTransaction($transaction));
 
             return response()->json([
                 'success' => true,
@@ -226,6 +358,8 @@ class TransactionController extends Controller
             'ndiscount' => 'nullable|numeric|min:0',
             'ntax' => 'nullable|numeric|min:0',
             'npaid' => 'nullable|numeric|min:0',
+            'ctransaction_category' => 'nullable|string|in:ONLINE,OFFLINE,online,offline',
+            'btax_exempt' => 'nullable|boolean',
 
             'cnote' => 'nullable|string|max:1000',
 
@@ -326,10 +460,13 @@ class TransactionController extends Controller
             }
         }
 
+        $category = $this->resolveCategoryFromRequest($request, $validated['cordertype']);
+        [$headerModelClass, $detailModelClass] = $this->modelClassesForCategory($category);
+
         // 4. Cek apakah ini update DRAFT atau transaksi baru (dan idempotensi)
         $existingDraft = null;
         if (!empty($validated['nid'])) {
-            $existingTransaction = MposSalesH::where('nid', $validated['nid'])->first();
+            $existingTransaction = $headerModelClass::where('nid', $validated['nid'])->first();
             if ($existingTransaction) {
                 if ($existingTransaction->cstatus !== MposSalesH::STATUS_DRAFT) {
                     return response()->json([
@@ -348,7 +485,8 @@ class TransactionController extends Controller
             if (!$existingDraft) {
                 $trxData = $this->generateTransactionNumber(
                     (int) $validated['nid_outlet'],
-                    $validated['nqueue'] ?? null
+                    $validated['nqueue'] ?? null,
+                    $category
                 );
                 $cnotransaction = $trxData['cnotransaction'];
                 $nqueue = $trxData['nqueue'];
@@ -449,10 +587,39 @@ class TransactionController extends Controller
                 }
             }
 
-            // 3. Calculate header totals
+            // 3. Calculate header totals & tax
             $ndiscount = (float) ($validated['ndiscount'] ?? 0);
-            $ntax = (float) ($validated['ntax'] ?? 0);
-            $ngrandtotal = max(0, $nsubtotal - $ndiscount + $ntax);
+            $orderType = strtoupper((string) ($validated['cordertype'] ?? ''));
+            $taxSetting = MposTaxSetting::getForOutlet($outletId, $category);
+
+            if ($taxSetting) {
+                $taxCalc = $taxSetting->calculateTax(
+                    $nsubtotal,
+                    $ndiscount,
+                    $orderType,
+                    (bool) ($validated['btax_exempt'] ?? false)
+                );
+                $ntax = $taxCalc['ntax'];
+                $ctaxMode = $taxCalc['ctax_mode'];
+                $ntaxPercent = $taxCalc['ntax_percent'];
+                $ndpp = $taxCalc['ndpp'];
+                $netSalesForProfit = $taxCalc['net_sales'];
+                $ngrandtotal = $taxCalc['ngrandtotal'];
+            } elseif ($category === MposTaxSetting::CATEGORY_ONLINE) {
+                $ntax = 0.0;
+                $ctaxMode = MposTaxSetting::TAX_MODE_NONE;
+                $ntaxPercent = 0.0;
+                $ndpp = max(0.0, $nsubtotal - $ndiscount);
+                $netSalesForProfit = $ndpp;
+                $ngrandtotal = $ndpp;
+            } else {
+                $ntax = (float) ($validated['ntax'] ?? 0);
+                $ctaxMode = $ntax > 0 ? MposTaxSetting::TAX_MODE_EXCLUDE : MposTaxSetting::TAX_MODE_NONE;
+                $ntaxPercent = 0.0;
+                $ndpp = max(0.0, $nsubtotal - $ndiscount);
+                $netSalesForProfit = $ndpp;
+                $ngrandtotal = max(0.0, $ndpp + $ntax);
+            }
 
             $npaid = (float) ($validated['npaid'] ?? 0);
             $reqStatus = $validated['cstatus'] ?? null;
@@ -526,7 +693,7 @@ class TransactionController extends Controller
                 }
             }
 
-            $netSalesAmount = max(0, $nsubtotal - $ndiscount);
+            $netSalesAmount = $netSalesForProfit;
             $ntotalCostRounded = round($ntotalCost, 2);
             $ntotalProfitRounded = round($netSalesAmount - $ntotalCostRounded, 2);
             $hasHeaderCostCols = static::hasSalesHCostColumns();
@@ -587,12 +754,17 @@ class TransactionController extends Controller
                     $draftUpdateData['ntotal_cost'] = $ntotalCostRounded;
                     $draftUpdateData['ntotal_profit'] = $ntotalProfitRounded;
                 }
+                if ($headerModelClass === MposSalesoffH::class) {
+                    $draftUpdateData['ctax_mode'] = $ctaxMode;
+                    $draftUpdateData['ntax_percent'] = $ntaxPercent;
+                    $draftUpdateData['ndpp'] = $ndpp;
+                }
 
                 $existingDraft->update($draftUpdateData);
                 $salesH = $existingDraft;
 
-                // Hapus detail item lama di mpos_sales_d
-                MposSalesD::where('nid_transaction', $salesH->nid)->delete();
+                // Hapus detail item lama di detail table
+                $detailModelClass::where('nid_transaction', $salesH->nid)->delete();
             } else {
                 $isPaidOrCompleted = ($status === MposSalesH::STATUS_PAID || $status === MposSalesH::STATUS_COMPLETED);
                 $paymentDate = $isPaidOrCompleted ? now() : null;
@@ -631,8 +803,13 @@ class TransactionController extends Controller
                     $headerCreateData['ntotal_cost'] = $ntotalCostRounded;
                     $headerCreateData['ntotal_profit'] = $ntotalProfitRounded;
                 }
+                if ($headerModelClass === MposSalesoffH::class) {
+                    $headerCreateData['ctax_mode'] = $ctaxMode;
+                    $headerCreateData['ntax_percent'] = $ntaxPercent;
+                    $headerCreateData['ndpp'] = $ndpp;
+                }
 
-                $salesH = MposSalesH::create($headerCreateData);
+                $salesH = $headerModelClass::create($headerCreateData);
 
                 if (empty($salesH->cpdf_url)) {
                     $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
@@ -644,7 +821,7 @@ class TransactionController extends Controller
 
             foreach ($detailsToInsert as &$detail) {
                 $detail['nid_transaction'] = $salesH->nid;
-                MposSalesD::create($detail);
+                $detailModelClass::create($detail);
             }
 
             // Update voucher redeem count if applicable
@@ -667,6 +844,7 @@ class TransactionController extends Controller
             }
 
             $salesH->load(['details', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
+            $salesH->setAttribute('ctransaction_category', $category);
 
             return response()->json([
                 'success' => true,
@@ -697,14 +875,16 @@ class TransactionController extends Controller
         }
     }
 
-    protected function generateTransactionNumber(int $outletId, ?int $queue = null): array
+    protected function generateTransactionNumber(int $outletId, ?int $queue = null, string $category = MposTaxSetting::CATEGORY_ONLINE): array
     {
-        $prefix = '#' . $outletId . 'C62';
+        [$headerModelClass] = $this->modelClassesForCategory($category);
+        $code = strtoupper($category) === MposTaxSetting::CATEGORY_OFFLINE ? 'OFF' : 'C62';
+        $prefix = '#' . $outletId . $code;
         $datePart = now()->format('ymd');
         $fullPrefix = $prefix . $datePart;
 
         if (! $queue) {
-            $lastTrx = MposSalesH::where('cnotransaction', 'like', $fullPrefix . '%')
+            $lastTrx = $headerModelClass::where('cnotransaction', 'like', $fullPrefix . '%')
                 ->lockForUpdate()
                 ->orderBy('nid', 'desc')
                 ->first();
@@ -720,7 +900,7 @@ class TransactionController extends Controller
         do {
             $queueStr = str_pad($queue, 8, '0', STR_PAD_LEFT);
             $cnotransaction = $fullPrefix . $queueStr;
-            $exists = MposSalesH::where('cnotransaction', $cnotransaction)->lockForUpdate()->exists();
+            $exists = $headerModelClass::where('cnotransaction', $cnotransaction)->lockForUpdate()->exists();
             if ($exists) {
                 $queue++;
             }
@@ -732,13 +912,15 @@ class TransactionController extends Controller
         ];
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category);
             if (! empty($transaction)) {
-                MposSalesD::where('nid_transaction', $transaction->nid)->delete();
+                $detailClass = $this->detailClassFor($transaction);
+                $detailClass::where('nid_transaction', $transaction->nid)->delete();
                 $transaction->delete();
                 DB::commit();
 
@@ -774,7 +956,8 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::with('details')->where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category, ['details']);
 
             if (! $transaction) {
                 return response()->json([
@@ -783,6 +966,9 @@ class TransactionController extends Controller
                 ], 404);
             }
 
+            $headerClass = $this->headerClassFor($transaction);
+            $detailClass = $this->detailClassFor($transaction);
+
             if (!empty($transaction->nid_parent_transaction)) {
                 return response()->json([
                     'success' => false,
@@ -790,7 +976,7 @@ class TransactionController extends Controller
                 ], 422);
             }
 
-            $alreadyReversed = MposSalesH::where('nid_parent_transaction', $transaction->nid)->exists();
+            $alreadyReversed = $headerClass::where('nid_parent_transaction', $transaction->nid)->exists();
             if ($alreadyReversed) {
                 return response()->json([
                     'success' => false,
@@ -840,7 +1026,13 @@ class TransactionController extends Controller
                 $reversalHeaderData['ntotal_profit'] = -1 * (float) ($transaction->ntotal_profit ?? 0);
             }
 
-            $reversalTransaction = MposSalesH::create($reversalHeaderData);
+            if ($headerClass === MposSalesoffH::class) {
+                $reversalHeaderData['ctax_mode'] = $transaction->ctax_mode ?? MposTaxSetting::TAX_MODE_NONE;
+                $reversalHeaderData['ntax_percent'] = (float) ($transaction->ntax_percent ?? 0);
+                $reversalHeaderData['ndpp'] = -1 * abs((float) ($transaction->ndpp ?? 0));
+            }
+
+            $reversalTransaction = $headerClass::create($reversalHeaderData);
 
             $reversedQtys = [];
             $hasDetailCostCol = static::hasSalesDCostColumn();
@@ -859,7 +1051,7 @@ class TransactionController extends Controller
                     if ($hasDetailCostCol) {
                         $revDetailRow['ncost'] = (float) ($detail->ncost ?? 0);
                     }
-                    MposSalesD::create($revDetailRow);
+                    $detailClass::create($revDetailRow);
 
                     $remainingQty = max(0, (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0));
                     if ($remainingQty > 0 && !empty($detail->nid_product)) {
@@ -912,7 +1104,8 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::with('details')->where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category, ['details']);
 
             if (! $transaction) {
                 return response()->json([
@@ -921,6 +1114,9 @@ class TransactionController extends Controller
                 ], 404);
             }
 
+            $headerClass = $this->headerClassFor($transaction);
+            $detailClass = $this->detailClassFor($transaction);
+
             if (!empty($transaction->nid_parent_transaction)) {
                 return response()->json([
                     'success' => false,
@@ -928,7 +1124,7 @@ class TransactionController extends Controller
                 ], 422);
             }
 
-            $alreadyReversed = MposSalesH::where('nid_parent_transaction', $transaction->nid)->exists();
+            $alreadyReversed = $headerClass::where('nid_parent_transaction', $transaction->nid)->exists();
             if ($alreadyReversed) {
                 return response()->json([
                     'success' => false,
@@ -978,7 +1174,13 @@ class TransactionController extends Controller
                 $reversalHeaderData['ntotal_profit'] = -1 * (float) ($transaction->ntotal_profit ?? 0);
             }
 
-            $reversalTransaction = MposSalesH::create($reversalHeaderData);
+            if ($headerClass === MposSalesoffH::class) {
+                $reversalHeaderData['ctax_mode'] = $transaction->ctax_mode ?? MposTaxSetting::TAX_MODE_NONE;
+                $reversalHeaderData['ntax_percent'] = (float) ($transaction->ntax_percent ?? 0);
+                $reversalHeaderData['ndpp'] = -1 * abs((float) ($transaction->ndpp ?? 0));
+            }
+
+            $reversalTransaction = $headerClass::create($reversalHeaderData);
 
             $reversedQtys = [];
             $hasDetailCostCol = static::hasSalesDCostColumn();
@@ -997,7 +1199,7 @@ class TransactionController extends Controller
                     if ($hasDetailCostCol) {
                         $revDetailRow['ncost'] = (float) ($detail->ncost ?? 0);
                     }
-                    MposSalesD::create($revDetailRow);
+                    $detailClass::create($revDetailRow);
 
                     $remainingQty = max(0, (int) $detail->nqty - (int) ($detail->nqty_void ?? 0) - (int) ($detail->nqty_refund ?? 0));
                     if ($remainingQty > 0 && !empty($detail->nid_product)) {
@@ -1042,10 +1244,11 @@ class TransactionController extends Controller
         }
     }
 
-    public function markFinished(string $id)
+    public function markFinished(Request $request, string $id)
     {
         try {
-            $transaction = MposSalesH::where('nid', $id)->orWhere('cnotransaction', $id)->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category);
 
             if (! $transaction) {
                 return response()->json([
@@ -1096,10 +1299,8 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::where('nid', $id)
-                ->orWhere('cnotransaction', $id)
-                ->lockForUpdate()
-                ->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category, [], true);
 
             if (! $transaction) {
                 return response()->json([
@@ -1107,6 +1308,9 @@ class TransactionController extends Controller
                     'message' => 'Transaksi tidak ditemukan',
                 ], 404);
             }
+
+            $headerClass = $this->headerClassFor($transaction);
+            $detailClass = $this->detailClassFor($transaction);
 
             if ($transaction->cstatus === MposSalesH::STATUS_VOID || $transaction->cstatus === MposSalesH::STATUS_REFUND || $transaction->cstatus === MposSalesH::STATUS_CANCELLED) {
                 return response()->json([
@@ -1136,7 +1340,7 @@ class TransactionController extends Controller
                 $detailId = $itemReq['detail_id'];
                 $requestQty = $itemReq['qty'];
 
-                $detail = MposSalesD::where('nid', $detailId)
+                $detail = $detailClass::where('nid', $detailId)
                     ->where('nid_transaction', $transaction->nid)
                     ->first();
 
@@ -1213,7 +1417,7 @@ class TransactionController extends Controller
             }
 
             // Buat record Transaksi Partial Reversal Baru
-            $existingPartialCount = MposSalesH::where('nid_parent_transaction', $transaction->nid)->count();
+            $existingPartialCount = $headerClass::where('nid_parent_transaction', $transaction->nid)->count();
             $seq = $existingPartialCount + 1;
             $reversalTrxNo = $transaction->cnotransaction . "-PARTIAL-{$seq}";
 
@@ -1251,11 +1455,17 @@ class TransactionController extends Controller
                 $partialHeaderData['ntotal_profit'] = -1 * round($totalActionAmount - $totalActionCost, 2);
             }
 
-            $reversalTransaction = MposSalesH::create($partialHeaderData);
+            if ($headerClass === MposSalesoffH::class) {
+                $partialHeaderData['ctax_mode'] = $transaction->ctax_mode ?? MposTaxSetting::TAX_MODE_NONE;
+                $partialHeaderData['ntax_percent'] = (float) ($transaction->ntax_percent ?? 0);
+                $partialHeaderData['ndpp'] = -1 * abs($totalActionAmount);
+            }
+
+            $reversalTransaction = $headerClass::create($partialHeaderData);
 
             foreach ($reversalDetailsToCreate as &$revDetail) {
                 $revDetail['nid_transaction'] = $reversalTransaction->nid;
-                MposSalesD::create($revDetail);
+                $detailClass::create($revDetail);
             }
 
             if ($transaction->nid_shift) {
@@ -1303,9 +1513,10 @@ class TransactionController extends Controller
         }
     }
 
-    protected function resolveTransactionItemActionStatus(MposSalesH $transaction)
+    protected function resolveTransactionItemActionStatus(MposSalesH|MposSalesoffH $transaction)
     {
-        $details = MposSalesD::where('nid_transaction', $transaction->nid)->get();
+        $detailClass = $this->detailClassFor($transaction);
+        $details = $detailClass::where('nid_transaction', $transaction->nid)->get();
         $totalOriginalQty = $details->sum('nqty');
         $totalVoidQty = $details->sum('nqty_void');
         $totalRefundQty = $details->sum('nqty_refund');
@@ -1337,11 +1548,8 @@ class TransactionController extends Controller
 
         DB::beginTransaction();
         try {
-            $transaction = MposSalesH::with('details')
-                ->where('nid', $id)
-                ->orWhere('cnotransaction', $id)
-                ->lockForUpdate()
-                ->first();
+            $category = $request->input('ctransaction_category') ?? $request->input('category');
+            $transaction = $this->findTransactionByIdOrNo($id, $category, ['details'], true);
 
             if (!$transaction) {
                 DB::rollBack();

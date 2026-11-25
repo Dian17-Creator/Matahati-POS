@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffH;
+use App\Models\MposTaxSetting;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
@@ -13,14 +15,21 @@ class InvoicePdfService
     /**
      * Generate PDF invoice thermal receipt and save to public/uploads/invoice/
      *
-     * @param MposSalesH $salesH
+     * @param MposSalesH|MposSalesoffH $salesH
      * @return string|null Generated filename or null on failure
      */
-    public function generate(MposSalesH $salesH): ?string
+    public function generate(MposSalesH|MposSalesoffH $salesH): ?string
     {
         try {
             // Eager load necessary relationships
             $salesH->loadMissing(['details.product', 'outlet', 'posUser.user', 'customer', 'payment', 'paymentDual']);
+
+            $category = $salesH instanceof MposSalesoffH
+                ? MposTaxSetting::CATEGORY_OFFLINE
+                : MposTaxSetting::CATEGORY_ONLINE;
+            $taxSetting = $salesH->nid_outlet
+                ? MposTaxSetting::getForOutlet((int) $salesH->nid_outlet, $category)
+                : null;
 
             $cleanTrxNo = str_replace('#', '', $salesH->cnotransaction);
             $datePart = $salesH->dtransaction ? Carbon::parse($salesH->dtransaction)->format('Ymd') : now()->format('Ymd');
@@ -55,7 +64,11 @@ class InvoicePdfService
             $paperWidth = 226.77; // 80mm
             $paperHeight = max(420, 290 + ($itemCount * 38));
 
-            $pdf = Pdf::loadView('pdf.invoice', ['salesH' => $salesH]);
+            $pdf = Pdf::loadView('pdf.invoice', [
+                'salesH' => $salesH,
+                'taxSetting' => $taxSetting,
+                'category' => $category,
+            ]);
             $pdf->setPaper([0, 0, $paperWidth, $paperHeight], 'portrait');
             $pdf->setOption(['isRemoteEnabled' => true, 'isHtml5ParserEnabled' => true]);
 

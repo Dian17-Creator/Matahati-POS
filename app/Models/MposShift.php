@@ -77,6 +77,11 @@ class MposShift extends Model
         return $this->hasMany(MposSalesH::class, 'nid_shift', 'nid');
     }
 
+    public function offlineSales()
+    {
+        return $this->hasMany(MposSalesoffH::class, 'nid_shift', 'nid');
+    }
+
     public function cashMovements()
     {
         return $this->hasMany(MposCashMovement::class, 'nid_shift', 'nid');

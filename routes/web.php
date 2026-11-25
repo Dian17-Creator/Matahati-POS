@@ -43,6 +43,12 @@ $invoiceHandler = function ($filename) {
                 ->orWhere('cnotransaction', '#' . $cleanTrx)
                 ->first();
 
+            if (! $salesH) {
+                $salesH = \App\Models\MposSalesoffH::where('cnotransaction', 'like', "%{$cleanTrx}%")
+                    ->orWhere('cnotransaction', '#' . $cleanTrx)
+                    ->first();
+            }
+
             if ($salesH && class_exists(\App\Services\InvoicePdfService::class)) {
                 $genFile = app(\App\Services\InvoicePdfService::class)->generate($salesH);
                 if ($genFile) {
@@ -212,6 +218,14 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
     Route::middleware(['owner'])->group(function () {
         Route::resource('outlets', OutletController::class);
         Route::resource('pos-users', PosUserController::class);
+    });
+
+    // Pengaturan Pajak & Biaya + Catatan Resi POS
+    Route::prefix('settings')->name('settings.')->group(function () {
+        Route::get('tax', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'index'])->name('tax');
+        Route::put('tax', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'update'])->name('tax.update');
+        Route::get('pos/receipt', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'receipt'])->name('pos.receipt');
+        Route::put('pos/receipt', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'updateReceipt'])->name('pos.receipt.update');
     });
 
     // Report Routes
