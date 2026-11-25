@@ -12,13 +12,42 @@ use Illuminate\Support\Facades\DB;
 
 class PosUserController extends Controller
 {
-    public function index()
+    public function index(): \Illuminate\Contracts\View\View
     {
-        $posUsers = MposUser::with(['user', 'outlet', 'spvOutlets.outlet'])->paginate(10);
+        $posUsers = MposUser::with(['user', 'outlet', 'spvOutlets.outlet'])
+            ->orderBy('nid')
+            ->get();
         $outlets = MposOutlet::all();
         $users = Muser::where('factive', 1)->get();
 
-        return view('pos-users.index', compact('posUsers', 'outlets', 'users'));
+        $roleGroups = [
+            [
+                'key' => 'fowner',
+                'title' => 'OWNER',
+                'description' => 'Pemilik dapat mengakses dan mengelola seluruh data, outlet, laporan, serta pengaturan sistem POS.',
+                'items' => $posUsers->filter(fn (MposUser $pu): bool => (bool) $pu->fowner)->values(),
+            ],
+            [
+                'key' => 'fspv',
+                'title' => 'SUPERVISOR',
+                'description' => 'Dapat mengakses dan mengelola seluruh data operasional, laporan, serta persetujuan POS pada outlet yang ditugaskan.',
+                'items' => $posUsers->filter(fn (MposUser $pu): bool => (bool) $pu->fspv)->values(),
+            ],
+            [
+                'key' => 'fcaptain',
+                'title' => 'CAPTAIN',
+                'description' => 'Mengelola operasional outlet yang ditugaskan, transaksi POS, shift, dan pengawasan kasir.',
+                'items' => $posUsers->filter(fn (MposUser $pu): bool => (bool) $pu->fcaptain)->values(),
+            ],
+            [
+                'key' => 'fcashier',
+                'title' => 'CASHIER',
+                'description' => 'Dapat mengakses aplikasi POS untuk transaksi penjualan, buka/tutup shift, dan melihat riwayat transaksi.',
+                'items' => $posUsers->filter(fn (MposUser $pu): bool => (bool) $pu->fcashier)->values(),
+            ],
+        ];
+
+        return view('pos-users.index', compact('posUsers', 'outlets', 'users', 'roleGroups'));
     }
 
     public function apiIndex(Request $request)
