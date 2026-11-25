@@ -5,13 +5,20 @@ namespace App\Imports;
 use App\Models\MposProduct;
 use App\Models\MposGrpProduct;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Illuminate\Support\Facades\DB;
 
 class ProductsImport implements ToCollection, WithHeadingRow
 {
     protected $outletId;
+
+    /** @var array<string, ?string> */
+    protected array $downloadedPhotoCache = [];
+
     public $results = [
         'total' => 0,
         'success' => 0,
@@ -28,6 +35,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows): void
     {
+        @set_time_limit(300);
+
         foreach ($rows as $index => $row) {
             // Kita skip jika row kosong semua (mendukung format kita maupun format Olsera)
             if (
@@ -125,13 +134,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     $trimmedStock = trim((string)$rawStockQty);
                     $cleanedStock = preg_replace('/[^0-9.-]/', '', $trimmedStock);
                     if ($cleanedStock !== '' && is_numeric($cleanedStock)) {
-                        $stockVal = floatval($cleanedStock);
-                        if ($stockVal < 0) {
-                            $this->results['failed']++;
-                            $this->results['errors'][] = "Row {$rowNum} ({$cname}): Jumlah stok/qty tidak valid atau bernilai negatif ({$trimmedStock})";
-                            continue;
-                        }
-                        $stockQty = $stockVal;
+                        $stockQty = floatval($cleanedStock);
                     } else {
                         $stockQty = 0;
                     }
@@ -143,7 +146,22 @@ class ProductsImport implements ToCollection, WithHeadingRow
 
             // Parse foto (hanya timpa jika kolom photo_1 tersedia)
             $hasPhotoColumn = array_key_exists('photo_1', $rowArray);
-            $photo = $hasPhotoColumn && trim((string) ($row['photo_1'] ?? '')) !== '' ? trim((string) $row['photo_1']) : null;
+            $rawPhoto = $hasPhotoColumn ? trim((string) ($row['photo_1'] ?? '')) : '';
+            $photo = null;
+            $shouldUpdatePhoto = false;
+
+            if ($hasPhotoColumn) {
+                if ($rawPhoto === '') {
+                    $photo = null;
+                    $shouldUpdatePhoto = true;
+                } elseif (preg_match('#^https?://#i', $rawPhoto)) {
+                    $photo = $this->downloadProductPhoto($rawPhoto);
+                    $shouldUpdatePhoto = $photo !== null;
+                } else {
+                    $photo = $rawPhoto;
+                    $shouldUpdatePhoto = true;
+                }
+            }
 
             // Parse Tipe Produk, Satuan, Status, dan Kombo jika tersedia di file import
             $productType = null;
@@ -190,7 +208,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'cstatus' => $status,
                     ];
 
-                    if ($hasPhotoColumn) {
+                    if ($shouldUpdatePhoto) {
                         $updateData['cphotos'] = $photo;
                     }
 
@@ -250,6 +268,118 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 $this->results['failed']++;
                 $this->results['errors'][] = "Row {$rowNum} ({$cname}): Gagal menyimpan ke database. Error: " . $e->getMessage();
             }
+        }
+    }
+
+    /**
+     * Download remote product image and store it in local & shared VPS product directories.
+     */
+    protected function downloadProductPhoto(string $url): ?string
+    {
+        if (array_key_exists($url, $this->downloadedPhotoCache)) {
+            return $this->downloadedPhotoCache[$url];
+        }
+
+        $localDir = public_path('uploads' . DIRECTORY_SEPARATOR . 'product');
+        $sharedDir = '/var/www/shared/pos/product';
+
+        if (!File::isDirectory($localDir)) {
+            @File::makeDirectory($localDir, 0775, true, true);
+        }
+
+        $targetDirs = [$localDir];
+        if (is_dir('/var/www/shared/pos') || is_dir($sharedDir)) {
+            if (!File::isDirectory($sharedDir)) {
+                @File::makeDirectory($sharedDir, 0775, true, true);
+            }
+            $localReal = realpath($localDir);
+            $sharedReal = realpath($sharedDir);
+            if ($sharedReal && $sharedReal !== $localReal) {
+                $targetDirs[] = $sharedDir;
+            }
+        }
+
+        $hash = substr(md5($url), 0, 16);
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        $urlExt = strtolower((string) pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+        // Reuse existing downloaded file if already present in any target directory
+        foreach ($allowedExtensions as $ext) {
+            $candidate = "import_{$hash}.{$ext}";
+            $foundPath = null;
+            foreach ($targetDirs as $dir) {
+                $fullPath = $dir . DIRECTORY_SEPARATOR . $candidate;
+                if (is_file($fullPath) && filesize($fullPath) > 0) {
+                    $foundPath = $fullPath;
+                    break;
+                }
+            }
+            if ($foundPath !== null) {
+                foreach ($targetDirs as $dir) {
+                    $destPath = $dir . DIRECTORY_SEPARATOR . $candidate;
+                    if (!is_file($destPath)) {
+                        @copy($foundPath, $destPath);
+                    }
+                }
+                return $this->downloadedPhotoCache[$url] = 'uploads/product/' . $candidate;
+            }
+        }
+
+        try {
+            $response = Http::timeout(10)
+                ->connectTimeout(5)
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0'])
+                ->get($url);
+
+            if (!$response->successful()) {
+                return $this->downloadedPhotoCache[$url] = null;
+            }
+
+            $body = $response->body();
+            if ($body === '') {
+                return $this->downloadedPhotoCache[$url] = null;
+            }
+
+            $contentType = strtolower(trim(explode(';', (string) $response->header('Content-Type'))[0]));
+            $mimeMap = [
+                'image/jpeg' => 'jpg',
+                'image/jpg' => 'jpg',
+                'image/pjpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                'image/gif' => 'gif',
+            ];
+
+            $ext = $mimeMap[$contentType] ?? null;
+            if ($ext === null && in_array($urlExt, $allowedExtensions, true) && ($contentType === '' || str_starts_with($contentType, 'image/') || $contentType === 'application/octet-stream')) {
+                $ext = $urlExt === 'jpeg' ? 'jpg' : $urlExt;
+            }
+
+            if ($ext === null) {
+                return $this->downloadedPhotoCache[$url] = null;
+            }
+
+            $filename = "import_{$hash}.{$ext}";
+            $savedAny = false;
+
+            foreach ($targetDirs as $dir) {
+                if (is_dir($dir) && @file_put_contents($dir . DIRECTORY_SEPARATOR . $filename, $body) !== false) {
+                    $savedAny = true;
+                }
+            }
+
+            if (!$savedAny) {
+                return $this->downloadedPhotoCache[$url] = null;
+            }
+
+            return $this->downloadedPhotoCache[$url] = 'uploads/product/' . $filename;
+        } catch (\Throwable $e) {
+            Log::warning('ProductsImport failed to download photo', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->downloadedPhotoCache[$url] = null;
         }
     }
 }
