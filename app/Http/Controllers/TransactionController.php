@@ -51,7 +51,7 @@ class TransactionController extends Controller
             return $explicit;
         }
 
-        if (strtoupper(trim((string) $orderType)) === MposSalesH::ORDER_TYPE_ONLINE) {
+        if (MposSalesH::isOnlineOrderType($orderType)) {
             return MposTaxSetting::CATEGORY_ONLINE;
         }
 
@@ -542,7 +542,7 @@ class TransactionController extends Controller
                     }
 
                     $orderType = strtoupper((string) ($validated['cordertype'] ?? ''));
-                    $isOnlineOrder = ($orderType === 'ONLINE');
+                    $isOnlineOrder = MposSalesH::isOnlineOrderType($orderType);
                     $price = (float) $product->nprice;
 
                     if ($isReseller && !empty($resellerTypeIds)) {
@@ -558,8 +558,28 @@ class TransactionController extends Controller
                         if ($resellerPriceRecord && $resellerPriceRecord->nprice !== null) {
                             $price = (float) $resellerPriceRecord->nprice;
                         }
-                    } elseif ($isOnlineOrder && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
-                        $price = (float) $product->nprice_online;
+                    } elseif ($isOnlineOrder) {
+                        $deliveryCustomPrice = null;
+                        if (MposSalesH::isFoodDeliveryOrderType($orderType)) {
+                            $deliverySetting = \App\Models\MposDeliveryS::where('nid_outlet', (int) $validated['nid_outlet'])
+                                ->where('cplatform', $orderType)
+                                ->first();
+                            if ($deliverySetting) {
+                                $deliveryDetail = \App\Models\MposDeliveryD::where('nid_delivery_s', $deliverySetting->nid)
+                                    ->where('nid_product', $product->nid)
+                                    ->where('bis_active', true)
+                                    ->first();
+                                if ($deliveryDetail && (float) $deliveryDetail->nprice > 0) {
+                                    $deliveryCustomPrice = (float) $deliveryDetail->nprice;
+                                }
+                            }
+                        }
+
+                        if ($deliveryCustomPrice !== null) {
+                            $price = $deliveryCustomPrice;
+                        } elseif (!empty($product->nprice_online) && (float) $product->nprice_online > 0) {
+                            $price = (float) $product->nprice_online;
+                        }
                     }
 
                     $qty = (int) $item['nqty'];

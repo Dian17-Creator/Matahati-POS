@@ -18,12 +18,43 @@ class MposSalesH extends Model
 
     public const ORDER_TYPE_RESERVATION = 'RESERVATION';
 
+    public const ORDER_TYPE_GOFOOD = 'GOFOOD';
+
+    public const ORDER_TYPE_GRABFOOD = 'GRABFOOD';
+
+    public const ORDER_TYPE_SHOPEEFOOD = 'SHOPEEFOOD';
+
+    public const ORDER_TYPE_TRAVELOKAEATS = 'TRAVELOKAEATS';
+
+    public const FOOD_DELIVERY_TYPES = [
+        self::ORDER_TYPE_GOFOOD,
+        self::ORDER_TYPE_GRABFOOD,
+        self::ORDER_TYPE_SHOPEEFOOD,
+        self::ORDER_TYPE_TRAVELOKAEATS,
+    ];
+
     public const ORDER_TYPES = [
         self::ORDER_TYPE_DINE_IN,
         self::ORDER_TYPE_TAKE_AWAY,
         self::ORDER_TYPE_ONLINE,
         self::ORDER_TYPE_RESERVATION,
+        self::ORDER_TYPE_GOFOOD,
+        self::ORDER_TYPE_GRABFOOD,
+        self::ORDER_TYPE_SHOPEEFOOD,
+        self::ORDER_TYPE_TRAVELOKAEATS,
     ];
+
+    public static function isFoodDeliveryOrderType(?string $orderType): bool
+    {
+        return in_array(strtoupper(trim((string) $orderType)), self::FOOD_DELIVERY_TYPES, true);
+    }
+
+    public static function isOnlineOrderType(?string $orderType): bool
+    {
+        $normalized = strtoupper(trim((string) $orderType));
+
+        return $normalized === self::ORDER_TYPE_ONLINE || self::isFoodDeliveryOrderType($normalized);
+    }
 
     // Statuses
     public const STATUS_DRAFT = 'DRAFT';

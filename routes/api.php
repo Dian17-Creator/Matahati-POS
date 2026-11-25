@@ -97,20 +97,34 @@ Route::get('/pos/tax-settings', [TaxSettingController::class, 'index']);
 Route::put('/pos/tax-settings', [TaxSettingController::class, 'update']);
 
 // API ORDER-TYPE
-Route::get('/pos/order-types', function () {
+Route::get('/pos/order-types', function (Request $request) {
+    $baseTypes = [
+        MposSalesH::ORDER_TYPE_DINE_IN => 'DINE-IN',
+        MposSalesH::ORDER_TYPE_TAKE_AWAY => 'TAKE-AWAY',
+        MposSalesH::ORDER_TYPE_ONLINE => 'ONLINE',
+        MposSalesH::ORDER_TYPE_RESERVATION => 'RESERVASI',
+    ];
+
+    $items = collect($baseTypes)->map(function (string $label, string $value): array {
+        return [
+            'value' => $value,
+            'label' => $label,
+        ];
+    })->values();
+
+    $outletId = (int) ($request->input('nid_outlet') ?? $request->user()?->nid_outlet ?? 0);
+    if ($outletId > 0) {
+        $activeDeliveries = \App\Models\MposDeliveryS::getActiveForOutlet($outletId);
+        foreach ($activeDeliveries as $delivery) {
+            $items->push([
+                'value' => strtoupper((string) $delivery->cplatform),
+                'label' => strtoupper((string) $delivery->cname),
+            ]);
+        }
+    }
+
     return response()->json([
         'success' => true,
-        'data' => collect(MposSalesH::ORDER_TYPES)->map(function ($type) {
-            return [
-                'value' => $type,
-                'label' => match ($type) {
-                    MposSalesH::ORDER_TYPE_DINE_IN => 'DINE-IN',
-                    MposSalesH::ORDER_TYPE_TAKE_AWAY => 'TAKE-AWAY',
-                    MposSalesH::ORDER_TYPE_ONLINE => 'ONLINE',
-                    MposSalesH::ORDER_TYPE_RESERVATION => 'RESERVASI',
-                    default => $type,
-                },
-            ];
-        })->values(),
+        'data' => $items,
     ]);
 });

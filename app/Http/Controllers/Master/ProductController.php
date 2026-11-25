@@ -166,8 +166,31 @@ class ProductController extends Controller
             }
         }
 
+        $productIds = $products->pluck('nid')->all();
+        $deliveryPricesByProduct = [];
+        if (! empty($productIds)) {
+            $deliveryRows = \App\Models\MposDeliveryD::query()
+                ->join('mpos_delivery_s', 'mpos_delivery_s.nid', '=', 'mpos_delivery_d.nid_delivery_s')
+                ->whereIn('mpos_delivery_d.nid_product', $productIds)
+                ->where('mpos_delivery_d.bis_active', true)
+                ->where('mpos_delivery_s.bis_active', true)
+                ->get([
+                    'mpos_delivery_d.nid_product',
+                    'mpos_delivery_d.nprice',
+                    'mpos_delivery_s.cplatform',
+                ]);
+
+            foreach ($deliveryRows as $row) {
+                $pid = (int) $row->nid_product;
+                $platform = strtoupper((string) $row->cplatform);
+                $deliveryPricesByProduct[$pid][$platform] = (float) $row->nprice;
+            }
+        }
+
         foreach ($products as $product) {
             $product->ftrack_stock = $product->category ? (bool) $product->category->ftrack_stock : true;
+            $map = $deliveryPricesByProduct[(int) $product->nid] ?? [];
+            $product->setAttribute('delivery_prices', (object) $map);
         }
 
         return response()->json([
