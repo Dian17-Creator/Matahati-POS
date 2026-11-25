@@ -226,6 +226,14 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
         Route::put('tax', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'update'])->name('tax.update');
         Route::get('pos/receipt', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'receipt'])->name('pos.receipt');
         Route::put('pos/receipt', [\App\Http\Controllers\Settings\TaxSettingWebController::class, 'updateReceipt'])->name('pos.receipt.update');
+        Route::get('pos/food-delivery', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'index'])->name('pos.food-delivery');
+        Route::get('pos/food-delivery/{platform}', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'show'])->name('pos.food-delivery.show');
+        Route::patch('pos/food-delivery/{platform}/toggle', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'toggle'])->name('pos.food-delivery.toggle');
+        Route::post('pos/food-delivery/{platform}/preset', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'updatePreset'])->name('pos.food-delivery.preset');
+        Route::post('pos/food-delivery/{platform}/add-products', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'addProducts'])->name('pos.food-delivery.add-products');
+        Route::patch('pos/food-delivery/{platform}/products/{productId}', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'updateProductPrice'])->name('pos.food-delivery.product.update');
+        Route::delete('pos/food-delivery/{platform}/products', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'destroyProducts'])->name('pos.food-delivery.products.destroy');
+        Route::put('pos/food-delivery/{platform}/products', [\App\Http\Controllers\Settings\FoodDeliverySettingController::class, 'updateProducts'])->name('pos.food-delivery.products.update');
     });
 
     // Report Routes

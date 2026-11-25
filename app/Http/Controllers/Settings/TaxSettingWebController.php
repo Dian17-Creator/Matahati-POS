@@ -96,10 +96,7 @@ class TaxSettingWebController extends Controller
             ->with('success', "Catatan resi ({$category}) berhasil disimpan.");
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    protected function loadOutletSettings(Request $request): array
+    public static function resolveSelectedOutletId(): int
     {
         $user = Auth::user();
         $selectedOutletId = (int) (session('active_outlet_id') ?? 0);
@@ -115,6 +112,15 @@ class TaxSettingWebController extends Controller
             }
         }
 
+        return $selectedOutletId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function loadOutletSettings(Request $request): array
+    {
+        $selectedOutletId = self::resolveSelectedOutletId();
         $selectedOutlet = $selectedOutletId > 0 ? MposOutlet::find($selectedOutletId) : null;
 
         $offlineSetting = $selectedOutletId > 0

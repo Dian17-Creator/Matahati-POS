@@ -929,8 +929,8 @@
                             <a href="{{ route('settings.tax') }}" class="sidebar-sub-item {{ request()->routeIs('settings.tax*') ? 'active' : '' }}">
                                 <span>Pajak & Biaya</span>
                             </a>
-                            <a href="{{ route('settings.pos.receipt') }}" class="sidebar-sub-item {{ request()->routeIs('settings.pos.receipt*') ? 'active' : '' }}">
-                                <span>Point of Sale (Catatan Resi)</span>
+                            <a href="{{ route('settings.pos.receipt') }}" class="sidebar-sub-item {{ request()->routeIs('settings.pos.*') ? 'active' : '' }}">
+                                <span>Point of Sale</span>
                             </a>
                         </div>
                     </div>
