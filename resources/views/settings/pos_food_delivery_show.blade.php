@@ -320,13 +320,13 @@ $presetDisplay = $preset['unit'] === 'percent'
 
 <!-- Modal 3: Edit Harga Individual (gaya Olsera) -->
 @php
-    $brandColors = [
-        'GOFOOD' => '#ef4444',
-        'GRABFOOD' => '#22c55e',
-        'SHOPEEFOOD' => '#f97316',
-        'TRAVELOKAEATS' => '#64748b',
-    ];
-    $brandBg = $brandColors[strtoupper((string) $normalizedPlatform)] ?? '#ef4444';
+$brandColors = [
+'GOFOOD' => '#ef4444',
+'GRABFOOD' => '#22c55e',
+'SHOPEEFOOD' => '#f97316',
+'TRAVELOKAEATS' => '#64748b',
+];
+$brandBg = $brandColors[strtoupper((string) $normalizedPlatform)] ?? '#ef4444';
 @endphp
 <div class="modal fade" id="editPriceModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -360,7 +360,7 @@ $presetDisplay = $preset['unit'] === 'percent'
                             </div>
                             <div class="col-6 d-flex align-items-center gap-2">
                                 <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 32px; height: 32px; background-color: {{ $brandBg }};">
-                                    <img src="{{ asset('images/food.svg') }}" alt="{{ $deliverySetting->cname }}" style="width: 14px; height: 16px;">
+                                    <img src="{{ asset('images/ic_food.svg') }}" alt="{{ $deliverySetting->cname }}" style="width: 14px; height: 16px;">
                                 </span>
                                 <div>
                                     <div class="small text-muted">Harga {{ $deliverySetting->cname }}</div>
@@ -424,6 +424,7 @@ $presetDisplay = $preset['unit'] === 'percent'
         border-color: #60a5fa !important;
         color: #ffffff !important;
     }
+
     #presetModal .btn-primary:hover,
     #addProductModal .btn-primary:hover,
     #editPriceModal .btn-primary:hover,
@@ -434,6 +435,7 @@ $presetDisplay = $preset['unit'] === 'percent'
         border-color: #3b82f6 !important;
         color: #ffffff !important;
     }
+
     #presetModal .btn-primary:disabled,
     #addProductModal .btn-primary:disabled,
     #editPriceModal .btn-primary:disabled {
@@ -441,6 +443,7 @@ $presetDisplay = $preset['unit'] === 'percent'
         border-color: #93c5fd !important;
         opacity: 0.75;
     }
+
     #addProductModal .text-primary {
         color: #3b82f6 !important;
     }
