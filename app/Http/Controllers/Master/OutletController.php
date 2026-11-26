@@ -11,7 +11,7 @@ class OutletController extends Controller
 {
     public function index()
     {
-        $outlets = MposOutlet::with('department')->paginate(10);
+        $outlets = MposOutlet::with('department')->orderBy('cname', 'asc')->paginate(10);
         $departments = Mdepartment::orderBy('cname', 'asc')->get();
         
         return view('outlets.index', compact('outlets', 'departments'));
