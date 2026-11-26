@@ -61,8 +61,8 @@
                 </span>
                 @else
                 @php
-                    $circleIcon = $code === 'GOFOOD' ? 'images/ic_food4.svg' : 'images/ic_food.svg';
-                    $circleIconSize = $code === 'GOFOOD' ? 'width: 22px; height: 22px;' : 'width: 17px; height: 17px;';
+                    $circleIcon = $code === 'GOFOOD' ? 'images/ic_food6.svg' : ($code === 'TRAVELOKAEATS' ? 'images/ic_food5.svg' : 'images/ic_food.svg');
+                    $circleIconSize = $code === 'GOFOOD' ? 'width: 22px; height: 22px;' : 'width: 19px; height: 19px;';
                 @endphp
                 <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px; background-color: {{ $brand['bg'] }};">
                     <img src="{{ asset($circleIcon) }}" alt="{{ $platform->cname }}" style="{{ $circleIconSize }}">
