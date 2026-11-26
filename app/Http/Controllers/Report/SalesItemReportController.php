@@ -67,8 +67,18 @@ class SalesItemReportController extends Controller
         $summary = $this->buildSummaryQuery($baseQuery)->first();
         $items = $this->buildItemsQuery($baseQuery, $sortCol, $sortDir)->paginate(15)->withQueryString();
 
+        $productIdsOnPage = $items->getCollection()->pluck('nid_product')->filter()->unique()->values()->all();
+        $comboItemsByProduct = collect();
+        if (! empty($productIdsOnPage)) {
+            $comboItemsByProduct = \App\Models\MposCombo::with('product')
+                ->whereIn('nid_combo_product', $productIdsOnPage)
+                ->get()
+                ->groupBy('nid_combo_product');
+        }
+
         return view('reports.sales_item.index', compact(
             'items',
+            'comboItemsByProduct',
             'startDate',
             'endDate',
             'outletId',

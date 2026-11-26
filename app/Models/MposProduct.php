@@ -55,6 +55,7 @@ class MposProduct extends Model
         'updated_by',
         'updated_at',
         'dcreated',
+        'dpublish_date',
     ];
 
     public static function hasProductTypeColumn(): bool
@@ -93,6 +94,7 @@ class MposProduct extends Model
             'fcombo' => 'boolean',
             'updated_at' => 'datetime',
             'dcreated' => 'datetime',
+            'dpublish_date' => 'date',
         ];
     }
 

@@ -792,9 +792,6 @@
                             <a href="{{ route('inventory.index') }}" class="sidebar-sub-item {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
                                 <span>Inventori</span>
                             </a>
-                            <a href="{{ route('combos.index') }}" class="sidebar-sub-item {{ request()->routeIs('combos.*') ? 'active' : '' }}">
-                                <span>Produk Kombo</span>
-                            </a>
                         </div>
                     </div>
 

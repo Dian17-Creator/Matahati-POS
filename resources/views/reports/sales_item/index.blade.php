@@ -485,6 +485,18 @@
                                 <td class="text-center">{{ $row->cashier_name ?? '-' }}</td>
                                 <td class="text-start">
                                     <span class="fw-semibold text-dark">{{ $row->item_name }}</span>
+                                    @php
+                                        $comboChildren = ($comboItemsByProduct ?? collect())->get($row->nid_product, collect());
+                                    @endphp
+                                    @if($comboChildren->isNotEmpty())
+                                        <div class="mt-1 ps-2 border-start border-2">
+                                            @foreach($comboChildren as $cChild)
+                                                <div class="text-muted" style="font-size: 0.78rem; line-height: 1.35;">
+                                                    {{ number_format((float) $cChild->nqty * (float) $netQty, 0, ',', '.') }} x {{ $cChild->product?->cname ?? 'Produk' }}
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="text-center">{{ $row->customer_name }}</td>
                                 <td class="text-center fw-bold">{{ number_format($netQty, 0, ',', '.') }}</td>

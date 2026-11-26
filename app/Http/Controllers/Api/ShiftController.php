@@ -367,10 +367,12 @@ class ShiftController extends Controller
         $perPage = (int) $request->input('per_page', 15);
         $shifts = $query->paginate($perPage);
 
-        $category = \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $shift->nid_outlet)
-            ?? ($request->input('ctransaction_category') ?? $request->input('category'));
+        $categoryParam = $request->input('ctransaction_category') ?? $request->input('category');
 
-        $shiftItems = collect($shifts->items())->map(function ($item) use ($category) {
+        $shiftItems = collect($shifts->items())->map(function ($item) use ($categoryParam) {
+            $category = $categoryParam
+                ?? \App\Models\MposOutlet::resolveTransactionTypeForOutlet((int) $item->nid_outlet);
+
             return $this->attachShiftMetrics($item->toArray(), $item->nid, $category);
         });
 

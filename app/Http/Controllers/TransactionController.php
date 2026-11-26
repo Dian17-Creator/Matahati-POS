@@ -144,7 +144,7 @@ class TransactionController extends Controller
     protected function buildFilteredHistoryQuery(string $modelClass, Request $request): Builder
     {
         $query = $modelClass::with([
-            'details.product',
+            'details.product.comboItems.product',
             'payment',
             'paymentDual',
             'customer',
@@ -306,7 +306,7 @@ class TransactionController extends Controller
         try {
             $category = $request->input('ctransaction_category') ?? $request->input('category');
             $transaction = $this->findTransactionByIdOrNo($id, $category, [
-                'details.product',
+                'details.product.comboItems.product',
                 'payment',
                 'paymentDual',
                 'customer',
@@ -875,7 +875,7 @@ class TransactionController extends Controller
                 ]);
             }
 
-            $salesH->load(['details', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
+            $salesH->load(['details.product.comboItems.product', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
             $salesH->setAttribute('ctransaction_category', $category);
 
             return response()->json([
@@ -1634,7 +1634,7 @@ class TransactionController extends Controller
 
             DB::commit();
 
-            $transaction->load(['details.product', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
+            $transaction->load(['details.product.comboItems.product', 'payment', 'paymentDual', 'outlet', 'posUser.user']);
 
             return response()->json([
                 'success' => true,

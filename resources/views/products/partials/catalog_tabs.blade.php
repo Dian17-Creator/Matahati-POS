@@ -1,5 +1,9 @@
 @php
-    $activeTab = $activeTab ?? (request()->routeIs('categories.*') ? 'categories' : 'products');
+    $activeTab = $activeTab ?? (
+        request()->routeIs('categories.*')
+            ? 'categories'
+            : (request()->routeIs('combos.*') ? 'combos' : 'products')
+    );
 @endphp
 
 <div class="catalog-headbar-tabs bg-white border-bottom">
@@ -11,6 +15,10 @@
         <a href="{{ route('categories.index') }}"
             class="catalog-nav-tab {{ $activeTab === 'categories' ? 'active' : '' }}">
             <span>Kategori</span>
+        </a>
+        <a href="{{ route('combos.index') }}"
+            class="catalog-nav-tab {{ $activeTab === 'combos' ? 'active' : '' }}">
+            <span>Paket Kombo</span>
         </a>
     </div>
 </div>
