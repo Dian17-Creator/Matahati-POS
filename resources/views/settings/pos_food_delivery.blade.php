@@ -43,9 +43,31 @@
         @endphp
         <div class="list-group-item px-4 py-3 d-flex align-items-center justify-content-between gap-3 food-delivery-row">
             <a href="{{ $detailUrl }}" class="d-flex align-items-center gap-3 text-decoration-none text-dark flex-grow-1">
-                <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px; background-color: {{ $brand['bg'] }};">
-                    <img src="{{ asset('images/food.svg') }}" alt="{{ $platform->cname }}" style="width: 14px; height: 15px;">
+                @if($code === 'GRABFOOD')
+                <span class="position-relative d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
+                    <svg width="36" height="38" viewBox="0 0 36 38" fill="none" xmlns="http://www.w3.org/2000/svg" class="position-absolute top-50 start-50 translate-middle">
+                        <path d="M13 5C13 3.34315 14.3431 2 16 2H20C21.6569 2 23 3.34315 23 5V7H20.5V5C20.5 4.72386 20.2761 4.5 20 4.5H16C15.7239 4.5 15.5 4.72386 15.5 5V7H13V5Z" fill="#00b14f"/>
+                        <rect x="3" y="6.5" width="30" height="7" rx="3" fill="#4ade80"/>
+                        <path d="M4 11H32V31.5C32 33.9853 29.9853 36 27.5 36H8.5C6.01472 36 4 33.9853 4 31.5V11Z" fill="#00b14f"/>
+                    </svg>
+                    <img src="{{ asset('images/ic_food2.svg') }}" alt="{{ $platform->cname }}" class="position-relative" style="width: 16px; height: 16px; margin-top: 6px;">
                 </span>
+                @elseif($code === 'SHOPEEFOOD')
+                <span class="position-relative d-inline-flex align-items-end justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
+                    <svg width="36" height="38" viewBox="0 0 36 38" fill="none" xmlns="http://www.w3.org/2000/svg" class="position-absolute top-50 start-50 translate-middle">
+                        <path fill-rule="evenodd" clip-rule="evenodd" d="M6.5 4C4.84315 4 3.43757 5.2179 3.20412 6.85206L1.20412 20.8521C1.0683 21.8028 1 22.7623 1 23.7226V31.5C1 34.2614 3.23858 36.5 6 36.5H30C32.7614 36.5 35 34.2614 35 31.5V23.7226C35 22.7623 34.9317 21.8028 34.7959 20.8521L32.7959 6.85206C32.5624 5.2179 31.1569 4 29.5 4H6.5ZM13.5 8.5C12.6716 8.5 12 9.17157 12 10C12 10.8284 12.6716 11.5 13.5 11.5H22.5C23.3284 11.5 24 10.8284 24 10C24 9.17157 23.3284 8.5 22.5 8.5H13.5Z" fill="#ee4d2d"/>
+                    </svg>
+                    <img src="{{ asset('images/ic_food3.svg') }}" alt="{{ $platform->cname }}" class="position-relative" style="width: 18px; height: 18px; margin-bottom: 3px;">
+                </span>
+                @else
+                @php
+                    $circleIcon = $code === 'GOFOOD' ? 'images/ic_food4.svg' : 'images/ic_food.svg';
+                    $circleIconSize = $code === 'GOFOOD' ? 'width: 22px; height: 22px;' : 'width: 17px; height: 17px;';
+                @endphp
+                <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px; background-color: {{ $brand['bg'] }};">
+                    <img src="{{ asset($circleIcon) }}" alt="{{ $platform->cname }}" style="{{ $circleIconSize }}">
+                </span>
+                @endif
                 <div>
                     <div class="fw-semibold">{{ $platform->cname }}</div>
                     <div class="small text-muted">{{ $platform->active_products_count ?? 0 }} Produk</div>
