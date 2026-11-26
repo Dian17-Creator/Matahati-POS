@@ -822,33 +822,12 @@
                     </div>
 
                     <!-- Pelanggan & Supplier -->
-                    <div class="nav-category d-flex align-items-center justify-content-between {{ $isCustomerSupplierActive ? '' : 'collapsed' }} {{ $isCustomerSupplierActive ? 'active-parent' : '' }}"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#menuCustomerSupplier"
-                        aria-expanded="{{ $isCustomerSupplierActive ? 'true' : 'false' }}"
-                        aria-controls="menuCustomerSupplier"
-                        role="button">
-                        <div class="d-flex align-items-center">
-                            <span class="nav-icon">
-                                <img src="{{ asset('images/ic_matahati_customer.svg') }}" alt="Pelanggan & Supplier" class="nav-svg-icon">
-                            </span>
-                            <span>Pelanggan & Supplier</span>
-                        </div>
-                        <i class="bi bi-chevron-down nav-arrow"></i>
-                    </div>
-                    <div class="collapse {{ $isCustomerSupplierActive ? 'show' : '' }}" id="menuCustomerSupplier">
-                        <div class="nav-sub-menu">
-                            <a href="{{ route('customer-types.index') }}" class="sidebar-sub-item {{ request()->routeIs('customer-types.*') ? 'active' : '' }}">
-                                <span>Kategori Pelanggan</span>
-                            </a>
-                            <a href="{{ route('customers.index') }}" class="sidebar-sub-item {{ request()->routeIs('customers.*') ? 'active' : '' }}">
-                                <span>Pelanggan</span>
-                            </a>
-                            <a href="{{ route('suppliers.index') }}" class="sidebar-sub-item {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
-                                <span>Supplier</span>
-                            </a>
-                        </div>
-                    </div>
+                    <a href="{{ route('customers.index') }}" class="nav-top-link {{ $isCustomerSupplierActive ? 'active' : '' }}" style="margin-bottom: 2px;">
+                        <span class="nav-icon">
+                            <img src="{{ asset('images/ic_matahati_customer.svg') }}" alt="Pelanggan & Supplier" class="nav-svg-icon">
+                        </span>
+                        <span>Pelanggan & Supplier</span>
+                    </a>
 
                     <!-- Transaksi & Pembayaran -->
                     <div class="nav-category d-flex align-items-center justify-content-between {{ $isTransactionsActive ? '' : 'collapsed' }} {{ $isTransactionsActive ? 'active-parent' : '' }}"

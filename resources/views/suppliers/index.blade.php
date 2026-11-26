@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Supplier')
+@section('title', 'Pelanggan dan Supplier / Supplier')
+
+@section('sub_header')
+@include('customers.partials.tabs', ['activeTab' => 'suppliers'])
+@endsection
 
 @push('styles')
 <style>
@@ -103,7 +107,11 @@
                         <td>
                             @php
                             $assignedRecords = $allSupplierOutlets->get($supplier->cname, collect());
-                            $uniqueOutlets = $assignedRecords->pluck('outlet')->filter()->unique('nid');
+                            $uniqueOutlets = $assignedRecords->pluck('outlet')
+                                ->filter(function ($outletItem) use ($isSuperAdmin, $allowedOutletIds) {
+                                    return $outletItem && ($isSuperAdmin || in_array((int) $outletItem->nid, $allowedOutletIds, true));
+                                })
+                                ->unique('nid');
                             @endphp
                             @forelse($uniqueOutlets as $outletItem)
                                 <span class="badge bg-light text-dark border mb-1">{{ $outletItem->cname }}</span><br>

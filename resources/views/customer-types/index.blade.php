@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Kategori Pelanggan')
+@section('title', 'Pelanggan dan Supplier / Kategori Pelanggan')
+
+@section('sub_header')
+@include('customers.partials.tabs', ['activeTab' => 'customer-types'])
+@endsection
 
 @section('content')
 <div class="card olsera-panel-card">
@@ -42,7 +46,11 @@
                         <td>{{ $customerType->cname }}</td>
                         <td>
                             @php
-                            $typeOutlets = \App\Models\MposCustType::where('cname', $customerType->cname)->with('outlet')->get();
+                            $typeOutletsQuery = \App\Models\MposCustType::where('cname', $customerType->cname)->with('outlet');
+                            if (!($isSuperAdmin ?? false)) {
+                                $typeOutletsQuery->whereIn('nid_outlet', $allowedOutletIds ?? []);
+                            }
+                            $typeOutlets = $typeOutletsQuery->get();
                             $hasOutlets = false;
                             @endphp
                             @foreach($typeOutlets as $to)

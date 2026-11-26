@@ -16,26 +16,32 @@ class CustomerTypeController extends Controller
     public function index(Request $request)
     {
         $selectedOutletId = $this->resolveOutletIdFromRequest($request, 'nid_outlet');
+        $allowedOutletIds = $this->getUserAllowedOutletIds();
+        $isSuperAdmin = $this->isSuperAdminUser();
         $query = MposCustType::with('outlet');
 
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
+        } elseif (!$isSuperAdmin) {
+            $query->whereIn('nid_outlet', $allowedOutletIds);
         }
 
-        $query->whereIn('nid', function($q) use ($selectedOutletId) {
+        $query->whereIn('nid', function($q) use ($selectedOutletId, $isSuperAdmin, $allowedOutletIds) {
             $q->select(DB::raw('MIN(nid)'))
               ->from('mpos_cust_type')
               ->groupBy('cname');
               
             if (!empty($selectedOutletId)) {
                 $q->where('nid_outlet', $selectedOutletId);
+            } elseif (!$isSuperAdmin) {
+                $q->whereIn('nid_outlet', $allowedOutletIds);
             }
         });
 
         $customerTypes = $query->paginate(10)->withQueryString();
         $outlets = $this->getAvailableOutlets();
 
-        return view('customer-types.index', compact('customerTypes', 'outlets', 'selectedOutletId'));
+        return view('customer-types.index', compact('customerTypes', 'outlets', 'selectedOutletId', 'allowedOutletIds', 'isSuperAdmin'));
     }
 
     public function store(Request $request)
