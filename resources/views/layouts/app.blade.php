@@ -38,7 +38,30 @@
                 top: 0;
                 height: 100vh;
                 overflow-y: auto;
+                transition: margin-left 0.22s ease, opacity 0.2s ease;
             }
+
+            body.sidebar-collapsed .sidebar {
+                margin-left: -198px;
+                opacity: 0;
+                pointer-events: none;
+            }
+        }
+
+        .sidebar-toggle-btn {
+            color: #ffffff;
+            background: transparent;
+            border: 0;
+            border-radius: 6px;
+            padding: 4px 7px;
+            line-height: 1;
+            transition: background-color 0.15s ease;
+        }
+
+        .sidebar-toggle-btn:hover,
+        .sidebar-toggle-btn:focus {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.16);
         }
 
         /* Mobile Offcanvas Drawer from Side */
@@ -947,6 +970,9 @@
                         <button class="btn btn-sm btn-outline-light d-md-none me-2 px-2 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-label="Toggle navigation">
                             <i class="bi bi-list fs-5"></i>
                         </button>
+                        <button class="sidebar-toggle-btn d-none d-md-inline-flex align-items-center justify-content-center me-2" type="button" id="desktopSidebarToggle" title="Sembunyikan / Buka Sidebar" aria-label="Toggle sidebar">
+                            <i class="bi bi-list fs-4"></i>
+                        </button>
                         <span class="navbar-brand text-white mb-0 h1">@yield('title')</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -1066,6 +1092,17 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const desktopToggle = document.getElementById('desktopSidebarToggle');
+            if (localStorage.getItem('sidebar_collapsed') === '1') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+            if (desktopToggle) {
+                desktopToggle.addEventListener('click', function() {
+                    const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+                    localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0');
+                });
+            }
+
             const sidebar = document.getElementById('sidebarMenu');
             if (sidebar) {
                 sidebar.querySelectorAll('.collapse').forEach(function(collapseEl) {
