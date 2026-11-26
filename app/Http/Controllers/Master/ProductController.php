@@ -100,8 +100,12 @@ class ProductController extends Controller
     }
     public function apiIndex(Request $request)
     {
-        $query = MposProduct::with('category')
-            ->where('cstatus', 'ACTIVE');
+        $query = MposProduct::with(['category', 'comboItems.product'])
+            ->where('cstatus', 'ACTIVE')
+            ->where(function ($q) {
+                $q->whereNull('dpublish_date')
+                  ->orWhere('dpublish_date', '<=', now()->toDateString());
+            });
 
         if (\App\Models\MposGrpProduct::hasShowPosColumn()) {
             $query->where(function ($q) {
@@ -191,6 +195,19 @@ class ProductController extends Controller
             $product->ftrack_stock = $product->category ? (bool) $product->category->ftrack_stock : true;
             $map = $deliveryPricesByProduct[(int) $product->nid] ?? [];
             $product->setAttribute('delivery_prices', (object) $map);
+
+            $comboItemsPayload = [];
+            if ((bool) $product->fcombo) {
+                foreach ($product->comboItems as $comboItem) {
+                    $comboItemsPayload[] = [
+                        'nid_product' => (int) $comboItem->nid_product,
+                        'cname' => $comboItem->product?->cname ?? 'Produk',
+                        'nqty' => (float) $comboItem->nqty,
+                    ];
+                }
+            }
+            $product->unsetRelation('comboItems');
+            $product->setAttribute('combo_items', $comboItemsPayload);
         }
 
         return response()->json([
@@ -208,7 +225,8 @@ class ProductController extends Controller
         $outlets = $this->getAvailableOutlets();
         $allowedOutletIds = $this->getUserAllowedOutletIds();
 
-        $query = MposProduct::with(['category', 'recipes.ingredient', 'outlet']);
+        $query = MposProduct::with(['category', 'recipes.ingredient', 'outlet'])
+            ->where('fcombo', 0);
 
         if (!empty($selectedOutletId)) {
             $query->where('nid_outlet', $selectedOutletId);
@@ -271,7 +289,7 @@ class ProductController extends Controller
     {
         $product = MposProduct::with(['category', 'outlet', 'productPrices.customerType', 'recipes.ingredient', 'recipes.legacyIngredient', 'updatedBy'])->findOrFail($id);
         $customerTypes = MposCustType::where('nid_outlet', $product->nid_outlet)->orderBy('cname')->get();
-        
+
         $categories = \App\Models\MposGrpProduct::whereIn('nid', function($q) {
             $q->select(\Illuminate\Support\Facades\DB::raw('MIN(nid)'))
               ->from('mpos_grp_product')

@@ -1,278 +1,110 @@
 @extends('layouts.app')
 
-@section('title', 'Produk Kombo')
+@section('title', 'Katalog Produk / Paket Produk')
+
+@section('sub_header')
+@include('products.partials.catalog_tabs', ['activeTab' => 'combos'])
+@endsection
 
 @section('content')
 <div class="card olsera-panel-card">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-        <h5 class="mb-0">Daftar Produk Kombo</h5>
-        @if($canModifyData)
-        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
-            <i class="bi bi-plus-lg"></i> Tambah Baru
-        </button>
-        @endif
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+        <div class="d-flex align-items-center gap-3 flex-grow-1">
+            <h5 class="mb-0 fw-bold text-nowrap">Paket Produk</h5>
+            <form action="{{ route('combos.index') }}" method="GET" class="d-flex flex-grow-1" style="max-width: 340px;">
+                <div class="input-group input-group-sm">
+                    <input type="text" name="search" class="form-control" placeholder="Cari paket kombo..." value="{{ request('search') }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <a href="{{ route('combos.create') }}" class="btn btn-success btn-sm px-3">
+            <i class="bi bi-plus-lg me-1"></i> Tambah
+        </a>
     </div>
+
     <div class="card-body p-3">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0">
                 <thead class="table-light text-secondary">
                     <tr>
-                        <th width="35%" class="text-center py-3 ps-4">Produk Kombo Utama</th>
-                        <th class="text-center py-3 ps-4">Daftar Isi & Kuantitas</th>
-                        @if($canModifyData)
-                        <th width="15%" class="text-center py-3 pe-4">Aksi</th>
-                        @endif
+                        <th class="py-3 ps-3">Nama Paket</th>
+                        <th class="py-3 text-center">Harga Jual Online</th>
+                        <th class="py-3 text-center">Harga Jual Offline</th>
+                        <th class="py-3 text-center">Publikasi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($combos as $nid_combo_product => $comboGroup)
-                    @php $mainProduct = $comboGroup->first()->comboProduct; @endphp
+                    @forelse($comboProducts as $combo)
                     <tr>
-                        <td class="ps-4 py-3">
-                            <span class="fw-bold text-dark">{{ $mainProduct->cname ?? 'ID: ' . $nid_combo_product }}</span>
+                        <td class="ps-3">
+                            <a href="{{ route('combos.show', $combo->nid) }}" class="d-flex align-items-center gap-3 text-decoration-none text-dark">
+                                @if(!empty($combo->cphotos))
+                                <img src="{{ asset($combo->cphotos) }}" alt="{{ $combo->cname }}" class="rounded-circle border" style="width: 38px; height: 38px; object-fit: cover;">
+                                @else
+                                <div class="rounded-circle bg-light border d-flex align-items-center justify-content-center text-muted flex-shrink-0" style="width: 38px; height: 38px;">
+                                    <i class="bi bi-box-seam"></i>
+                                </div>
+                                @endif
+                                <div>
+                                    <div class="fw-semibold">{{ $combo->cname }}</div>
+                                    @if(empty($selectedOutletId) && $combo->outlet)
+                                    <small class="text-muted"><i class="bi bi-shop me-1"></i>{{ $combo->outlet->cname }}</small>
+                                    @endif
+                                </div>
+                            </a>
                         </td>
-                        <td class="py-3">
-                            <ul class="list-unstyled mb-0">
-                                @foreach($comboGroup as $item)
-                                <li class="mb-2 d-flex align-items-center">
-                                    <i class="bi bi-check2 text-success me-2 fw-bold"></i>
-                                    {{ $item->product->cname ?? 'ID: ' . $item->nid_product }}
-                                    <span class="badge bg-light text-dark border ms-2">&times; {{ $item->nqty }}</span>
-                                </li>
-                                @endforeach
-                            </ul>
+                        <td class="text-center fw-medium">IDR {{ number_format((float) $combo->nprice_online, 0, ',', '.') }}</td>
+                        <td class="text-center fw-medium">IDR {{ number_format((float) $combo->nprice, 0, ',', '.') }}</td>
+                        <td class="text-center text-muted small">
+                            {{ $combo->dpublish_date ? $combo->dpublish_date->format('Y-m-d') : ($combo->dcreated ? $combo->dcreated->format('Y-m-d') : '-') }}
                         </td>
-                        @if($canModifyData)
-                        <td class="text-center pe-4">
-                            <div class="d-flex justify-content-center gap-2">
-                                <button type="button" class="btn btn-sm text-primary rounded-circle shadow-sm border" style="width: 32px; height: 32px; background: #fff;" data-bs-toggle="modal" data-bs-target="#editModal{{ $nid_combo_product }}" title="Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm text-danger rounded-circle shadow-sm border" style="width: 32px; height: 32px; background: #fff;" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $nid_combo_product }}" title="Hapus">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                        @endif
+
                     </tr>
 
-
+                    <!-- Modal Hapus -->
+                    <div class="modal fade" id="deleteModal{{ $combo->nid }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content border-0 shadow">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title">Konfirmasi Hapus</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body text-center py-4">
+                                    <i class="bi bi-exclamation-circle text-danger mb-3" style="font-size: 3rem;"></i>
+                                    <h5 class="mb-2">Hapus paket kombo <strong>{{ $combo->cname }}</strong>?</h5>
+                                    <p class="text-muted mb-0">Data paket kombo dan daftar item di dalamnya akan dihapus.</p>
+                                </div>
+                                <div class="modal-footer bg-light justify-content-center">
+                                    <form action="{{ route('combos.destroy', $combo->nid) }}" method="POST">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-danger px-4">Ya, Hapus</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     @empty
                     <tr>
-                        <td colspan="{{ $canModifyData ? 3 : 2 }}" class="text-center text-muted py-5">
-                            <i class="bi bi-inboxes fs-1 d-block mb-3 opacity-50"></i>
-                            Tidak ada data produk kombo.
+                        <td colspan="7" class="text-center text-muted py-5">
+                            Belum ada paket kombo. Klik <strong>+ Tambah</strong> untuk membuat paket produk baru.
                         </td>
                     </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        @if($paginatedComboProducts->hasPages())
-        <div class="d-flex justify-content-end mt-3">
-            {{ $paginatedComboProducts->links('pagination::bootstrap-5') }}
+
+        @if($comboProducts->hasPages())
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="small text-muted">Total {{ $comboProducts->total() }} Paket</div>
+            {{ $comboProducts->links('pagination::bootstrap-5') }}
         </div>
         @endif
     </div>
 </div>
-
-@if($canModifyData)
-@foreach ($combos as $nid_combo_product => $comboGroup)
-@php $mainProduct = $comboGroup->first()->comboProduct; @endphp
-<!-- Edit Modal -->
-<div class="modal fade" id="editModal{{ $nid_combo_product }}" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Isi Kombo</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('combos.update', $nid_combo_product) }}" method="POST">
-                @csrf
-                @method('PUT')
-                <input type="hidden" name="modal_id" value="{{ $nid_combo_product }}">
-                <input type="hidden" name="nid_combo_product" value="{{ $nid_combo_product }}">
-                <div class="modal-body text-start">
-                    <div class="mb-4">
-                        <label class="form-label text-muted small fw-bold text-uppercase">Produk Kombo Utama</label>
-                        <div class="form-control bg-light border-0 fw-bold">{{ $mainProduct->cname ?? 'ID: ' . $nid_combo_product }}</div>
-                    </div>
-
-                    <label class="form-label text-muted small fw-bold text-uppercase">Daftar Isi Produk</label>
-                    <div id="edit-items-container-{{ $nid_combo_product }}">
-                        @foreach($comboGroup as $item)
-                        <div class="row mb-2 combo-item-row align-items-center">
-                            <div class="col-7">
-                                <select class="form-select" name="nid_product[]" required>
-                                    <option value="">Pilih Isi Produk</option>
-                                    @foreach($regularProducts as $rp)
-                                    <option value="{{ $rp->nid }}" {{ $item->nid_product == $rp->nid ? 'selected' : '' }}>
-                                        {{ $rp->cname }}
-                                    </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-3">
-                                <input type="number" step="any" min="1" class="form-control" name="nqty[]" value="{{ $item->nqty }}" required placeholder="Qty">
-                            </div>
-                            <div class="col-2">
-                                <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.combo-item-row').remove()" title="Hapus baris">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
-
-                    <button type="button" class="btn btn-sm btn-outline-primary mt-3" onclick="addComboItem('edit-items-container-{{ $nid_combo_product }}')">
-                        <i class="bi bi-plus-lg"></i> Tambah Produk Isi
-                    </button>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Modal -->
-<div class="modal fade" id="deleteModal{{ $nid_combo_product }}" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Konfirmasi Hapus</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <i class="bi bi-exclamation-circle text-danger mb-3" style="font-size: 3rem;"></i>
-                <h5 class="mb-3">Hapus kombo ini?</h5>
-                <p class="text-muted mb-0">Seluruh detail isi kombo akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.</p>
-            </div>
-            <div class="modal-footer bg-light justify-content-center">
-                <form action="{{ route('combos.destroy', $nid_combo_product) }}" method="POST">
-                    @csrf
-                    @method('DELETE')
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-danger px-4">Ya, Hapus Semua</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-@endforeach
-
-
-<!-- Create Modal -->
-<div class="modal fade" id="createModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header">
-                <h5 class="modal-title">Tambah Produk Kombo Baru</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('combos.store') }}" method="POST">
-                @csrf
-                <input type="hidden" name="modal_id" value="create">
-                <div class="modal-body">
-                    <div class="mb-4">
-                        <label class="form-label text-muted small fw-bold text-uppercase">Produk Kombo Utama</label>
-                        <select class="form-select" name="nid_combo_product" required>
-                            <option value="">Pilih Produk Kombo</option>
-                            @foreach($comboProducts as $cp)
-                            <option value="{{ $cp->nid }}">{{ $cp->cname }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <label class="form-label text-muted small fw-bold text-uppercase">Daftar Isi Produk</label>
-                    <div id="create-items-container">
-                        <div class="row mb-2 combo-item-row align-items-center">
-                            <div class="col-7">
-                                <select class="form-select" name="nid_product[]" required>
-                                    <option value="">Pilih Isi Produk</option>
-                                    @foreach($regularProducts as $rp)
-                                    <option value="{{ $rp->nid }}">{{ $rp->cname }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-3">
-                                <input type="number" step="any" min="1" class="form-control" name="nqty[]" value="1" required placeholder="Qty">
-                            </div>
-                            <div class="col-2">
-                                <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.combo-item-row').remove()" title="Hapus baris">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="button" class="btn btn-sm btn-outline-primary mt-3" onclick="addComboItem('create-items-container')">
-                        <i class="bi bi-plus-lg"></i> Tambah Produk Isi
-                    </button>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Kombo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
 @endsection
-
-@push('scripts')
-<script>
-    const productOptions = `
-        <option value="">Pilih Isi Produk</option>
-        @foreach($regularProducts as $rp)
-            <option value="{{ $rp->nid }}">{{ $rp->cname }}</option>
-        @endforeach
-    `;
-
-    function addComboItem(containerId) {
-        const container = document.getElementById(containerId);
-        const row = document.createElement('div');
-        row.className = 'row mb-2 combo-item-row align-items-center';
-        row.innerHTML = `
-            <div class="col-7">
-                <select class="form-select" name="nid_product[]" required>
-                    ${productOptions}
-                </select>
-            </div>
-            <div class="col-3">
-                <input type="number" step="any" min="1" class="form-control" name="nqty[]" value="1" required placeholder="Qty">
-            </div>
-            <div class="col-2">
-                <button type="button" class="btn btn-outline-danger w-100" onclick="this.closest('.combo-item-row').remove()" title="Hapus baris">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-        `;
-        container.appendChild(row);
-    }
-
-    document.addEventListener("DOMContentLoaded", function() {
-        var hasErrors = "{{ $errors->any() ? 'true' : 'false' }}" === "true";
-        var modalId = "{{ old('modal_id') }}";
-
-        if (hasErrors && modalId) {
-            if (modalId === 'create') {
-                var createModalEl = document.getElementById('createModal');
-                if (createModalEl) {
-                    var myModal = new bootstrap.Modal(createModalEl);
-                    myModal.show();
-                }
-            } else {
-                var editModal = document.getElementById('editModal' + modalId);
-                if (editModal) {
-                    var myModal = new bootstrap.Modal(editModal);
-                    myModal.show();
-                }
-            }
-        }
-    });
-</script>
-@endpush
