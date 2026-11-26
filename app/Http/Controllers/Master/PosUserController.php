@@ -17,7 +17,7 @@ class PosUserController extends Controller
         $posUsers = MposUser::with(['user', 'outlet', 'spvOutlets.outlet'])
             ->orderBy('nid')
             ->get();
-        $outlets = MposOutlet::all();
+        $outlets = MposOutlet::orderBy('cname', 'asc')->get();
         $users = Muser::where('factive', 1)->get();
 
         $roleGroups = [
