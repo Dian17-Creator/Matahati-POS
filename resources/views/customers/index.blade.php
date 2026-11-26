@@ -1,6 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Pelanggan')
+@section('title', 'Pelanggan dan Supplier / Pelanggan')
+
+@section('sub_header')
+@include('customers.partials.tabs', ['activeTab' => 'customers'])
+@endsection
 
 @push('styles')
 <style>
