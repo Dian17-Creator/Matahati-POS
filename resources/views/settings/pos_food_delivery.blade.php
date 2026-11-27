@@ -31,11 +31,14 @@
 @endif
 
 <!-- Banner Hero Card (seperti Gambar 1) -->
-<div class="card border-0 shadow-sm mb-3 overflow-hidden" style="background: linear-gradient(135deg, #f8ecdf 0%, #f5e6d3 100%);">
-    <div class="card-body px-4 py-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+<div class="card border-0 shadow-sm mb-3 overflow-hidden" style="background: linear-gradient(135deg, #f8ecdf 0%, #f5e6d3 100%); min-height: 175px;">
+    <div class="card-body px-4 px-md-5 py-4 d-flex align-items-center justify-content-between gap-3">
         <div>
             <h4 class="fw-bold mb-1 text-dark">Food Delivery</h4>
             <p class="mb-0 text-secondary">Atur harga jual produk untuk Ojek Online di POS</p>
+        </div>
+        <div class="d-none d-sm-flex align-items-center flex-shrink-0">
+            <img src="{{ asset('images/ill_takeaway.svg') }}" alt="Food Delivery" style="height: 115px; width: auto; object-fit: contain;">
         </div>
     </div>
 </div>
