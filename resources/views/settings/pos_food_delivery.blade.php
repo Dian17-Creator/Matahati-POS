@@ -14,6 +14,22 @@
         Saat ini Anda berada pada mode <strong>Semua Outlet</strong>. Silakan pilih salah satu outlet pada dropdown di pojok kanan atas untuk mengatur Food Delivery outlet tersebut.
 </div>
 @else
+@if(session('import_warnings'))
+@php $importWarnings = session('import_warnings'); @endphp
+<div class="alert alert-warning alert-dismissible fade show small" role="alert">
+    <div class="fw-semibold mb-1">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        {{ $importWarnings['count'] ?? 0 }} baris dilewati saat import:
+    </div>
+    <ul class="mb-0 ps-3">
+        @foreach(($importWarnings['reasons'] ?? []) as $reason)
+        <li>{{ $reason }}</li>
+        @endforeach
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
+
 <!-- Banner Hero Card (seperti Gambar 1) -->
 <div class="card border-0 shadow-sm mb-3 overflow-hidden" style="background: linear-gradient(135deg, #f8ecdf 0%, #f5e6d3 100%);">
     <div class="card-body px-4 py-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -21,6 +37,9 @@
             <h4 class="fw-bold mb-1 text-dark">Food Delivery</h4>
             <p class="mb-0 text-secondary">Atur harga jual produk untuk Ojek Online di POS</p>
         </div>
+        <button type="button" class="btn btn-success fw-medium px-3" data-bs-toggle="modal" data-bs-target="#importFoodDeliveryModal">
+            <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
+        </button>
     </div>
 </div>
 
@@ -109,6 +128,14 @@
 </div>
 @endif
 </div>
+
+@if($selectedOutletId > 0)
+@include('settings.partials.food_delivery_import_modal', [
+    'importAction' => route('settings.pos.food-delivery.import-all'),
+    'selectedOutletId' => $selectedOutletId,
+    'selectedOutlet' => $selectedOutlet,
+])
+@endif
 
 <style>
     .food-delivery-row {
