@@ -33,31 +33,10 @@
         Saat ini Anda berada pada mode <strong>Semua Outlet</strong>. Silakan pilih salah satu outlet pada dropdown di pojok kanan atas untuk mengatur catatan resi outlet tersebut.
 </div>
 @else
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
-        <div>
-            <h5 class="mb-0 fw-bold">Point of Sale / Catatan Resi</h5>
-            <small class="text-muted">Atur judul resi, catatan bawah resi, dan lihat contoh tampilan struk untuk <strong>{{ $selectedOutlet?->cname ?? 'Outlet' }}</strong>.</small>
-        </div>
-        <span class="badge bg-light text-dark border">
-            <i class="bi bi-shop me-1"></i>{{ $selectedOutlet?->cname ?? 'Outlet' }}
-        </span>
-    </div>
-</div>
-
 <div class="row g-3">
-    <!-- Menu Kiri (seperti Gambar 2) -->
+    <!-- Menu Kiri -->
     <div class="col-lg-3 col-xl-2">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white fw-semibold small text-muted py-2 d-flex align-items-center justify-content-between">
-                <span>Menu</span>
-            </div>
-            <div class="list-group list-group-flush">
-                <a href="{{ route('settings.pos.receipt') }}" class="list-group-item list-group-item-action border-0 py-2 px-3 fw-semibold" style="background-color: #fff1f2; color: #b63352;">
-                    Catatan Resi
-                </a>
-            </div>
-        </div>
+        @include('settings.partials.pos_menu')
     </div>
 
     <div class="col-lg-9 col-xl-10">
@@ -72,7 +51,7 @@
         @endphp
         <div>
             <div>
-                <div class="card border-0 shadow-sm">
+                <div class="card olsera-panel-card">
                     <div class="card-body p-4">
                         <div class="row g-4">
                             <!-- Form Pengaturan Resi -->
