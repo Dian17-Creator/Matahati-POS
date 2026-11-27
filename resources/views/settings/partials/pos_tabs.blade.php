@@ -4,7 +4,7 @@
 
 <div class="catalog-headbar-tabs bg-white border-bottom">
     <div class="d-flex align-items-stretch flex-nowrap catalog-horizontal-nav">
-        <a href="{{ route('settings.pos.receipt') }}"
+        <a href="{{ route('payments.index') }}"
             class="catalog-nav-tab {{ $activeTab === 'settings' ? 'active' : '' }}">
             <span>Pengaturan</span>
         </a>

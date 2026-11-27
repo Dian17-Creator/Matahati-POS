@@ -54,7 +54,21 @@ class SalesDetailReportController extends Controller
         $isOutletLocked = $this->isOutletLocked();
         $outlets = $this->getAvailableOutlets();
         $allowedOutletIds = $this->getUserAllowedOutletIds();
-        $payments = MposPayment::orderBy('cname')->get();
+        $paymentsQuery = MposPayment::orderBy('cname');
+        if ($outletId !== null) {
+            $paymentsQuery->where(function ($q) use ($outletId): void {
+                $q->whereNull('nid_outlet')
+                    ->orWhere('nid_outlet', $outletId);
+            });
+        } elseif (! $isSuperAdmin) {
+            $paymentsQuery->where(function ($q) use ($allowedOutletIds): void {
+                $q->whereNull('nid_outlet');
+                if (! empty($allowedOutletIds)) {
+                    $q->orWhereIn('nid_outlet', $allowedOutletIds);
+                }
+            });
+        }
+        $payments = $paymentsQuery->get();
 
         $query = $this->buildTransactionsQuery($startDate, $endDateParsed, $status, $outletId, $paymentId, $sortCol, $sortDir, $category);
         $transactions = $query->paginate(10)->withQueryString();

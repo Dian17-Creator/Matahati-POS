@@ -754,10 +754,10 @@
                     $isProductActive = request()->routeIs(['categories.*', 'products.*', 'ingredients.*', 'combos.*', 'inventory.*']);
                     $isMarketingActive = request()->routeIs(['vouchers.*']);
                     $isCustomerSupplierActive = request()->routeIs(['customer-types.*', 'customers.*', 'suppliers.*']);
-                    $isTransactionsActive = request()->routeIs(['purchases.*', 'sales.*', 'payments.*']);
+                    $isTransactionsActive = request()->routeIs(['purchases.*', 'sales.*']);
                     $isReportsActive = request()->routeIs(['reports.*']);
                     $isPegawaiActive = request()->routeIs(['outlets.*', 'pos-users.*']);
-                    $isSettingsActive = request()->routeIs(['settings.*']);
+                    $isSettingsActive = request()->routeIs(['settings.*', 'payments.*']);
                     @endphp
 
                     <a href="{{ route('dashboard') }}" class="nav-top-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
@@ -849,9 +849,6 @@
                             <!-- <a href="{{ route('sales.index') }}" class="sidebar-sub-item {{ request()->routeIs('sales.*') ? 'active' : '' }}">
                                 <span>Penjualan</span>
                             </a> -->
-                            <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                                <span>Metode Pembayaran</span>
-                            </a>
                         </div>
                     </div>
 
@@ -928,7 +925,7 @@
                             <a href="{{ route('settings.tax') }}" class="sidebar-sub-item {{ request()->routeIs('settings.tax*') ? 'active' : '' }}">
                                 <span>Pajak & Biaya</span>
                             </a>
-                            <a href="{{ route('settings.pos.receipt') }}" class="sidebar-sub-item {{ request()->routeIs('settings.pos.*') ? 'active' : '' }}">
+                            <a href="{{ route('payments.index') }}" class="sidebar-sub-item {{ request()->routeIs(['settings.pos.*', 'payments.*']) ? 'active' : '' }}">
                                 <span>Point of Sale</span>
                             </a>
                         </div>

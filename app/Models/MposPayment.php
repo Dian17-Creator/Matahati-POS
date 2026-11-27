@@ -16,8 +16,25 @@ class MposPayment extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'nid_outlet',
         'cname',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'nid_outlet' => 'integer',
+        ];
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(
+            MposOutlet::class,
+            'nid_outlet',
+            'nid'
+        );
+    }
 
     public function sales()
     {
