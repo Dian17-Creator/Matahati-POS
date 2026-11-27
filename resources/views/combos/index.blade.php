@@ -34,6 +34,7 @@
                         <th class="py-3 text-center">Harga Jual Online</th>
                         <th class="py-3 text-center">Harga Jual Offline</th>
                         <th class="py-3 text-center">Publikasi</th>
+                        <th class="py-3 text-center pe-3" width="120">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,7 +62,18 @@
                         <td class="text-center text-muted small">
                             {{ $combo->dpublish_date ? $combo->dpublish_date->format('Y-m-d') : ($combo->dcreated ? $combo->dcreated->format('Y-m-d') : '-') }}
                         </td>
-
+                        <td class="text-center pe-3">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ route('combos.show', $combo->nid) }}" class="btn btn-outline-info" title="Detail & Edit Paket">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                @if($canModifyData ?? true)
+                                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $combo->nid }}" title="Hapus">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                                @endif
+                            </div>
+                        </td>
                     </tr>
 
                     <!-- Modal Hapus -->
@@ -90,7 +102,7 @@
                     </div>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
+                        <td colspan="5" class="text-center text-muted py-5">
                             Belum ada paket kombo. Klik <strong>+ Tambah</strong> untuk membuat paket produk baru.
                         </td>
                     </tr>
