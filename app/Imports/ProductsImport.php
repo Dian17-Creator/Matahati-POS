@@ -9,10 +9,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class ProductsImport implements ToCollection, WithHeadingRow
+class ProductsImport implements ToCollection
 {
     protected $outletId;
 
@@ -37,7 +37,16 @@ class ProductsImport implements ToCollection, WithHeadingRow
     {
         @set_time_limit(300);
 
-        foreach ($rows as $index => $row) {
+        [$headerIndex, $headers] = $this->detectHeaderRow($rows);
+        if ($headerIndex === null || empty($headers)) {
+            $this->results['failed']++;
+            $this->results['errors'][] = 'Header kolom tidak ditemukan. Pastikan terdapat kolom NAMA PRODUK / name dan KATEGORI / category.';
+            return;
+        }
+
+        foreach ($rows->slice($headerIndex + 1) as $index => $rawRow) {
+            $row = $this->mapRowWithHeaders($rawRow, $headers);
+
             // Kita skip jika row kosong semua (mendukung format kita maupun format Olsera)
             if (
                 !isset($row['name'])
@@ -49,7 +58,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
             }
 
             $this->results['total']++;
-            $rowNum = $index + 2; // +1 untuk 0-index, +1 untuk header
+            $rowNum = $index + 1; // +1 untuk 1-based Excel row number
 
             // Validasi nama (mendukung 'nama_produk' dan 'name')
             $rawName = $row['nama_produk'] ?? $row['name'] ?? null;
@@ -96,13 +105,19 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 ]);
             }
 
-            // Parse Harga Jual POS & Online (mendukung format kita: harga_pos, harga_online & format Olsera: pos_sell_price, sell_price)
-            $rawPosPrice = $row['harga_pos'] ?? $row['pos_sell_price'] ?? null;
+            // Parse Harga Jual POS & Online (mendukung format kita, Olsera, dan format Harga Jual Include Pajak / Merchant Online)
+            $rawPosPrice = $row['harga_pos']
+                ?? $row['pos_sell_price']
+                ?? $row['harga_jual_include_pajak']
+                ?? null;
             $posSellPrice = $rawPosPrice !== null && trim((string) $rawPosPrice) !== ''
                 ? floatval(preg_replace('/[^0-9.]/', '', (string) $rawPosPrice))
                 : 0;
 
-            $rawOnlinePrice = $row['harga_online'] ?? $row['sell_price'] ?? null;
+            $rawOnlinePrice = $row['harga_online']
+                ?? $row['sell_price']
+                ?? $row['harga_jual_merchant_online']
+                ?? null;
             $sellPrice = $rawOnlinePrice !== null && trim((string) $rawOnlinePrice) !== ''
                 ? floatval(preg_replace('/[^0-9.]/', '', (string) $rawOnlinePrice))
                 : 0;
@@ -117,32 +132,9 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 }
             }
 
-            // Parse Stok / QTY (Logika Timpa/Replace Stok)
+            // Abaikan nilai stok/qty dari Excel: berapapun qty di Excel selalu dianggap 0
             $rowArray = is_array($row) ? $row : ($row instanceof Collection ? $row->toArray() : (array) $row);
-            $hasStockColumn = array_key_exists('stock_qty', $rowArray)
-                || array_key_exists('stock', $rowArray)
-                || array_key_exists('qty', $rowArray)
-                || array_key_exists('stok', $rowArray)
-                || array_key_exists('stok_qty', $rowArray)
-                || array_key_exists('quantity', $rowArray);
-
-            $rawStockQty = $row['stock_qty'] ?? $row['stock'] ?? $row['qty'] ?? $row['stok'] ?? $row['stok_qty'] ?? $row['quantity'] ?? null;
-            $stockQty = null;
-
-            if ($hasStockColumn) {
-                if ($rawStockQty !== null && trim((string)$rawStockQty) !== '') {
-                    $trimmedStock = trim((string)$rawStockQty);
-                    $cleanedStock = preg_replace('/[^0-9.-]/', '', $trimmedStock);
-                    if ($cleanedStock !== '' && is_numeric($cleanedStock)) {
-                        $stockQty = floatval($cleanedStock);
-                    } else {
-                        $stockQty = 0;
-                    }
-                } else {
-                    // Jika kolom stok disediakan tapi sel kosong, timpa menjadi 0
-                    $stockQty = 0;
-                }
-            }
+            $stockQty = 0;
 
             // Parse foto (hanya timpa jika kolom photo_1 tersedia)
             $hasPhotoColumn = array_key_exists('photo_1', $rowArray);
@@ -229,10 +221,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         $updateData['nprice_buy'] = $buyPrice;
                     }
 
-                    // Timpa nilai stok (nqty): Berapapun stok lama di sistem langsung digantikan oleh stok Excel
-                    if ($stockQty !== null) {
-                        $updateData['nqty'] = $stockQty;
-                    }
+                    // Abaikan qty dari Excel dan selalu set nqty menjadi 0
+                    $updateData['nqty'] = $stockQty;
 
                     $existing->update($updateData);
                     $this->results['updated']++;
@@ -244,7 +234,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                         'nprice' => $posSellPrice,
                         'nprice_online' => $sellPrice,
                         'nprice_buy' => $buyPrice ?? 0,
-                        'nqty' => $stockQty ?? 0,
+                        'nqty' => $stockQty,
                         'cphotos' => $photo,
                         'cstatus' => $status,
                         'fcombo' => $isCombo ?? 0,
@@ -274,6 +264,58 @@ class ProductsImport implements ToCollection, WithHeadingRow
     /**
      * Download remote product image and store it in local & shared VPS product directories.
      */
+    /**
+     * Auto-detect header row (supports row 1, row 2, etc.) and normalize column slugs.
+     *
+     * @return array{0: int|null, 1: array<int, string>}
+     */
+    protected function detectHeaderRow(Collection $rows): array
+    {
+        $knownNameKeys = ['nama_produk', 'name'];
+        $knownCategoryKeys = ['kategori', 'category'];
+
+        foreach ($rows->take(10) as $index => $rawRow) {
+            $cells = $rawRow instanceof Collection ? $rawRow->toArray() : (array) $rawRow;
+            $headers = [];
+
+            foreach ($cells as $colIndex => $cell) {
+                $slug = Str::slug(trim((string) $cell), '_');
+                if ($slug !== '') {
+                    $headers[(int) $colIndex] = $slug;
+                }
+            }
+
+            if (
+                !empty(array_intersect($knownNameKeys, $headers))
+                && !empty(array_intersect($knownCategoryKeys, $headers))
+            ) {
+                return [(int) $index, $headers];
+            }
+        }
+
+        return [null, []];
+    }
+
+    /**
+     * Map indexed row cells to normalized header keys.
+     *
+     * @param  array<int, string>  $headers
+     * @return array<string, mixed>
+     */
+    protected function mapRowWithHeaders(mixed $rawRow, array $headers): array
+    {
+        $cells = $rawRow instanceof Collection ? $rawRow->toArray() : (array) $rawRow;
+        $mapped = [];
+
+        foreach ($headers as $colIndex => $headerKey) {
+            if (array_key_exists($colIndex, $cells)) {
+                $mapped[$headerKey] = $cells[$colIndex];
+            }
+        }
+
+        return $mapped;
+    }
+
     protected function downloadProductPhoto(string $url): ?string
     {
         if (array_key_exists($url, $this->downloadedPhotoCache)) {
