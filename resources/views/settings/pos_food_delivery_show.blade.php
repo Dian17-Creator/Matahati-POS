@@ -33,6 +33,22 @@ $presetDisplay = $preset['unit'] === 'percent'
 : $presetSign . ' IDR ' . number_format($preset['value'], 0, ',', '.');
 @endphp
 
+@if(session('import_warnings'))
+@php $importWarnings = session('import_warnings'); @endphp
+<div class="alert alert-warning alert-dismissible fade show small" role="alert">
+    <div class="fw-semibold mb-1">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        {{ $importWarnings['count'] ?? 0 }} baris dilewati saat import:
+    </div>
+    <ul class="mb-0 ps-3">
+        @foreach(($importWarnings['reasons'] ?? []) as $reason)
+        <li>{{ $reason }}</li>
+        @endforeach
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
+
 <!-- Top Bar Detail Merchant (seperti Gambar 1) -->
 <div class="d-flex align-items-center justify-content-between bg-white border rounded-3 px-4 py-3 mb-3 shadow-sm" style="min-height: 68px;">
     <a href="{{ route('settings.pos.food-delivery') }}" class="btn btn-sm btn-link text-dark text-decoration-none p-1" title="Kembali">
@@ -53,9 +69,14 @@ $presetDisplay = $preset['unit'] === 'percent'
             <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
         </button>
     </div>
-    <button type="button" class="btn text-white fw-medium px-3 text-nowrap" style="background-color: #65a30d;" data-bs-toggle="modal" data-bs-target="#addProductModal">
-        <i class="bi bi-plus-lg me-1"></i> Tambah
-    </button>
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-success fw-medium px-3 text-nowrap" data-bs-toggle="modal" data-bs-target="#importFoodDeliveryModal">
+            <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
+        </button>
+        <button type="button" class="btn text-white fw-medium px-3 text-nowrap" style="background-color: #65a30d;" data-bs-toggle="modal" data-bs-target="#addProductModal">
+            <i class="bi bi-plus-lg me-1"></i> Tambah
+        </button>
+    </div>
 </div>
 
 <!-- Card Daftar Produk Merchant -->
@@ -413,6 +434,12 @@ $brandBg = $brandColors[strtoupper((string) $normalizedPlatform)] ?? '#ef4444';
         </div>
     </div>
 </div>
+@include('settings.partials.food_delivery_import_modal', [
+    'importAction' => route('settings.pos.food-delivery.import', ['platform' => $platformSlug]),
+    'platformLabel' => $deliverySetting->cname,
+    'selectedOutletId' => $selectedOutletId,
+    'selectedOutlet' => $selectedOutlet,
+])
 @endif
 </div>
 

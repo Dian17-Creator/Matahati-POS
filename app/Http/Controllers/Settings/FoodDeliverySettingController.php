@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Imports\FoodDeliveryImport;
 use App\Models\MposDeliveryD;
 use App\Models\MposDeliveryS;
 use App\Models\MposOutlet;
@@ -12,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FoodDeliverySettingController extends Controller
 {
@@ -371,6 +373,61 @@ class FoodDeliverySettingController extends Controller
         return redirect()
             ->route('settings.pos.food-delivery.show', ['platform' => strtolower($normalizedPlatform)])
             ->with('success', "Pengaturan produk & harga {$setting->cname} berhasil disimpan.");
+    }
+
+    public function importAll(Request $request): RedirectResponse
+    {
+        return $this->handleImport($request, null);
+    }
+
+    public function import(Request $request, string $platform): RedirectResponse
+    {
+        $normalizedPlatform = $this->normalizePlatform($platform);
+        $onlyPlatform = $request->boolean('only_current_platform') ? $normalizedPlatform : null;
+
+        return $this->handleImport($request, $onlyPlatform);
+    }
+
+    private function handleImport(Request $request, ?string $onlyPlatform): RedirectResponse
+    {
+        $validated = $request->validate([
+            'nid_outlet' => 'required|integer|exists:mpos_outlet,nid',
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ], [
+            'file.required' => 'File Excel wajib dipilih.',
+            'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv.',
+        ]);
+
+        $outletId = (int) $validated['nid_outlet'];
+        $importer = new FoodDeliveryImport($outletId, $onlyPlatform);
+
+        Excel::import($importer, $request->file('file'));
+
+        $summary = $importer->summary;
+        $importedCount = $summary['imported_count'];
+
+        if ($importedCount === 0 && $summary['skipped_count'] === 0) {
+            return back()->with('warning', 'Tidak ada baris data yang cocok untuk diimport.');
+        }
+
+        $breakdown = collect($summary['platforms'])
+            ->map(fn (int $count, string $name): string => "{$name}: {$count}")
+            ->implode(', ');
+
+        $message = $importedCount > 0
+            ? "Import selesai: {$importedCount} produk berhasil diproses" . ($breakdown !== '' ? " ({$breakdown})." : '.')
+            : 'Tidak ada produk yang berhasil diimport.';
+
+        $redirect = back()->with($importedCount > 0 ? 'success' : 'warning', $message);
+
+        if ($summary['skipped_count'] > 0) {
+            $redirect->with('import_warnings', [
+                'count' => $summary['skipped_count'],
+                'reasons' => $summary['skipped_reasons'],
+            ]);
+        }
+
+        return $redirect;
     }
 
     /**
