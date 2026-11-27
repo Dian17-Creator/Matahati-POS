@@ -37,10 +37,18 @@ class ProductsImport implements ToCollection
     {
         @set_time_limit(300);
 
+        if ($this->isSheetEmpty($rows)) {
+            return;
+        }
+
         [$headerIndex, $headers] = $this->detectHeaderRow($rows);
         if ($headerIndex === null || empty($headers)) {
-            $this->results['failed']++;
-            $this->results['errors'][] = 'Header kolom tidak ditemukan. Pastikan terdapat kolom NAMA PRODUK / name dan KATEGORI / category.';
+            // Only report missing header if no previous worksheet in the workbook had valid product rows.
+            if ($this->results['total'] === 0) {
+                $this->results['failed']++;
+                $this->results['errors'][] = 'Header kolom tidak ditemukan. Pastikan terdapat kolom NAMA PRODUK / name dan KATEGORI / category.';
+            }
+
             return;
         }
 
@@ -264,6 +272,24 @@ class ProductsImport implements ToCollection
     /**
      * Download remote product image and store it in local & shared VPS product directories.
      */
+    protected function isSheetEmpty(Collection $rows): bool
+    {
+        if ($rows->isEmpty()) {
+            return true;
+        }
+
+        foreach ($rows->take(10) as $rawRow) {
+            $cells = $rawRow instanceof Collection ? $rawRow->toArray() : (array) $rawRow;
+            foreach ($cells as $cell) {
+                if (trim((string) $cell) !== '') {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Auto-detect header row (supports row 1, row 2, etc.) and normalize column slugs.
      *
