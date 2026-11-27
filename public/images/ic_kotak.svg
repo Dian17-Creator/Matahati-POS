@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
+  <!-- Sayap Lipatan Belakang Kiri & Kanan -->
+  <rect x="18" y="18" width="26" height="26" rx="6" fill="#7CD94E" />
+  <rect x="76" y="18" width="26" height="26" rx="6" fill="#7CD94E" />
+
+  <!-- Bayangan Lipatan Diagonal -->
+  <path d="M 36.5 19 L 18 35.5 L 18 40 L 38.5 21 Z" fill="#5EBC32" />
+  <path d="M 83.5 19 L 102 35.5 L 102 40 L 81.5 21 Z" fill="#5EBC32" />
+
+  <!-- Tutup Trapesium Atas dengan Lubang Pegangan Transparan -->
+  <path fill="#7CD94E" fill-rule="evenodd" d="M 36 14 L 84 14 Q 88 14 90.5 17.5 L 106 42 L 14 42 L 29.5 17.5 Q 32 14 36 14 Z M 49.5 21 L 70.5 21 A 3.5 3.5 0 0 1 74 24.5 L 74 25.5 A 3.5 3.5 0 0 1 70.5 29 L 49.5 29 A 3.5 3.5 0 0 1 46 25.5 L 46 24.5 A 3.5 3.5 0 0 1 49.5 21 Z" />
+
+  <!-- Badan Bawah Kotak Polosan -->
+  <path fill="#009C44" d="M 14 42 L 106 42 L 106 104 A 8 8 0 0 1 98 112 L 22 112 A 8 8 0 0 1 14 104 Z" />
+</svg>

@@ -64,12 +64,8 @@
             <a href="{{ $detailUrl }}" class="d-flex align-items-center gap-3 text-decoration-none text-dark flex-grow-1">
                 @if($code === 'GRABFOOD')
                 <span class="position-relative d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
-                    <svg width="36" height="38" viewBox="0 0 36 38" fill="none" xmlns="http://www.w3.org/2000/svg" class="position-absolute top-50 start-50 translate-middle">
-                        <path d="M13 5C13 3.34315 14.3431 2 16 2H20C21.6569 2 23 3.34315 23 5V7H20.5V5C20.5 4.72386 20.2761 4.5 20 4.5H16C15.7239 4.5 15.5 4.72386 15.5 5V7H13V5Z" fill="#00b14f" />
-                        <rect x="3" y="6.5" width="30" height="7" rx="3" fill="#4ade80" />
-                        <path d="M4 11H32V31.5C32 33.9853 29.9853 36 27.5 36H8.5C6.01472 36 4 33.9853 4 31.5V11Z" fill="#00b14f" />
-                    </svg>
-                    <img src="{{ asset('images/ic_food2.svg') }}" alt="{{ $platform->cname }}" class="position-relative" style="width: 16px; height: 16px; margin-top: 6px;">
+                    <img src="{{ asset('images/ic_kotak.svg') }}" alt="" class="position-absolute top-50 start-50 translate-middle" style="width: 44px; height: 44px; object-fit: contain;">
+                    <img src="{{ asset('images/ic_food2.svg') }}" alt="{{ $platform->cname }}" class="position-relative" style="width: 18px; height: 18px; margin-top: 12px;">
                 </span>
                 @elseif($code === 'SHOPEEFOOD')
                 <span class="position-relative d-inline-flex align-items-end justify-content-center flex-shrink-0" style="width: 40px; height: 40px;">
