@@ -90,7 +90,7 @@
         ? ['setting' => $offlineSetting, 'category' => 'OFFLINE', 'isOnline' => false]
         : ['setting' => $onlineSetting, 'category' => 'ONLINE', 'isOnline' => true];
 @endphp
-<div class="card border-0 shadow-sm mb-2">
+<div class="card olsera-panel-card mb-2">
     <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3">
         <div>
             <div class="fw-bold" style="font-size: 14px;">Pajak & Biaya</div>
@@ -129,7 +129,7 @@
             <input type="hidden" name="ccategory" value="{{ $cfg['category'] }}">
             <input type="hidden" name="nservice_charge_percent" value="0">
 
-            <div class="card border-0 shadow-sm">
+            <div class="card olsera-panel-card">
                 <div class="card-body">
                     <div class="row g-3">
                         <!-- Kolom Kiri: Rincian Pajak -->

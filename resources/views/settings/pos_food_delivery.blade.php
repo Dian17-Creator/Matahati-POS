@@ -44,7 +44,7 @@
 </div>
 
 <!-- Daftar Platform Food Delivery -->
-<div class="card border-0 shadow-sm">
+<div class="card olsera-panel-card">
     <div class="list-group list-group-flush">
         @php
         $brandStyles = [
