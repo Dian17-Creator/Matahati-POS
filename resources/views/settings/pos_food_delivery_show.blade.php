@@ -80,9 +80,9 @@ $presetDisplay = $preset['unit'] === 'percent'
 </div>
 
 <!-- Card Daftar Produk Merchant -->
-<div class="card shadow-sm" style="border: 1px solid #cbd5e1 !important;">
+<div class="card olsera-panel-card">
     <!-- Switch Aktif -->
-    <div class="card-header bg-white px-4 py-3 d-flex align-items-center justify-content-between" style="border-bottom: 1px solid #cbd5e1;">
+    <div class="card-header bg-white px-4 py-3 d-flex align-items-center justify-content-between">
         <span class="fw-semibold text-dark">Aktif</span>
         <form method="POST" action="{{ route('settings.pos.food-delivery.toggle', ['platform' => $platformSlug]) }}" class="m-0">
             @csrf
