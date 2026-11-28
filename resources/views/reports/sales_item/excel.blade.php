@@ -31,7 +31,7 @@
                 $totalPenjualan = max(0, $grossSubtotal - $prorateDiscount);
                 $totalModal = $netQty * (float) $row->ncost;
                 $laba = $totalPenjualan - $totalModal;
-                $itemDiscount = 0;
+                $itemDiscount = (float) ($row->item_discount ?? 0);
             @endphp
             <tr>
                 <td>{{ $row->cnotransaction }}</td>

@@ -472,7 +472,7 @@
                             $totalPenjualan = max(0, $grossSubtotal - $prorateDiscount);
                             $totalModal = $netQty * $row->ncost;
                             $laba = $totalPenjualan - $totalModal;
-                            $itemDiscount = 0; // Sesuai Olsera, kolom diskon item hanya untuk diskon langsung per-produk (0.00 untuk voucher/diskon nota)
+                            $itemDiscount = (float) ($row->item_discount ?? 0);
                             @endphp
                             <tr>
                                 <td class="text-center">
