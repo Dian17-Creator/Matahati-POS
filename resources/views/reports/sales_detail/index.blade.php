@@ -639,11 +639,6 @@
                                     <td class="text-center">{{ \Carbon\Carbon::parse($row->dtransaction)->format('d/m/Y H:i') }}</td>
                                     <td class="text-center">
                                         <strong>{{ $row->cnotransaction }}</strong>
-                                        @if(($row->ctransaction_category ?? 'ONLINE') === 'OFFLINE')
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 9px; padding: 2px 5px;">OFFLINE</span>
-                                        @else
-                                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size: 9px; padding: 2px 5px;">ONLINE</span>
-                                        @endif
                                         @if($row->csource === 'OLSERA')
                                         <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;">OLSERA</span>
                                         @endif

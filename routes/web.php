@@ -105,6 +105,7 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
     Route::put('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'update'])->name('products.recipes.update');
     Route::delete('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'destroy'])->name('products.recipes.destroy');
     Route::resource('ingredients', IngredientController::class);
+    Route::post('combos/copy', [ComboController::class, 'copy'])->name('combos.copy');
     Route::put('combos/{id}/items', [ComboController::class, 'updateItems'])->name('combos.items.update');
     Route::resource('combos', ComboController::class);
     // Inventori Routes
