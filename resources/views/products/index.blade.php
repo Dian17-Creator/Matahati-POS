@@ -115,6 +115,9 @@
                             @elseif(isset($product->cproduct_type) && $product->cproduct_type === 'BAHAN_BAKU')
                                 <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" style="font-size: 0.65rem;">Bahan Baku</span>
                             @endif
+                            @if(isset($product->ftrack_stock) && !$product->ftrack_stock)
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 0.65rem;">Non-Lacak Stok</span>
+                            @endif
                         </td>
                         <td>{{ $product->category->cname ?? '-' }}</td>
                         <td>
@@ -132,6 +135,11 @@
                         <td class="text-center">
                             <span class="fw-semibold">{{ $product->nqty }}</span>
                             <span class="small text-muted d-block" style="font-size: 0.72rem;">{{ $product->csatuan ?: 'PCS' }}</span>
+                            @if(!empty($product->csatuan_konversi) && (float) ($product->nkonversi_qty ?? 0) > 0)
+                                <span class="badge bg-light text-secondary border mt-1" style="font-size: 0.65rem;">
+                                    1 {{ $product->csatuan_konversi }} = {{ rtrim(rtrim(number_format((float) $product->nkonversi_qty, 2, '.', ''), '0'), '.') }} {{ $product->csatuan ?: 'PCS' }}
+                                </span>
+                            @endif
                         </td>
                         <td>
                             @if(strtolower($product->cstatus) == 'active' || strtolower($product->cstatus) == 'aktif' || $product->cstatus == '1')
@@ -301,6 +309,25 @@
                                     </select>
                                     @if(old('modal_id') == $product->nid) @error('cstatus') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                                 </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="csatuan_konversi_{{ $product->nid }}" class="form-label">Konversi Satuan</label>
+                                    @php
+                                        $currKonvSat = old('modal_id') == $product->nid ? old('csatuan_konversi') : ($product->csatuan_konversi ?? '');
+                                    @endphp
+                                    <select class="form-select @if(old('modal_id') == $product->nid) @error('csatuan_konversi') is-invalid @enderror @endif" id="csatuan_konversi_{{ $product->nid }}" name="csatuan_konversi">
+                                        <option value="">-- Tidak Ada --</option>
+                                        @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                            <option value="{{ $sat }}" {{ strtoupper((string) $currKonvSat) === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if(old('modal_id') == $product->nid) @error('csatuan_konversi') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="nkonversi_qty_{{ $product->nid }}" class="form-label">Kuantitas Konversi</label>
+                                    <input type="number" step="any" min="0.01" class="form-control @if(old('modal_id') == $product->nid) @error('nkonversi_qty') is-invalid @enderror @endif" id="nkonversi_qty_{{ $product->nid }}" name="nkonversi_qty" placeholder="Contoh: 24" value="{{ old('modal_id') == $product->nid ? old('nkonversi_qty') : ($product->nkonversi_qty ? rtrim(rtrim(number_format((float) $product->nkonversi_qty, 2, '.', ''), '0'), '.') : '') }}">
+                                    @if(old('modal_id') == $product->nid) @error('nkonversi_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                                    <div class="form-text small">1 Konversi Satuan = berapa Satuan dasar.</div>
+                                </div>
                                 <div class="col-md-12 mb-3">
                                     <label for="photo_{{ $product->nid }}" class="form-label">Foto Produk (Kosongkan jika tidak ingin mengubah)</label>
                                     <input type="file" class="form-control @if(old('modal_id') == $product->nid) @error('photo') is-invalid @enderror @endif" id="photo_{{ $product->nid }}" name="photo" accept="image/*">
@@ -313,7 +340,11 @@
                                 </div>
 
                                 <!-- Switches -->
-                                <div class="col-md-12 mb-3">
+                                <div class="col-md-12 mb-3 d-flex flex-wrap gap-4">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="ftrack_stock_{{ $product->nid }}" name="ftrack_stock" value="1" {{ (old('modal_id') == $product->nid ? old('ftrack_stock') : ($product->ftrack_stock ?? true)) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="ftrack_stock_{{ $product->nid }}">Lacak Inventori?</label>
+                                    </div>
                                     <div class="form-check form-switch mt-2">
                                         <input class="form-check-input" type="checkbox" role="switch" id="fcombo_{{ $product->nid }}" name="fcombo" value="1" {{ (old('modal_id') == $product->nid ? old('fcombo') : $product->fcombo) ? 'checked' : '' }}>
                                         <label class="form-check-label" for="fcombo_{{ $product->nid }}">Produk Kombo?</label>
@@ -472,6 +503,22 @@
                         </select>
                         @if(old('modal_id') == 'create') @error('cstatus') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
                     </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="csatuan_konversi" class="form-label">Konversi Satuan</label>
+                        <select class="form-select @if(old('modal_id') == 'create') @error('csatuan_konversi') is-invalid @enderror @endif" id="csatuan_konversi" name="csatuan_konversi">
+                            <option value="">-- Tidak Ada --</option>
+                            @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                <option value="{{ $sat }}" {{ (old('modal_id') == 'create' ? strtoupper((string) old('csatuan_konversi')) : '') == strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                            @endforeach
+                        </select>
+                        @if(old('modal_id') == 'create') @error('csatuan_konversi') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="nkonversi_qty" class="form-label">Kuantitas Konversi</label>
+                        <input type="number" step="any" min="0.01" class="form-control @if(old('modal_id') == 'create') @error('nkonversi_qty') is-invalid @enderror @endif" id="nkonversi_qty" name="nkonversi_qty" placeholder="Contoh: 24" value="{{ old('modal_id') == 'create' ? old('nkonversi_qty') : '' }}">
+                        @if(old('modal_id') == 'create') @error('nkonversi_qty') <div class="invalid-feedback">{{ $message }}</div> @enderror @endif
+                        <div class="form-text small">1 Konversi Satuan = berapa Satuan dasar.</div>
+                    </div>
                     <div class="col-md-12 mb-3">
                         <label for="photo" class="form-label">Foto Produk</label>
                         <input type="file" class="form-control @if(old('modal_id') == 'create') @error('photo') is-invalid @enderror @endif" id="photo" name="photo" accept="image/*">
@@ -479,7 +526,11 @@
                     </div>
                     
                     <!-- Switches -->
-                    <div class="col-md-12 mb-3">
+                    <div class="col-md-12 mb-3 d-flex flex-wrap gap-4">
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="ftrack_stock" name="ftrack_stock" value="1" {{ (old('modal_id') == 'create' ? old('ftrack_stock') : true) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="ftrack_stock">Lacak Inventori?</label>
+                        </div>
                         <div class="form-check form-switch mt-2">
                             <input class="form-check-input" type="checkbox" role="switch" id="fcombo" name="fcombo" value="1" {{ old('modal_id') == 'create' && old('fcombo') ? 'checked' : '' }}>
                             <label class="form-check-label" for="fcombo">Produk Kombo?</label>

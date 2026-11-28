@@ -386,6 +386,9 @@ class ProductController extends Controller
             'cname' => 'required|string|max:255',
             'cproduct_type' => 'nullable|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU',
             'csatuan' => 'nullable|string|max:50',
+            'csatuan_konversi' => 'nullable|string|max:50',
+            'nkonversi_qty' => 'nullable|numeric|min:0.01',
+            'ftrack_stock' => 'nullable|boolean',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
@@ -402,7 +405,7 @@ class ProductController extends Controller
             'nqty.*' => 'required_with:has_recipe|numeric|min:0.01',
         ], $messages);
 
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'csatuan_konversi', 'nkonversi_qty', 'ftrack_stock', 'sync_recipe']);
         if (MposProduct::hasProductTypeColumn()) {
             $data['cproduct_type'] = $request->input('cproduct_type', 'PRODUK');
         } else {
@@ -413,6 +416,16 @@ class ProductController extends Controller
         } else {
             unset($data['csatuan']);
         }
+        $konvSatuan = trim((string) $request->input('csatuan_konversi', ''));
+        $konvQty = $request->input('nkonversi_qty');
+        if ($konvSatuan !== '' && is_numeric($konvQty) && (float) $konvQty > 0) {
+            $data['csatuan_konversi'] = strtoupper($konvSatuan);
+            $data['nkonversi_qty'] = (float) $konvQty;
+        } else {
+            $data['csatuan_konversi'] = null;
+            $data['nkonversi_qty'] = null;
+        }
+        $data['ftrack_stock'] = $request->has('ftrack_stock') ? 1 : 0;
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         $data['nprice_buy'] = $request->input('nprice_buy') ?: 0.00;
@@ -439,10 +452,13 @@ class ProductController extends Controller
             }
 
             foreach ($request->outlet_ids as $outletId) {
-                // Cek duplicate
-                $exists = MposProduct::where('cname', $data['cname'])
-                            ->where('nid_outlet', $outletId)
-                            ->exists();
+                // Cek duplicate (izinkan nama sama jika satuannya berbeda)
+                $existsQuery = MposProduct::where('cname', $data['cname'])
+                    ->where('nid_outlet', $outletId);
+                if (MposProduct::hasSatuanColumn() && isset($data['csatuan'])) {
+                    $existsQuery->whereRaw("UPPER(COALESCE(csatuan, 'PCS')) = ?", [strtoupper((string) $data['csatuan'])]);
+                }
+                $exists = $existsQuery->exists();
 
                 if (!$exists) {
                     $productData = $data;
@@ -509,6 +525,9 @@ class ProductController extends Controller
             'cname' => 'required|string|max:255',
             'cproduct_type' => 'nullable|string|in:PRODUK,SETENGAH_JADI,BAHAN_BAKU',
             'csatuan' => 'nullable|string|max:50',
+            'csatuan_konversi' => 'nullable|string|max:50',
+            'nkonversi_qty' => 'nullable|numeric|min:0.01',
+            'ftrack_stock' => 'nullable|boolean',
             'nid_category' => 'required|exists:mpos_grp_product,nid',
             'nprice' => 'required|numeric|min:0',
             'nprice_online' => 'nullable|numeric|min:0',
@@ -527,7 +546,7 @@ class ProductController extends Controller
 
         $product = MposProduct::with('recipes')->findOrFail($id);
         $shouldSyncRecipe = $request->boolean('sync_recipe');
-        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'sync_recipe']);
+        $data = $request->except(['photo', 'has_recipe', 'nid_ingredient', 'nqty', 'modal_id', 'outlet_ids', 'stock_qty', 'fshow_pos', 'csatuan', 'csatuan_konversi', 'nkonversi_qty', 'ftrack_stock', 'sync_recipe']);
         if (MposProduct::hasProductTypeColumn()) {
             if ($request->has('cproduct_type')) {
                 $data['cproduct_type'] = $request->input('cproduct_type', 'PRODUK');
@@ -542,6 +561,18 @@ class ProductController extends Controller
         } else {
             unset($data['csatuan']);
         }
+        if ($request->has('csatuan_konversi') || $request->has('nkonversi_qty')) {
+            $konvSatuan = trim((string) $request->input('csatuan_konversi', ''));
+            $konvQty = $request->input('nkonversi_qty');
+            if ($konvSatuan !== '' && is_numeric($konvQty) && (float) $konvQty > 0) {
+                $data['csatuan_konversi'] = strtoupper($konvSatuan);
+                $data['nkonversi_qty'] = (float) $konvQty;
+            } else {
+                $data['csatuan_konversi'] = null;
+                $data['nkonversi_qty'] = null;
+            }
+        }
+        $data['ftrack_stock'] = $request->has('ftrack_stock') ? 1 : 0;
         $data['fcombo'] = $request->has('fcombo') ? 1 : 0;
         $data['nprice_online'] = $request->input('nprice_online') ?: 0.00;
         if ($request->has('nprice_buy')) {

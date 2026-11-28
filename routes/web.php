@@ -101,6 +101,7 @@ Route::middleware(['auth', 'prevent.cashier.write'])->group(function () {
     Route::put('products/{product}/prices/{price}', [ProductPriceController::class, 'update'])->name('products.prices.update');
     Route::delete('products/{product}/prices/{price}', [ProductPriceController::class, 'destroy'])->name('products.prices.destroy');
     Route::post('products/{product}/recipes', [ProductRecipeController::class, 'store'])->name('products.recipes.store');
+    Route::post('products/{product}/recipes/import', [ProductRecipeController::class, 'import'])->name('products.recipes.import');
     Route::put('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'update'])->name('products.recipes.update');
     Route::delete('products/{product}/recipes/{recipe}', [ProductRecipeController::class, 'destroy'])->name('products.recipes.destroy');
     Route::resource('ingredients', IngredientController::class);

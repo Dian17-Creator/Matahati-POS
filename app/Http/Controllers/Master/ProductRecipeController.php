@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Imports\ProductRecipesImport;
 use App\Models\MposIngredients;
 use App\Models\MposProduct;
 use App\Models\MposRecipe;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductRecipeController extends Controller
 {
@@ -249,6 +252,49 @@ class ProductRecipeController extends Controller
             DB::rollBack();
             return $this->errorResponse($request, 'Gagal menghapus bahan resep: ' . $e->getMessage(), 500);
         }
+    }
+
+    public function import(Request $request, string $product): RedirectResponse
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ], [
+            'file.required' => 'File Excel wajib dipilih.',
+            'file.mimes' => 'Format file harus .xlsx, .xls, atau .csv.',
+        ]);
+
+        $parentProduct = MposProduct::findOrFail($product);
+        $onlyProductName = $request->boolean('only_current_product') ? $parentProduct->cname : null;
+
+        $importer = new ProductRecipesImport((int) $parentProduct->nid_outlet, $onlyProductName);
+        Excel::import($importer, $request->file('file'));
+
+        $summary = $importer->summary;
+        $importedCount = $summary['imported_count'];
+        $menuCount = count($summary['menus']);
+
+        if ($importedCount === 0 && $summary['skipped_count'] === 0) {
+            return redirect()->back()
+                ->with('warning', 'Tidak ada data resep/bundle yang ditemukan. Pastikan header berisi NAMA MENU dan ISI BUNDLE.')
+                ->with('active_tab', 'resep');
+        }
+
+        $message = $importedCount > 0
+            ? "Import resep selesai: {$importedCount} item bahan untuk {$menuCount} menu berhasil diproses."
+            : 'Tidak ada item resep yang berhasil diimport.';
+
+        $redirect = redirect()->back()
+            ->with($importedCount > 0 ? 'success' : 'warning', $message)
+            ->with('active_tab', 'resep');
+
+        if ($summary['skipped_count'] > 0) {
+            $redirect->with('recipe_import_warnings', [
+                'count' => $summary['skipped_count'],
+                'reasons' => $summary['skipped_reasons'],
+            ]);
+        }
+
+        return $redirect;
     }
 
     private function errorResponse(Request $request, string $message, int $status = 422)

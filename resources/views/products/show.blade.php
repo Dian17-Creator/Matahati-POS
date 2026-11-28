@@ -898,6 +898,47 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
                                     </div>
                                     <div class="col-sm-6">
                                         <div class="info-item">
+                                            <div class="info-label">Konversi Satuan</div>
+                                            <div class="info-value info-display">
+                                                @if(!empty($product->csatuan_konversi) && (float) ($product->nkonversi_qty ?? 0) > 0)
+                                                    <span class="badge bg-light text-dark border px-2 py-1">
+                                                        1 {{ $product->csatuan_konversi }} = {{ rtrim(rtrim(number_format((float) $product->nkonversi_qty, 2, '.', ''), '0'), '.') }} {{ $product->csatuan ?: 'PCS' }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </div>
+                                            <div class="d-none info-input">
+                                                <div class="input-group input-group-sm">
+                                                    <select class="form-select form-select-sm" name="csatuan_konversi">
+                                                        <option value="">-- Tidak Ada --</option>
+                                                        @foreach($satuans ?? \App\Models\MposProduct::SATUAN_LIST as $sat)
+                                                            <option value="{{ $sat }}" {{ strtoupper((string) ($product->csatuan_konversi ?? '')) === strtoupper($sat) ? 'selected' : '' }}>{{ $sat }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <input type="number" step="any" min="0.01" class="form-control form-control-sm" name="nkonversi_qty" placeholder="Qty" value="{{ $product->nkonversi_qty ? rtrim(rtrim(number_format((float) $product->nkonversi_qty, 2, '.', ''), '0'), '.') : '' }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
+                                            <div class="info-label">Lacak Inventori</div>
+                                            <div class="info-value info-display">
+                                                @if($product->ftrack_stock ?? true)
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Iya</span>
+                                                @else
+                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Tidak</span>
+                                                @endif
+                                            </div>
+                                            <div class="form-check form-switch d-none info-input mt-1">
+                                                <input class="form-check-input" type="checkbox" role="switch" name="ftrack_stock" value="1" {{ ($product->ftrack_stock ?? true) ? 'checked' : '' }}>
+                                                <label class="form-check-label small">Lacak Stok</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-item">
                                             <div class="info-label">Outlet</div>
                                             <div class="info-value info-display">
                                                 @php
@@ -1268,6 +1309,21 @@ $isProfilTabActive = !$isHargaTabActive && !$isResepTabActive;
         <div class="tab-pane fade {{ $isResepTabActive ? 'show active' : '' }}" id="resep" role="tabpanel" aria-labelledby="resep-tab">
             <div class="olsera-price-card mb-4">
                 <!-- Header Card: Daftar Bahan/Resep + Button Import & Tambah -->
+                @if(session('recipe_import_warnings'))
+                @php $recipeImportWarnings = session('recipe_import_warnings'); @endphp
+                <div class="alert alert-warning alert-dismissible fade show small mb-3" role="alert">
+                    <div class="fw-semibold mb-1">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        {{ $recipeImportWarnings['count'] ?? 0 }} baris dilewati saat import resep:
+                    </div>
+                    <ul class="mb-0 ps-3" style="max-height: 180px; overflow-y: auto;">
+                        @foreach(($recipeImportWarnings['reasons'] ?? []) as $reason)
+                        <li>{{ $reason }}</li>
+                        @endforeach
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                @endif
                 <div class="olsera-price-header">
                     <div>
                         <div class="d-flex align-items-center gap-2">
@@ -1475,27 +1531,44 @@ $recipeProductOutlets = \App\Models\MposProduct::where('cname', $product->cname)
     </div>
 </div>
 
-<!-- Modal Import Bahan/Resep (Preview UI) -->
+<!-- Modal Import Bahan/Resep -->
 <div class="modal fade" id="importRecipeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
-                <h6 class="modal-title fw-bold mb-0">Import Bahan / Resep</h6>
+                <h6 class="modal-title fw-bold mb-0">
+                    <i class="bi bi-file-earmark-excel text-success me-2"></i>Import Bahan / Resep
+                </h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label small fw-semibold">Pilih File Excel / CSV</label>
-                    <input type="file" class="form-control form-control-sm" accept=".xlsx,.xls,.csv">
+            <form action="{{ route('products.recipes.import', $product->nid) }}" method="POST" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                    <div class="alert alert-light border small mb-3">
+                        <div class="fw-semibold text-dark mb-1">Format kolom Excel yang didukung:</div>
+                        <code class="d-block text-break">NAMA MENU, TIPE MENU, ISI BUNDLE, KUANTITAS, SATUAN</code>
+                        <div class="text-muted mt-1">
+                            Semua menu pada sheet resep (mis. <strong>MENU BUNDLE</strong>) akan otomatis diimport ke outlet <strong>{{ $product->outlet?->cname ?? 'ini' }}</strong>.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="recipeImportFile" class="form-label small fw-semibold">Pilih File Excel / CSV <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control form-control-sm" id="recipeImportFile" name="file" accept=".xlsx,.xls,.csv" required>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="only_current_product" value="1" id="onlyCurrentProductRecipeCheck">
+                        <label class="form-check-label small text-muted" for="onlyCurrentProductRecipeCheck">
+                            Hanya import resep untuk produk <strong>{{ $product->cname }}</strong> saja (jika tidak dicentang, semua menu di file akan diimport).
+                        </label>
+                    </div>
                 </div>
-                <div class="small text-muted">
-                    Fitur sinkronisasi import bahan baku akan aktif setelah modul Inventory terhubung.
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-olsera-add btn-sm px-3">
+                        <i class="bi bi-upload me-1"></i> Mulai Import
+                    </button>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Tutup</button>
-                <button type="button" class="btn btn-olsera-add btn-sm px-3" data-bs-dismiss="modal">Upload</button>
-            </div>
+            </form>
         </div>
     </div>
 </div>
