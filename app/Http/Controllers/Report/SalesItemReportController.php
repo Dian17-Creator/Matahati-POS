@@ -298,6 +298,9 @@ class SalesItemReportController extends Controller
      */
     public function import(Request $request)
     {
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
+
         $request->validate([
             'outlet_id' => 'required|exists:mpos_outlet,nid',
             'file' => 'required|file|mimes:xlsx,xls,csv|max:20480',
@@ -345,6 +348,9 @@ class SalesItemReportController extends Controller
 
         } catch (\Throwable $e) {
             DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('SalesItemReportController::import failed: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
             return redirect()->route('reports.sales-item')->with('error', 'Gagal mengimpor detail item transaksi: ' . $e->getMessage());
         }
     }
