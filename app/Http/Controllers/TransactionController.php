@@ -589,7 +589,7 @@ class TransactionController extends Controller
 
                         if ($deliveryCustomPrice !== null) {
                             $price = $deliveryCustomPrice;
-                        } elseif (!empty($product->nprice_online) && (float) $product->nprice_online > 0) {
+                        } elseif (MposSalesH::isFoodDeliveryOrderType($orderType) && !empty($product->nprice_online) && (float) $product->nprice_online > 0) {
                             $price = (float) $product->nprice_online;
                         }
                     }
