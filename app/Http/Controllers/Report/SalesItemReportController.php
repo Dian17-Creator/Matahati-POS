@@ -228,7 +228,8 @@ class SalesItemReportController extends Controller
         }
 
         $netQtyExpr = "({$detailTable}.nqty - {$detailTable}.nqty_void - {$detailTable}.nqty_refund)";
-        $totalPenjualanExpr = "GREATEST(0, ({$netQtyExpr} * {$detailTable}.nprice) - (CASE WHEN {$headerTable}.nsubtotal > 0 AND {$headerTable}.ndiscount > 0 THEN (({$netQtyExpr} * {$detailTable}.nprice) / {$headerTable}.nsubtotal) * {$headerTable}.ndiscount ELSE 0 END))";
+        $itemDiscountExpr = "(CASE WHEN {$headerTable}.nsubtotal > 0 AND {$headerTable}.ndiscount > 0 THEN (({$netQtyExpr} * {$detailTable}.nprice) / {$headerTable}.nsubtotal) * {$headerTable}.ndiscount ELSE 0 END)";
+        $totalPenjualanExpr = "GREATEST(0, ({$netQtyExpr} * {$detailTable}.nprice) - {$itemDiscountExpr})";
         $totalModalExpr = "({$netQtyExpr} * {$detailTable}.ncost)";
 
         return $baseQuery->select([
@@ -252,6 +253,7 @@ class SalesItemReportController extends Controller
             DB::raw("COALESCE(NULLIF(NULLIF(TRIM({$headerTable}.cname_customer), ''), 'Umum'), NULLIF(NULLIF(TRIM(mpos_cust.cname), ''), 'Umum'), '-') as customer_name"),
             'mpos_outlet.cname as outlet_name',
             DB::raw("{$netQtyExpr} as net_qty"),
+            DB::raw("{$itemDiscountExpr} as item_discount"),
             DB::raw("{$totalPenjualanExpr} as total_penjualan"),
             DB::raw("{$totalModalExpr} as total_modal"),
             DB::raw("({$totalPenjualanExpr} - {$totalModalExpr}) as laba"),
@@ -264,7 +266,7 @@ class SalesItemReportController extends Controller
 
         return $summaryQuery->select([
             DB::raw('COALESCE(SUM(net_qty), 0) as total_qty'),
-            DB::raw('0 as total_discount'),
+            DB::raw('COALESCE(SUM(item_discount), 0) as total_discount'),
             DB::raw('COALESCE(SUM(total_penjualan), 0) as total_penjualan'),
             DB::raw('COALESCE(SUM(total_modal), 0) as total_modal'),
             DB::raw('COALESCE(SUM(laba), 0) as total_laba'),
