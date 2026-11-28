@@ -282,7 +282,7 @@ class SalesDetailReportController extends Controller
         }
 
         $grossSalesSql = "CASE WHEN {$headerTable}.csource = 'OLSERA' THEN {$headerTable}.nsubtotal ELSE {$headerTable}.ngrandtotal END";
-        $netSalesSql = "CASE WHEN {$headerTable}.csource = 'OLSERA' THEN {$headerTable}.ngrandtotal WHEN {$headerTable}.cstatus IN ('VOID', 'CANCELLED', 'REFUND') OR (COALESCE(rev.reversal_amount, 0) >= {$headerTable}.ngrandtotal AND {$headerTable}.ngrandtotal > 0) THEN 0 ELSE GREATEST(0, {$headerTable}.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) END";
+        $netSalesSql = "CASE WHEN {$headerTable}.csource = 'OLSERA' THEN GREATEST(0, {$headerTable}.ngrandtotal - COALESCE({$headerTable}.ndiscount, 0)) WHEN {$headerTable}.cstatus IN ('VOID', 'CANCELLED', 'REFUND') OR (COALESCE(rev.reversal_amount, 0) >= {$headerTable}.ngrandtotal AND {$headerTable}.ngrandtotal > 0) THEN 0 ELSE GREATEST(0, {$headerTable}.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) END";
         $totalCostSql = "CASE WHEN {$headerTable}.csource = 'OLSERA' THEN CASE WHEN {$headerTable}.ntotal_cost IS NOT NULL THEN {$headerTable}.ntotal_cost ELSE 0 END WHEN {$headerTable}.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0 WHEN GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0)) >= {$headerTable}.ngrandtotal THEN 0 WHEN items.min_cost >= 0 THEN items.total_cost ELSE 0 END";
         $labaSql = "CASE WHEN {$headerTable}.csource = 'OLSERA' THEN COALESCE({$headerTable}.ntotal_profit, 0) WHEN {$headerTable}.cstatus IN ('VOID', 'CANCELLED', 'REFUND') OR (COALESCE(rev.reversal_amount, 0) >= {$headerTable}.ngrandtotal AND {$headerTable}.ngrandtotal > 0) THEN 0 ELSE GREATEST(0, {$headerTable}.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) - (CASE WHEN items.min_cost >= 0 THEN items.total_cost ELSE 0 END) END";
 
@@ -453,7 +453,7 @@ class SalesDetailReportController extends Controller
         return $summaryQuery->select(
             DB::raw("CASE WHEN {$headerTable}.csource = 'OLSERA' THEN {$headerTable}.nsubtotal ELSE {$headerTable}.ngrandtotal END as gross_sales"),
             DB::raw("CASE 
-                WHEN {$headerTable}.csource = 'OLSERA' THEN {$headerTable}.ngrandtotal 
+                WHEN {$headerTable}.csource = 'OLSERA' THEN GREATEST(0, {$headerTable}.ngrandtotal - COALESCE({$headerTable}.ndiscount, 0))
                 WHEN {$headerTable}.cstatus IN ('VOID', 'CANCELLED', 'REFUND') THEN 0
                 ELSE ({$headerTable}.ngrandtotal - GREATEST(COALESCE(items.item_void_refund, 0), COALESCE(rev.reversal_amount, 0))) 
             END as net_sales"),

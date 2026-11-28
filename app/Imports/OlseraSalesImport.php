@@ -3,8 +3,10 @@
 namespace App\Imports;
 
 use App\Models\MposCust;
+use App\Models\MposOutlet;
 use App\Models\MposPayment;
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffH;
 use App\Models\MposUser;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -57,8 +59,11 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows): void
     {
+        $isOfflineOutlet = MposOutlet::resolveTransactionTypeForOutlet($this->outletId) === MposOutlet::TRANSACTION_TYPE_OFFLINE;
+        $headerModel = $isOfflineOutlet ? MposSalesoffH::class : MposSalesH::class;
+
         // Cache existing orders for this outlet and OLSERA source to avoid N+1 query
-        $existingOrders = MposSalesH::where('csource', 'OLSERA')
+        $existingOrders = $headerModel::where('csource', 'OLSERA')
             ->where('nid_outlet', $this->outletId)
             ->get(['nid', 'cnotransaction', 'dtransaction', 'ngrandtotal', 'cstatus'])
             ->keyBy(function ($item) {
@@ -281,8 +286,8 @@ class OlseraSalesImport implements ToCollection, WithHeadingRow
                 // Di mode preview, simpan representasi data untuk konfirmasi
                 $this->results['valid_records'][] = $recordData;
             } else {
-                // Di mode konfirmasi/eksekusi, lakukan insert ke mpos_sales_h
-                MposSalesH::create($recordData);
+                // Di mode konfirmasi/eksekusi, lakukan insert ke tabel transaksi sesuai tipe outlet (mpos_sls_h / mpos_sales_h)
+                $headerModel::create($recordData);
                 $this->results['saved_count']++;
             }
         }

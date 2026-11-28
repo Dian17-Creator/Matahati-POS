@@ -3,10 +3,13 @@
 namespace App\Imports;
 
 use App\Models\MposCust;
+use App\Models\MposOutlet;
 use App\Models\MposPayment;
 use App\Models\MposProduct;
 use App\Models\MposSalesD;
 use App\Models\MposSalesH;
+use App\Models\MposSalesoffD;
+use App\Models\MposSalesoffH;
 use App\Models\MposUser;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -60,6 +63,12 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows): void
     {
+        @set_time_limit(300);
+
+        $isOfflineOutlet = MposOutlet::resolveTransactionTypeForOutlet($this->outletId) === MposOutlet::TRANSACTION_TYPE_OFFLINE;
+        $headerModel = $isOfflineOutlet ? MposSalesoffH::class : MposSalesH::class;
+        $detailModel = $isOfflineOutlet ? MposSalesoffD::class : MposSalesD::class;
+
         // 1. Preload master products for this outlet (and global fallback) to avoid N+1 query
         $outletProducts = MposProduct::where('nid_outlet', $this->outletId)->get()->keyBy(function ($item) {
             return strtolower($this->normalizeWhitespace($item->cname));
@@ -70,14 +79,14 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
         });
 
         // 2. Preload existing orders for this outlet (both OLSERA and non-OLSERA to detect conflicts)
-        $existingHeaders = MposSalesH::where('nid_outlet', $this->outletId)
+        $existingHeaders = $headerModel::where('nid_outlet', $this->outletId)
             ->get(['nid', 'cnotransaction', 'dtransaction', 'ngrandtotal', 'cstatus', 'csource'])
             ->keyBy(function ($item) {
                 return $this->normalizeWhitespace((string) $item->cnotransaction);
             });
 
         // Preload counts of details in existing transactions to detect duplicates
-        $existingDetailCounts = MposSalesD::whereIn('nid_transaction', $existingHeaders->pluck('nid'))
+        $existingDetailCounts = $detailModel::whereIn('nid_transaction', $existingHeaders->pluck('nid'))
             ->select('nid_transaction', DB::raw('COUNT(*) as detail_count'))
             ->groupBy('nid_transaction')
             ->pluck('detail_count', 'nid_transaction');
@@ -350,13 +359,13 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                     if ($nidPayment) {
                         $updateHeader['nid_payment'] = $nidPayment;
                     }
-                    MposSalesH::where('nid', $headerNid)->update($updateHeader);
+                    $headerModel::where('nid', $headerNid)->update($updateHeader);
                 } else {
                     // CREATE_HEADER_AND_DETAILS
                     $cnote = !empty($order['notes']) ? $order['notes'] : null;
                     $nidPayment = $this->resolvePaymentNid($order['payment_mode'] ?? null, $allPayments);
 
-                    $newHeader = MposSalesH::create([
+                    $newHeader = $headerModel::create([
                         'cnotransaction' => $order['order_no'],
                         'dtransaction' => $order['dtransaction']->format('Y-m-d H:i:s'),
                         'nid_outlet' => $this->outletId,
@@ -390,11 +399,11 @@ class OlseraItemSalesImport implements ToCollection, WithHeadingRow
                     $headerNid = $newHeader->nid;
                 }
 
-                // Insert details into mpos_sales_d linked to this header
+                // Insert details into mpos_sls_d / mpos_sales_d linked to this header
                 foreach ($order['items'] as $item) {
                     $itemNote = !empty($item['sku']) ? "SKU: {$item['sku']}" : null;
 
-                    MposSalesD::create([
+                    $detailModel::create([
                         'nid_transaction' => $headerNid,
                         'nid_product' => $item['product_id'],
                         'cname' => $item['cname'],
