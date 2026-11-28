@@ -108,7 +108,7 @@
                             <span class="badge bg-light text-secondary border">{{ $payments->total() }} Metode</span>
                         </div>
                         <div class="card-body p-3">
-                            <div class="d-flex flex-column gap-2">
+                            <div class="d-flex flex-column gap-2 pe-1" style="max-height: 270px; overflow-y: auto;">
                                 @forelse ($payments as $payment)
                                 <div class="border rounded-2 px-3 py-2 bg-white d-flex align-items-center justify-content-between gap-2" style="border-color: #e2e8f0 !important;">
                                     <div class="d-flex align-items-center gap-2 min-w-0">

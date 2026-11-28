@@ -97,7 +97,7 @@ class PaymentController extends Controller
             })
             ->values();
 
-        $perPage = 15;
+        $perPage = max(1, $grouped->count());
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $payments = new LengthAwarePaginator(
             $grouped->forPage($currentPage, $perPage)->values(),
