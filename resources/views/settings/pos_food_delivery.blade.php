@@ -37,9 +37,9 @@
             <h4 class="fw-bold mb-1 text-dark">Food Delivery</h4>
             <p class="mb-0 text-secondary">Atur harga jual produk untuk Ojek Online di POS</p>
         </div>
-        <div class="d-none d-sm-flex align-items-center flex-shrink-0">
+        <!-- <div class="d-none d-sm-flex align-items-center flex-shrink-0">
             <img src="{{ asset('images/ill_takeaway.svg') }}" alt="Food Delivery" style="height: 115px; width: auto; object-fit: contain;">
-        </div>
+        </div> -->
     </div>
 </div>
 
