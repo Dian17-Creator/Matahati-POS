@@ -177,7 +177,29 @@ class ProductsImport implements ToCollection
 
             $satuan = null;
             if (array_key_exists('satuan', $rowArray) && trim((string) ($row['satuan'] ?? '')) !== '') {
-                $satuan = strtoupper(trim((string) $row['satuan']));
+                $satuan = $this->normalizeSatuan((string) $row['satuan']);
+            }
+
+            $satuanKonversi = null;
+            if (array_key_exists('konversi_satuan', $rowArray) && trim((string) ($row['konversi_satuan'] ?? '')) !== '') {
+                $satuanKonversi = $this->normalizeSatuan((string) $row['konversi_satuan']);
+            }
+
+            $konversiQty = null;
+            if ($satuanKonversi !== null && array_key_exists('kuantitas_konversi', $rowArray) && trim((string) ($row['kuantitas_konversi'] ?? '')) !== '') {
+                $cleanedKonv = preg_replace('/[^0-9.]/', '', (string) $row['kuantitas_konversi']);
+                if ($cleanedKonv !== '' && is_numeric($cleanedKonv) && floatval($cleanedKonv) > 0) {
+                    $konversiQty = floatval($cleanedKonv);
+                }
+            }
+            if ($konversiQty === null) {
+                $satuanKonversi = null;
+            }
+
+            $trackStock = null;
+            if (array_key_exists('lacak_inventori', $rowArray) && trim((string) ($row['lacak_inventori'] ?? '')) !== '') {
+                $rawTrack = strtolower(trim((string) $row['lacak_inventori']));
+                $trackStock = in_array($rawTrack, ['iya', 'ya', 'yes', '1', 'true'], true);
             }
 
             $status = 'ACTIVE';
@@ -191,10 +213,13 @@ class ProductsImport implements ToCollection
                 $isCombo = in_array($rawCombo, ['ya', 'yes', '1', 'true'], true) ? 1 : 0;
             }
 
-            // Cek Produk Berdasarkan cname dan nid_outlet
-            $existing = MposProduct::where('cname', $cname)
-                ->where('nid_outlet', $this->outletId)
-                ->first();
+            // Cek Produk Berdasarkan cname, nid_outlet, dan satuan (agar nama sama dengan satuan berbeda tidak saling menimpa)
+            $existingQuery = MposProduct::where('cname', $cname)
+                ->where('nid_outlet', $this->outletId);
+            if ($satuan !== null && MposProduct::hasSatuanColumn()) {
+                $existingQuery->whereRaw("UPPER(COALESCE(csatuan, 'PCS')) = ?", [$satuan]);
+            }
+            $existing = $existingQuery->first();
 
             // Insert atau Update Database menggunakan Transaction per baris
             try {
@@ -218,6 +243,13 @@ class ProductsImport implements ToCollection
 
                     if ($satuan !== null && MposProduct::hasSatuanColumn()) {
                         $updateData['csatuan'] = $satuan;
+                    }
+
+                    $updateData['csatuan_konversi'] = $satuanKonversi;
+                    $updateData['nkonversi_qty'] = $konversiQty;
+
+                    if ($trackStock !== null) {
+                        $updateData['ftrack_stock'] = $trackStock;
                     }
 
                     if ($isCombo !== null) {
@@ -246,6 +278,9 @@ class ProductsImport implements ToCollection
                         'cphotos' => $photo,
                         'cstatus' => $status,
                         'fcombo' => $isCombo ?? 0,
+                        'csatuan_konversi' => $satuanKonversi,
+                        'nkonversi_qty' => $konversiQty,
+                        'ftrack_stock' => $trackStock ?? true,
                     ];
 
                     if (MposProduct::hasProductTypeColumn()) {
@@ -272,6 +307,16 @@ class ProductsImport implements ToCollection
     /**
      * Download remote product image and store it in local & shared VPS product directories.
      */
+    protected function normalizeSatuan(string $rawSatuan): string
+    {
+        $clean = strtoupper(trim($rawSatuan));
+
+        return match ($clean) {
+            'KILOGRAM', 'KILOGRAMS' => 'KG',
+            default => $clean,
+        };
+    }
+
     protected function isSheetEmpty(Collection $rows): bool
     {
         if ($rows->isEmpty()) {
