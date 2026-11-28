@@ -43,8 +43,18 @@ class ComboController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        $copySourceQuery = MposProduct::with(['outlet', 'comboItems'])
+            ->where('fcombo', 1);
+        if (! empty($selectedOutletId)) {
+            $copySourceQuery->where('nid_outlet', $selectedOutletId);
+        } elseif (! $isSuperAdmin) {
+            $copySourceQuery->whereIn('nid_outlet', $allowedOutletIds);
+        }
+        $allSourceCombos = $copySourceQuery->orderBy('cname')->get();
+
         return view('combos.index', compact(
             'comboProducts',
+            'allSourceCombos',
             'outlets',
             'selectedOutletId',
             'isSuperAdmin',
@@ -370,6 +380,198 @@ class ComboController extends Controller
 
             return back()->with('error', 'Gagal menghapus paket kombo: ' . $e->getMessage());
         }
+    }
+
+    public function copy(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'source_outlet_id' => 'required|integer|exists:mpos_outlet,nid',
+            'target_outlet_ids' => 'required|array|min:1',
+            'target_outlet_ids.*' => 'required|integer|exists:mpos_outlet,nid',
+            'combo_ids' => 'required|array|min:1',
+            'combo_ids.*' => 'required|integer|exists:mpos_product,nid',
+            'overwrite_existing' => 'nullable|boolean',
+        ], [
+            'target_outlet_ids.required' => 'Pilih minimal 1 outlet tujuan.',
+            'target_outlet_ids.min' => 'Pilih minimal 1 outlet tujuan.',
+            'combo_ids.required' => 'Pilih minimal 1 paket produk yang akan disalin.',
+            'combo_ids.min' => 'Pilih minimal 1 paket produk yang akan disalin.',
+        ]);
+
+        $sourceOutletId = (int) $validated['source_outlet_id'];
+        $targetOutletIds = collect($validated['target_outlet_ids'])
+            ->map(fn ($id): int => (int) $id)
+            ->reject(fn (int $id): bool => $id === $sourceOutletId)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($targetOutletIds)) {
+            return back()->with('error', 'Outlet tujuan harus berbeda dengan outlet asal.');
+        }
+
+        if (! $this->isSuperAdminUser()) {
+            $allowedOutletIds = $this->getUserAllowedOutletIds();
+            if (! in_array($sourceOutletId, $allowedOutletIds, true)) {
+                return back()->with('error', 'Anda tidak memiliki akses ke outlet asal.');
+            }
+            foreach ($targetOutletIds as $targetId) {
+                if (! in_array($targetId, $allowedOutletIds, true)) {
+                    return back()->with('error', 'Anda tidak memiliki akses ke salah satu outlet tujuan.');
+                }
+            }
+        }
+
+        $overwriteExisting = $request->boolean('overwrite_existing');
+
+        $sourceCombos = MposProduct::with(['category', 'comboItems.product.category'])
+            ->where('nid_outlet', $sourceOutletId)
+            ->where('fcombo', 1)
+            ->whereIn('nid', $validated['combo_ids'])
+            ->get();
+
+        if ($sourceCombos->isEmpty()) {
+            return back()->with('error', 'Paket produk asal tidak ditemukan.');
+        }
+
+        $copiedCount = 0;
+        $updatedCount = 0;
+        $skippedCount = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($targetOutletIds as $targetOutletId) {
+                foreach ($sourceCombos as $sourceCombo) {
+                    $existingCombo = MposProduct::where('nid_outlet', $targetOutletId)
+                        ->where('fcombo', 1)
+                        ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $sourceCombo->cname))])
+                        ->first();
+
+                    if ($existingCombo && ! $overwriteExisting) {
+                        $skippedCount++;
+                        continue;
+                    }
+
+                    $targetCategoryId = $this->resolveTargetCategoryId($targetOutletId, $sourceCombo->category);
+
+                    $payload = [
+                        'cname' => $sourceCombo->cname,
+                        'nid_category' => $targetCategoryId,
+                        'nid_outlet' => $targetOutletId,
+                        'nprice' => $sourceCombo->nprice,
+                        'nprice_online' => $sourceCombo->nprice_online,
+                        'nprice_buy' => $sourceCombo->nprice_buy ?? 0,
+                        'nqty' => 0,
+                        'cstatus' => $sourceCombo->cstatus ?? 'ACTIVE',
+                        'fcombo' => 1,
+                        'cphotos' => $sourceCombo->cphotos,
+                        'dpublish_date' => $sourceCombo->dpublish_date,
+                    ];
+
+                    if ($existingCombo) {
+                        $existingCombo->update($payload);
+                        MposCombo::where('nid_combo_product', $existingCombo->nid)->delete();
+                        $targetCombo = $existingCombo;
+                        $updatedCount++;
+                    } else {
+                        $payload['dcreated'] = Carbon::now();
+                        $targetCombo = MposProduct::create($payload);
+                        $copiedCount++;
+                    }
+
+                    foreach ($sourceCombo->comboItems as $comboItem) {
+                        $sourceChild = $comboItem->product;
+                        if (! $sourceChild) {
+                            continue;
+                        }
+
+                        $targetChild = MposProduct::where('nid_outlet', $targetOutletId)
+                            ->where('fcombo', 0)
+                            ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $sourceChild->cname))])
+                            ->first();
+
+                        if (! $targetChild) {
+                            $childCategoryId = $this->resolveTargetCategoryId($targetOutletId, $sourceChild->category);
+                            $targetChild = $sourceChild->replicate();
+                            $targetChild->nid_outlet = $targetOutletId;
+                            $targetChild->nid_category = $childCategoryId;
+                            $targetChild->nqty = 0;
+                            $targetChild->dcreated = Carbon::now();
+                            $targetChild->save();
+                        }
+
+                        MposCombo::create([
+                            'nid_combo_product' => $targetCombo->nid,
+                            'nid_product' => $targetChild->nid,
+                            'nqty' => $comboItem->nqty,
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            $parts = [];
+            if ($copiedCount > 0) {
+                $parts[] = "{$copiedCount} paket berhasil disalin";
+            }
+            if ($updatedCount > 0) {
+                $parts[] = "{$updatedCount} paket diperbarui";
+            }
+            if ($skippedCount > 0) {
+                $parts[] = "{$skippedCount} paket dilewati karena sudah ada";
+            }
+
+            $message = ! empty($parts)
+                ? 'Salin paket selesai: ' . implode(', ', $parts) . '.'
+                : 'Tidak ada paket yang disalin.';
+
+            return redirect()->route('combos.index')
+                ->with(($copiedCount > 0 || $updatedCount > 0) ? 'success' : 'warning', $message);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()->with('error', 'Gagal menyalin paket produk: ' . $e->getMessage());
+        }
+    }
+
+    private function resolveTargetCategoryId(int $targetOutletId, ?MposGrpProduct $sourceCategory): int
+    {
+        if ($sourceCategory) {
+            $matched = MposGrpProduct::where('nid_outlet', $targetOutletId)
+                ->whereRaw('LOWER(cname) = ?', [strtolower(trim((string) $sourceCategory->cname))])
+                ->first();
+            if ($matched) {
+                return (int) $matched->nid;
+            }
+
+            $created = MposGrpProduct::create([
+                'cname' => $sourceCategory->cname,
+                'nid_outlet' => $targetOutletId,
+                'fshow_pos' => (bool) ($sourceCategory->fshow_pos ?? true),
+                'ftrack_stock' => (bool) ($sourceCategory->ftrack_stock ?? true),
+            ]);
+
+            return (int) $created->nid;
+        }
+
+        $fallback = MposGrpProduct::where('nid_outlet', $targetOutletId)
+            ->orderByRaw("CASE WHEN UPPER(cname) IN ('PAKET', 'COMBO', 'OTHERS') THEN 0 ELSE 1 END")
+            ->orderBy('nid')
+            ->first();
+
+        if ($fallback) {
+            return (int) $fallback->nid;
+        }
+
+        $createdFallback = MposGrpProduct::create([
+            'cname' => 'PAKET',
+            'nid_outlet' => $targetOutletId,
+            'fshow_pos' => 1,
+            'ftrack_stock' => 1,
+        ]);
+
+        return (int) $createdFallback->nid;
     }
 
     protected function normalizePriceInput(mixed $value): ?string
